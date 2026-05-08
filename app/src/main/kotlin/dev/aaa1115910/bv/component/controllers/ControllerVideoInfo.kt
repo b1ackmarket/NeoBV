@@ -290,17 +290,17 @@ fun ControllerVideoInfoBottom(
                     .padding(bottom = 18.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Surface(
-                    modifier = Modifier.widthIn(max = 420.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = SurfaceDefaults.colors(
-                        containerColor = Color(0xD9111218)
-                    )
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
+                if (videoShot != null) {
+                    Surface(
+                        modifier = Modifier.widthIn(max = 420.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = SurfaceDefaults.colors(
+                            containerColor = Color(0xD9111218)
+                        )
                     ) {
-                        if (videoShot != null) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             VideoShot(
                                 modifier = Modifier.fillMaxWidth(),
                                 videoShot = videoShot,
@@ -310,15 +310,39 @@ fun ControllerVideoInfoBottom(
                                 centerPreview = true,
                                 previewHeight = 172.dp
                             )
+                            Column(
+                                modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "${goTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.titleLarge
+                                )
+                                Text(
+                                    modifier = Modifier.padding(top = 4.dp),
+                                    text = "按确定跳转",
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
                         }
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = SurfaceDefaults.colors(
+                            containerColor = Color(0xD9111218)
+                        )
+                    ) {
                         Column(
-                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
                                 text = "${goTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
                                 color = Color.White,
-                                style = MaterialTheme.typography.titleLarge
+                                style = MaterialTheme.typography.titleMedium
                             )
                             Text(
                                 modifier = Modifier.padding(top = 4.dp),
@@ -405,8 +429,8 @@ fun ControllerVideoInfoBottom(
             ((if (danmakuEnabled) (R.drawable.danmaku_on_24px) else (R.drawable.danmaku_off_24px)) to "弹幕开关") to onDanmakuSwitchChange,
             (R.drawable.settings_24px to "打开设置") to onShowSettings,
             if (!fromSeason) (R.drawable.info_24px to "视频信息") to onGoToVideoInfo else null,
-            if (!fromSeason) (R.drawable.contact_page_24px to "UP主页") to onGoToUpPage else null,
-            if (!fromSeason) (R.drawable.related_videos_24px to "更多视频") to onShowRelatedVideos else null,
+            if (!fromSeason) (R.drawable.contact_page_24px to "up主页") to onGoToUpPage else null,
+            if (!fromSeason) (R.drawable.related_videos_24px to "相关视频") to onShowRelatedVideos else null,
             ((if (isLooping) (R.drawable.repeat_one_on_24px) else (R.drawable.repeat_one_24px)) to "循环播放") to onToggleLoop,
         )
 
