@@ -99,6 +99,9 @@ fun VideoPlayerController(
     var showMenuController by remember { mutableStateOf(false) }
     var showInfoSeekController by remember { mutableStateOf(false) }
     var showRelatedVideosController by remember { mutableStateOf(false) }
+    val hasSecondaryOverlayOpen by remember {
+        derivedStateOf { showListController || showMenuController || showRelatedVideosController }
+    }
     val showClickableControllers by remember {
         derivedStateOf {
             showListController || showMenuController || showInfoSeekController || showRelatedVideosController
@@ -232,13 +235,16 @@ fun VideoPlayerController(
         when (event.key) {
             Key.Back -> {
                 if (showClickableControllers) {
-                    if (isSeeking) {
+                    if (hasSecondaryOverlayOpen) {
+                        showMenuController = false
+                        showListController = false
+                        showRelatedVideosController = false
+                        showInfoSeekController = isSeeking
+                    } else if (isSeeking) {
                         cancelSeekPreview()
+                    } else {
+                        showInfoSeekController = false
                     }
-                    showMenuController = false
-                    showListController = false
-                    if (!isSeeking) showInfoSeekController = false
-                    showRelatedVideosController = false
                 } else {
                     val currentTime = System.currentTimeMillis()
                     if (currentTime - lastPressBack < 3000) {
