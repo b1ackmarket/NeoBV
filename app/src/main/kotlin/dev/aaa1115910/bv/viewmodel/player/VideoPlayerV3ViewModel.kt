@@ -621,6 +621,10 @@ class VideoPlayerV3ViewModel(
     }
 
     fun dismissPendingPluginAction() {
+        _uiState.value.pendingPluginAction?.let { action ->
+            PluginManager.getPlayerPlugin<SponsorBlockPlugin>("sponsorblock")
+                ?.dismissPrompt(action.segmentId)
+        }
         _uiState.update { it.copy(pendingPluginAction = null, pluginTipMessage = null) }
     }
 
@@ -1559,7 +1563,7 @@ class VideoPlayerV3ViewModel(
                     _uiState.update {
                         it.copy(
                             pendingPluginAction = action,
-                            pluginTipMessage = action.message
+                            pluginTipMessage = "点击 OK 键后跳过片段"
                         )
                     }
                     return
