@@ -1,11 +1,9 @@
 package dev.aaa1115910.bv.network
 
 import dev.aaa1115910.bv.BVApp
-import dev.aaa1115910.bv.plugin.core.PluginManager
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.PrefsSponsorBlockConfigStore
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.SkipPolicy
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.SponsorBlockConfig
-import dev.aaa1115910.bv.plugin.impl.sponsorblock.SponsorBlockPlugin
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import io.ktor.http.ContentDisposition
 import io.ktor.http.ContentType
@@ -44,13 +42,19 @@ object HttpServer {
 
     fun startServer() {
         if (server != null) return
-        server = embeddedServer(CIO, port = SERVER_PORT) {
+        val newServer = embeddedServer(CIO, port = SERVER_PORT) {
             homeModule()
             logsUiStaticModule()
             logsApiModule()
             sponsorBlockModule()
         }
-        server?.start(wait = false)
+        try {
+            newServer.start(wait = false)
+            server = newServer
+        } catch (t: Throwable) {
+            runCatching { newServer.stop(gracePeriodMillis = 0, timeoutMillis = 0) }
+            throw t
+        }
     }
 
     fun stopServer() {
@@ -221,7 +225,10 @@ object HttpServer {
 
             get("/api/plugins/sponsorblock/config") {
                 val store = PrefsSponsorBlockConfigStore()
-                val config = runBlocking { store.readConfig() }
+                val config = runBlocking {
+                    val enabled = store.isEnabled()
+                    store.readConfig().copy(enabled = enabled)
+                }
                 call.respondText(
                     text = config.toJson(),
                     contentType = ContentType.Application.Json
@@ -237,8 +244,8 @@ object HttpServer {
                 )
                 val store = PrefsSponsorBlockConfigStore()
                 runBlocking {
-                    store.writeConfig(newConfig)
                     store.setEnabled(newConfig.enabled)
+                    store.writeConfig(newConfig.copy(enabled = newConfig.enabled))
                 }
                 call.respondText(
                     text = """{"success":true}""",
@@ -248,7 +255,10 @@ object HttpServer {
 
             get("/sponsorblock") {
                 val store = PrefsSponsorBlockConfigStore()
-                val config = runBlocking { store.readConfig() }
+                val config = runBlocking {
+                    val enabled = store.isEnabled()
+                    store.readConfig().copy(enabled = enabled)
+                }
                 val checkedEnabled = if (config.enabled) "checked" else ""
                 val categoryRows = SponsorBlockConfig.supportedCategories.joinToString("\n") { category ->
                     val displayName = sponsorBlockCategoryDisplayName(category)

@@ -132,6 +132,79 @@ class SponsorBlockPluginTest {
             )
         }
 
+    @Test
+    fun `confirming a prompt prevents re-prompting when re-entering the segment`() = runBlocking {
+        val plugin = SponsorBlockPlugin(
+            api = FakeSponsorBlockApi(
+                listOf(SponsorSegment("seg-sponsor", "sponsor", 10_000L, 20_000L))
+            ),
+            configStore = InMemorySponsorBlockConfigStore(
+                enabled = true,
+                config = SponsorBlockConfig.default()
+            )
+        )
+
+        plugin.onVideoLoaded(
+            PlayerPluginContext(
+                aid = 1L,
+                cid = 2L,
+                bvid = "BV1xx411c7mD",
+                title = "test"
+            )
+        )
+
+        val firstPrompt = plugin.onPlaybackPosition(12_000L)
+        plugin.markHandled("seg-sponsor")
+        val afterConfirm = plugin.onPlaybackPosition(21_000L)
+        val reenterAfterConfirm = plugin.onPlaybackPosition(12_500L)
+
+        assertEquals(
+            PluginPlaybackAction.PromptSkip(
+                "seg-sponsor",
+                20_000L,
+                "显示提示：赞助/恰饭",
+                "sponsor"
+            ),
+            firstPrompt
+        )
+        assertTrue(afterConfirm is PluginPlaybackAction.None)
+        assertTrue(reenterAfterConfirm is PluginPlaybackAction.None)
+    }
+
+    @Test
+    fun `store enabled state is authoritative over stale config enabled flag`() = runBlocking {
+        val plugin = SponsorBlockPlugin(
+            api = FakeSponsorBlockApi(
+                listOf(SponsorSegment("seg-sponsor", "sponsor", 10_000L, 20_000L))
+            ),
+            configStore = InMemorySponsorBlockConfigStore(
+                enabled = true,
+                config = SponsorBlockConfig.default().copy(enabled = false)
+            )
+        )
+
+        plugin.onVideoLoaded(
+            PlayerPluginContext(
+                aid = 1L,
+                cid = 2L,
+                bvid = "BV1xx411c7mD",
+                title = "test"
+            )
+        )
+
+        val action = plugin.onPlaybackPosition(12_000L)
+
+        assertEquals(
+            PluginPlaybackAction.PromptSkip(
+                "seg-sponsor",
+                20_000L,
+                "显示提示：赞助/恰饭",
+                "sponsor"
+            ),
+            action
+        )
+    }
+
     private class FakeSponsorBlockApi(
         private val segments: List<SponsorSegment>
     ) : SponsorBlockApi {

@@ -19,10 +19,10 @@ class SponsorBlockPlugin(
 
     override suspend fun onVideoLoaded(context: PlayerPluginContext) {
         enabled = configStore.isEnabled()
-        config = configStore.readConfig()
+        config = configStore.readConfig().copy(enabled = enabled)
         handledSegmentIds.clear()
         dismissedSegmentIds.clear()
-        segments = if (!enabled || !config.enabled) {
+        segments = if (!enabled) {
             emptyList()
         } else {
             api.getSegments(context.bvid)
@@ -30,7 +30,7 @@ class SponsorBlockPlugin(
     }
 
     override suspend fun onPlaybackPosition(positionMs: Long): PluginPlaybackAction {
-        if (!enabled || !config.enabled || segments.isEmpty()) return PluginPlaybackAction.None
+        if (!enabled || segments.isEmpty()) return PluginPlaybackAction.None
 
         dismissedSegmentIds.removeAll { segmentId ->
             segments.firstOrNull { it.id == segmentId }?.contains(positionMs) != true
