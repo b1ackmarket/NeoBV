@@ -21,12 +21,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
+import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.DanmakuPlayerCompose
 import dev.aaa1115910.bv.component.controllers.VideoPlayerController
 import dev.aaa1115910.bv.component.controllers.VideoProgressSeek
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.BvVideoPlayer
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
@@ -42,6 +44,43 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.koin.androidx.compose.koinViewModel
 import kotlin.math.absoluteValue
+
+internal sealed interface UpPanelVideoClickAction {
+    data class PlayInline(val video: VideoListItem) : UpPanelVideoClickAction
+    data class OpenDetails(val aid: Long) : UpPanelVideoClickAction
+}
+
+internal fun resolveUpPanelVideoClickAction(video: VideoCardData): UpPanelVideoClickAction {
+    val cid = video.cid
+    return if (cid != null) {
+        UpPanelVideoClickAction.PlayInline(
+            VideoListItem(
+                aid = video.avid,
+                cid = cid,
+                title = video.title
+            )
+        )
+    } else {
+        UpPanelVideoClickAction.OpenDetails(aid = video.avid)
+    }
+}
+
+internal fun executeUpPanelVideoClickAction(
+    context: android.content.Context,
+    playerViewModel: VideoPlayerV3ViewModel,
+    video: VideoCardData
+) {
+    when (val action = resolveUpPanelVideoClickAction(video)) {
+        is UpPanelVideoClickAction.PlayInline -> playerViewModel.playNewVideo(action.video)
+        is UpPanelVideoClickAction.OpenDetails -> {
+            VideoInfoActivity.actionStart(
+                context = context,
+                aid = action.aid,
+                fromController = true
+            )
+        }
+    }
+}
 
 @Composable
 fun VideoPlayerV3Screen(

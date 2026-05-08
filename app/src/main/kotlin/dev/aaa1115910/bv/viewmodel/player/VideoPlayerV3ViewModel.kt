@@ -1048,6 +1048,11 @@ class VideoPlayerV3ViewModel(
 
         _uiState.update {
             it.copy(
+                mediaProfileState = VideoCodec.fromCodecString(actualVideoItem.codecs.orEmpty())
+                    ?.let { actualCodec ->
+                        it.mediaProfileState.copy(videoCodec = actualCodec)
+                    }
+                    ?: it.mediaProfileState,
                 videoHeight = actualVideoItem.height,
                 videoWidth = actualVideoItem.width
             )
