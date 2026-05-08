@@ -4,6 +4,8 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.component.controllers.hasClickableControllerOverlay
+import dev.aaa1115910.bv.component.controllers.hasSecondaryControllerOverlay
 import dev.aaa1115910.bv.screen.UpPanelVideoClickAction
 import dev.aaa1115910.bv.screen.resolveUpPanelVideoClickAction
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
@@ -34,6 +36,33 @@ class PlayerOverlayStateTest {
         val updated = initial.closePanel()
 
         assertEquals(PlayerSidePanel.None, updated.activePanel)
+    }
+
+    @Test
+    fun `up side panel counts as secondary clickable overlay in controller`() {
+        assertTrue(
+            hasSecondaryControllerOverlay(
+                showListController = false,
+                showMenuController = false,
+                activePanel = PlayerSidePanel.UpSpace
+            )
+        )
+        assertTrue(
+            hasClickableControllerOverlay(
+                showListController = false,
+                showMenuController = false,
+                showInfoSeekController = false,
+                activePanel = PlayerSidePanel.UpSpace
+            )
+        )
+        assertFalse(
+            hasClickableControllerOverlay(
+                showListController = false,
+                showMenuController = false,
+                showInfoSeekController = false,
+                activePanel = PlayerSidePanel.None
+            )
+        )
     }
 
     @Test

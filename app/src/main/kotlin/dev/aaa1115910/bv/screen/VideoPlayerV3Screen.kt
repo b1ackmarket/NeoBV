@@ -23,6 +23,7 @@ import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.DanmakuPlayerCompose
+import dev.aaa1115910.bv.component.controllers.PlayerUpPanelUiState
 import dev.aaa1115910.bv.component.controllers.VideoPlayerController
 import dev.aaa1115910.bv.component.controllers.VideoProgressSeek
 import dev.aaa1115910.bv.component.ifElse
@@ -212,6 +213,26 @@ fun VideoPlayerV3Screen(
                 mid = uiState.authorMid,
                 name = uiState.authorName
             )
+        },
+        upPanelUiState = PlayerUpPanelUiState(
+            upName = uiState.authorName,
+            upFace = uiState.authorFace,
+            latestSelected = playerViewModel.isUpPanelLatestSelected,
+            isFollowing = uiState.isFollowingUp,
+            videos = playerViewModel.upPanelVideos
+        ),
+        onOpenUpPanel = {
+            playerViewModel.loadUpPanelVideos()
+        },
+        onUpVideoClicked = { video ->
+            playerViewModel.trySendHeartbeat()
+            executeUpPanelVideoClickAction(context, playerViewModel, video)
+        },
+        onToggleUpSort = {
+            playerViewModel.toggleUpPanelSort()
+        },
+        onToggleUpFollow = {
+            playerViewModel.toggleUpPanelFollow()
         },
 
         onMediaProfileSettingChange = { action ->

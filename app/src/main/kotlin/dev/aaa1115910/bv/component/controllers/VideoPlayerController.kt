@@ -43,6 +43,8 @@ import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.player.DanmakuSettingAction
 import dev.aaa1115910.bv.viewmodel.player.MediaProfileSettingAction
+import dev.aaa1115910.bv.viewmodel.player.PlayerOverlayState
+import dev.aaa1115910.bv.viewmodel.player.PlayerSidePanel
 import dev.aaa1115910.bv.viewmodel.player.SeekDirection
 import dev.aaa1115910.bv.viewmodel.player.SeekTapAction
 import dev.aaa1115910.bv.viewmodel.player.SeekTapPreviewState
@@ -51,6 +53,26 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+internal fun hasSecondaryControllerOverlay(
+    showListController: Boolean,
+    showMenuController: Boolean,
+    activePanel: PlayerSidePanel
+): Boolean {
+    return showListController || showMenuController || activePanel != PlayerSidePanel.None
+}
+
+internal fun hasClickableControllerOverlay(
+    showListController: Boolean,
+    showMenuController: Boolean,
+    showInfoSeekController: Boolean,
+    activePanel: PlayerSidePanel
+): Boolean {
+    return showListController ||
+        showMenuController ||
+        showInfoSeekController ||
+        activePanel != PlayerSidePanel.None
+}
 
 @Composable
 fun VideoPlayerController(
@@ -79,6 +101,11 @@ fun VideoPlayerController(
     onPlayNewVideo: (VideoListItem) -> Unit,
     onToggleLoop: () -> Unit,
     onGoToUpPage: () -> Unit,
+    upPanelUiState: PlayerUpPanelUiState,
+    onOpenUpPanel: () -> Unit,
+    onUpVideoClicked: (VideoCardData) -> Unit,
+    onToggleUpSort: () -> Unit,
+    onToggleUpFollow: () -> Unit,
 
     //menu events
     onMediaProfileSettingChange: (MediaProfileSettingAction) -> Unit,
@@ -99,12 +126,24 @@ fun VideoPlayerController(
     var showMenuController by remember { mutableStateOf(false) }
     var showInfoSeekController by remember { mutableStateOf(false) }
     var showRelatedVideosController by remember { mutableStateOf(false) }
+    var overlayState by remember { mutableStateOf(PlayerOverlayState()) }
     val hasSecondaryOverlayOpen by remember {
-        derivedStateOf { showListController || showMenuController || showRelatedVideosController }
+        derivedStateOf {
+            showRelatedVideosController || hasSecondaryControllerOverlay(
+                showListController = showListController,
+                showMenuController = showMenuController,
+                activePanel = overlayState.activePanel
+            )
+        }
     }
     val showClickableControllers by remember {
         derivedStateOf {
-            showListController || showMenuController || showInfoSeekController || showRelatedVideosController
+            showRelatedVideosController || hasClickableControllerOverlay(
+                showListController = showListController,
+                showMenuController = showMenuController,
+                showInfoSeekController = showInfoSeekController,
+                activePanel = overlayState.activePanel
+            )
         }
     }
 
@@ -222,6 +261,10 @@ fun VideoPlayerController(
     }
 
     fun handleKeyEvent(event: KeyEvent): Boolean {
+        if (overlayState.activePanel != PlayerSidePanel.None) {
+            return false
+        }
+
         // 中键需要区分短按和长按
         val isConfirmKey =
             event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.Spacebar
@@ -239,6 +282,7 @@ fun VideoPlayerController(
                         showMenuController = false
                         showListController = false
                         showRelatedVideosController = false
+                        overlayState = overlayState.closePanel()
                         showInfoSeekController = isSeeking
                     } else if (isSeeking) {
                         cancelSeekPreview()
@@ -446,7 +490,33 @@ fun VideoPlayerController(
                 )
             },
             onToggleLoop = onToggleLoop,
-            onGoToUpPage = onGoToUpPage
+            onGoToUpPage = {
+                showInfoSeekController = false
+                showListController = false
+                showMenuController = false
+                showRelatedVideosController = false
+                onOpenUpPanel()
+                overlayState = overlayState.open(PlayerSidePanel.UpSpace)
+            }
+        )
+
+        PlayerSidePanels(
+            activePanel = overlayState.activePanel,
+            relatedVideos = uiState.relatedVideos,
+            upPanelUiState = upPanelUiState,
+            onClose = {
+                overlayState = overlayState.closePanel()
+            },
+            onRelatedVideoClicked = { video ->
+                onRelatedVideoClicked(video)
+                overlayState = overlayState.closePanel()
+            },
+            onUpVideoClicked = { video ->
+                onUpVideoClicked(video)
+                overlayState = overlayState.closePanel()
+            },
+            onToggleUpSort = onToggleUpSort,
+            onToggleUpFollow = onToggleUpFollow
         )
 
         VideoListController(
