@@ -641,6 +641,7 @@ class VideoPlayerV3ViewModel(
                 upPanelVideos = data.videos.map { item ->
                     VideoCardData(
                         avid = item.aid,
+                        cid = item.cid,
                         title = item.title,
                         cover = item.cover,
                         upName = item.author,

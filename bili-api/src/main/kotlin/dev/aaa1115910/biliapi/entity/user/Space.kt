@@ -36,6 +36,7 @@ data class SpaceVideoData(
 
 data class SpaceVideo(
     val aid: Long,
+    val cid: Long? = null,
     val bvid: String,
     val title: String,
     val cover: String,
@@ -49,6 +50,7 @@ data class SpaceVideo(
         fun fromSpaceVideoItem(spaceVideoItem: dev.aaa1115910.biliapi.http.entity.user.WebSpaceVideoData.SpaceVideoListItem.VListItem) =
             SpaceVideo(
                 aid = spaceVideoItem.aid,
+                cid = null,
                 bvid = spaceVideoItem.bvid,
                 title = spaceVideoItem.title,
                 cover = spaceVideoItem.pic,
@@ -62,6 +64,7 @@ data class SpaceVideo(
         fun fromSpaceVideoItem(spaceVideoItem: dev.aaa1115910.biliapi.http.entity.user.AppSpaceVideoData.SpaceVideoItem) =
             SpaceVideo(
                 aid = spaceVideoItem.param.toLong(),
+                cid = spaceVideoItem.firstcid,
                 bvid = spaceVideoItem.bvid?: "",
                 title = spaceVideoItem.title,
                 cover = spaceVideoItem.cover,
