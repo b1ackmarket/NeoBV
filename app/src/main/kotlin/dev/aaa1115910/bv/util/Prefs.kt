@@ -230,9 +230,9 @@ object Prefs {
     )
     var firstHomeTopNavItem by pref(
         PrefKeys.prefFirstHomeTopNavItemKey,
-        HomePageSettingItem.Dynamic,
-        save = { it.ordinal },
-        restore = { HomePageSettingItem.entries.getOrElse(it) { HomePageSettingItem.Dynamic } }
+        HomePageSettingItem.Recommend,
+        save = { it.code },
+        restore = { HomePageSettingItem.fromCode(it) }
     )
     var firstPersonalTopNavItem by pref(
         PrefKeys.prefFirstPersonalTopNavItemKey,

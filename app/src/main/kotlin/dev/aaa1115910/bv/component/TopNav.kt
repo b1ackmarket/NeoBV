@@ -110,15 +110,42 @@ interface TopNavItem {
     fun getDisplayName(context: Context = BVApp.context): String
 }
 
-
-enum class HomeTopNavItem(val code: Int, private val displayName: String) : TopNavItem {
-    Dynamics(0, "动态"),
+enum class HomePageSettingItem(val code: Int, private val displayName: String) : TopNavItem {
     Recommend(1, "推荐"),
     Popular(2, "热门");
 
+    companion object {
+        fun fromCode(code: Int): HomePageSettingItem {
+            return entries.find { it.code == code } ?: Recommend
+        }
+    }
+
+    override fun getDisplayName(context: Context): String = displayName
+}
+
+enum class HomeTopNavItem(val code: Int, private val displayName: String) : TopNavItem {
+    Recommend(0, "推荐"),
+    Popular(1, "热门"),
+    Douga(2, "动画"),
+    Game(3, "游戏"),
+    Kichiku(4, "鬼畜"),
+    Music(5, "音乐"),
+    Dance(6, "舞蹈"),
+    Cinephile(7, "影视"),
+    Ent(8, "娱乐"),
+    Knowledge(9, "知识"),
+    Tech(10, "科技"),
+    Information(11, "资讯"),
+    Food(12, "美食"),
+    Life(13, "生活"),
+    Car(14, "汽车"),
+    Fashion(15, "时尚"),
+    Sports(16, "运动"),
+    Animal(17, "动物圈");
+
     companion object{
         fun fromCode(code: Int): HomeTopNavItem {
-            return HomeTopNavItem.entries.find { it.code == code } ?: Dynamics
+            return HomeTopNavItem.entries.find { it.code == code } ?: Recommend
         }
     }
 

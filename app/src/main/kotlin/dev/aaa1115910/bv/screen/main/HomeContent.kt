@@ -8,6 +8,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,40 +21,53 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
+import dev.aaa1115910.bv.activities.video.UpInfoActivity
+import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.TopNav
-import dev.aaa1115910.bv.screen.main.home.DynamicsScreen
 import dev.aaa1115910.bv.screen.main.home.PopularScreen
 import dev.aaa1115910.bv.screen.main.home.RecommendScreen
+import dev.aaa1115910.bv.screen.main.ugc.UgcRegionScaffold
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.UserViewModel
-import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
+import dev.aaa1115910.bv.viewmodel.home.HomeRegionState
+import dev.aaa1115910.bv.viewmodel.home.HomeRegionViewModel
 import dev.aaa1115910.bv.viewmodel.home.PopularViewModel
 import dev.aaa1115910.bv.viewmodel.home.RecommendViewModel
+import dev.aaa1115910.bv.viewmodel.player.HomeStartDestination
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 
 @Composable
 fun HomeContent(
     navFocusRequester: FocusRequester,
+    startupTab: HomeStartDestination = HomeStartDestination.Recommend,
     recommendViewModel: RecommendViewModel = koinViewModel(),
     popularViewModel: PopularViewModel = koinViewModel(),
-    dynamicViewModel: DynamicViewModel = koinViewModel(),
-    userViewModel: UserViewModel = koinViewModel()
+    userViewModel: UserViewModel = koinViewModel(),
+    homeRegionViewModel: HomeRegionViewModel = koinViewModel()
 ) {
     val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger("HomeContent")
+    val context = LocalContext.current
 
-    val firstTab = remember { Prefs.firstHomeTopNavItem }
+    val firstTab = remember(startupTab) {
+        when (startupTab) {
+            HomeStartDestination.Popular -> HomeTopNavItem.Popular
+            HomeStartDestination.Recommend -> HomeTopNavItem.Recommend
+        }
+    }
     var selectedTab by remember { mutableStateOf(firstTab) }
     var focusOnContent by remember { mutableStateOf(false) }
 
@@ -66,6 +80,11 @@ fun HomeContent(
     val reorderedItems = remember {
         getReorderedItems(firstTab)
     }
+    val regionGridStates = remember {
+        HomeTopNavItem.entries
+            .filter { it != HomeTopNavItem.Recommend && it != HomeTopNavItem.Popular }
+            .associateWith { LazyGridState() }
+    }
 
     //启动时刷新数据
     LaunchedEffect(Unit) {
@@ -74,9 +93,6 @@ fun HomeContent(
         }
         scope.launch(Dispatchers.IO) {
             popularViewModel.loadMore()
-        }
-        scope.launch(Dispatchers.IO) {
-            dynamicViewModel.loadMore()
         }
         scope.launch(Dispatchers.IO) {
             userViewModel.updateUserInfo()
@@ -106,9 +122,15 @@ fun HomeContent(
                     when (nav) {
                         HomeTopNavItem.Recommend -> {}
                         HomeTopNavItem.Popular -> {}
-                        HomeTopNavItem.Dynamics -> {
-                            if (!dynamicViewModel.loading && dynamicViewModel.isLogin && dynamicViewModel.dynamicList.isEmpty()) {
-                                scope.launch(Dispatchers.IO) { dynamicViewModel.loadMore() }
+                        else -> {
+                            if (homeRegionViewModel.regionStateMap[nav] == null) {
+                                homeRegionViewModel.addState(
+                                    nav,
+                                    HomeRegionState(
+                                        lazyGridState = regionGridStates.getValue(nav),
+                                        ugcType = nav.toUgcType()
+                                    )
+                                )
                             }
                         }
                     }
@@ -129,9 +151,8 @@ fun HomeContent(
                             scope.launch(Dispatchers.IO) { popularViewModel.loadMore() }
                         }
 
-                        HomeTopNavItem.Dynamics -> {
-                            dynamicViewModel.clearData()
-                            scope.launch(Dispatchers.IO) { dynamicViewModel.loadMore() }
+                        else -> {
+                            homeRegionViewModel.reloadAll(nav as HomeTopNavItem)
                         }
                     }
                 }
@@ -156,9 +177,8 @@ fun HomeContent(
                                 scope.launch(Dispatchers.IO) { popularViewModel.loadMore() }
                             }
 
-                            HomeTopNavItem.Dynamics -> {
-                                dynamicViewModel.clearData()
-                                scope.launch(Dispatchers.IO) { dynamicViewModel.loadMore() }
+                            else -> {
+                                homeRegionViewModel.reloadAll(selectedTab)
                             }
                         }
                         navFocusRequester.requestFocus()
@@ -184,9 +204,55 @@ fun HomeContent(
                 when (screen) {
                     HomeTopNavItem.Recommend -> RecommendScreen()
                     HomeTopNavItem.Popular -> PopularScreen()
-                    HomeTopNavItem.Dynamics -> DynamicsScreen()
+                    else -> {
+                        val state = homeRegionViewModel.regionStateMap[screen]
+                        if (state != null) {
+                            UgcRegionScaffold(
+                                state = dev.aaa1115910.bv.screen.main.ugc.UgcScaffoldState(
+                                    lazyGridState = state.lazyGridState,
+                                    ugcType = state.ugcType,
+                                    ugcItems = state.items,
+                                    nextPage = state.nextPage,
+                                    hasMore = state.hasMore,
+                                    updating = state.updating
+                                ),
+                                onLoadMore = { homeRegionViewModel.loadMore(screen) },
+                                onAddWatchLater = { },
+                                onGoToDetailPage = { aid ->
+                                    VideoInfoActivity.actionStart(
+                                        context = context,
+                                        fromController = true,
+                                        aid = aid
+                                    )
+                                },
+                                onGoToUpPage = { mid, upName ->
+                                    UpInfoActivity.actionStart(context, mid, upName)
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+private fun HomeTopNavItem.toUgcType() = when (this) {
+    HomeTopNavItem.Douga -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Douga
+    HomeTopNavItem.Game -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Game
+    HomeTopNavItem.Kichiku -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Kichiku
+    HomeTopNavItem.Music -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Music
+    HomeTopNavItem.Dance -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Dance
+    HomeTopNavItem.Cinephile -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Cinephile
+    HomeTopNavItem.Ent -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Ent
+    HomeTopNavItem.Knowledge -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Knowledge
+    HomeTopNavItem.Tech -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Tech
+    HomeTopNavItem.Information -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Information
+    HomeTopNavItem.Food -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Food
+    HomeTopNavItem.Life -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.LifeJoy
+    HomeTopNavItem.Car -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Car
+    HomeTopNavItem.Fashion -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Fashion
+    HomeTopNavItem.Sports -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Sports
+    HomeTopNavItem.Animal -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Animal
+    HomeTopNavItem.Recommend, HomeTopNavItem.Popular -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Douga
 }

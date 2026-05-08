@@ -43,7 +43,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.component.HomeTopNavItem
+import dev.aaa1115910.bv.component.HomePageSettingItem
 import dev.aaa1115910.bv.component.PersonalTopNavItem
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
@@ -165,7 +165,7 @@ fun UISetting(
 
     if (showHomepageDialog) {
         OptionDialog(
-            options = HomeTopNavItem.entries.toTypedArray(),
+            options = HomePageSettingItem.entries.toTypedArray(),
             selectedOption = selectedFirstHomeTopNavItem,
             onDismiss = { showHomepageDialog = false },
             onSelect = {
