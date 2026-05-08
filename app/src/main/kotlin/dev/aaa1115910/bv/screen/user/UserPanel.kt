@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.rounded.AccountBox
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -62,7 +61,6 @@ fun UserPanel(
     nextLevelExp: Int,
     onHide: () -> Unit,
     onGoUserSwitch: () -> Unit,
-    onGoFollowingUp: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
@@ -125,16 +123,6 @@ fun UserPanel(
                     onClick = {
                         inIncognitoMode = !inIncognitoMode
                         Prefs.incognitoMode = inIncognitoMode
-                    }
-                )
-                UserPanelSmallItem(
-                    modifier = Modifier
-                        .width(buttonWidth),
-                    title = "正在关注",
-                    icon = Icons.AutoMirrored.Rounded.ListAlt,
-                    onClick = {
-                        onGoFollowingUp()
-                        onHide()
                     }
                 )
                 UserPanelSmallItem(
@@ -286,7 +274,6 @@ private fun UserPanelPreview() {
             face = "",
             onHide = {},
             onGoUserSwitch = {},
-            onGoFollowingUp = {},
             level = 5,
             currentExp = 100,
             nextLevelExp = 200,

@@ -32,7 +32,6 @@ import androidx.tv.material3.NavigationDrawer
 import androidx.tv.material3.rememberDrawerState
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.SettingsActivity
-import dev.aaa1115910.bv.activities.user.FollowActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
 import dev.aaa1115910.bv.component.UserPanel
@@ -41,33 +40,46 @@ import dev.aaa1115910.bv.screen.main.LeftNaviContent
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
 import dev.aaa1115910.bv.screen.main.PersonalContent
 import dev.aaa1115910.bv.screen.main.PgcContent
-import dev.aaa1115910.bv.screen.main.UgcContent
+import dev.aaa1115910.bv.screen.main.home.DynamicsScreen
+import dev.aaa1115910.bv.screen.main.live.LiveContent
 import dev.aaa1115910.bv.screen.search.SearchInputScreen
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.UserViewModel
+import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
+import dev.aaa1115910.bv.viewmodel.live.LiveViewModel
+import dev.aaa1115910.bv.viewmodel.player.HomeEntryResolver
+import dev.aaa1115910.bv.viewmodel.player.toHomeStartDestination
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
-    userViewModel: UserViewModel = koinViewModel()
+    userViewModel: UserViewModel = koinViewModel(),
+    dynamicViewModel: DynamicViewModel = koinViewModel(),
+    liveViewModel: LiveViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
     val logger = KotlinLogging.logger("MainScreen")
     var showUserPanel by remember { mutableStateOf(false) }
     var lastPressBack: Long by remember { mutableLongStateOf(0L) }
-    var selectedDrawerItem by remember { mutableStateOf(Prefs.homeLeftNaviItem) }
+    var selectedDrawerItem by remember {
+        mutableStateOf(
+            HomeEntryResolver.resolve(Prefs.firstHomeTopNavItem.toHomeStartDestination()).leftNaviItem
+                .takeIf { Prefs.homeLeftNaviItem == LeftNaviItem.Home } ?: Prefs.homeLeftNaviItem
+        )
+    }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     val personalFocusRequester = remember { FocusRequester() }
     val mainFocusRequester = remember { FocusRequester() }
-    val ugcFocusRequester = remember { FocusRequester() }
     val pgcFocusRequester = remember { FocusRequester() }
     val searchFocusRequester = remember { FocusRequester() }
+    val dynamicFocusRequester = remember { FocusRequester() }
+    val liveFocusRequester = remember { FocusRequester() }
 
     val handleBack = {
         val currentTime = System.currentTimeMillis()
@@ -83,11 +95,11 @@ fun MainScreen(
     val onFocusToContent: () -> Unit = {
         when (selectedDrawerItem) {
             LeftNaviItem.Home -> mainFocusRequester.requestFocus()
-            LeftNaviItem.UGC -> ugcFocusRequester.requestFocus()
             LeftNaviItem.PGC -> pgcFocusRequester.requestFocus()
             LeftNaviItem.Search -> searchFocusRequester.requestFocus()
             LeftNaviItem.Personal -> personalFocusRequester.requestFocus()
-            else -> {}
+            LeftNaviItem.Dynamic -> dynamicFocusRequester.requestFocus()
+            LeftNaviItem.Live -> liveFocusRequester.requestFocus()
         }
     }
 
@@ -97,6 +109,11 @@ fun MainScreen(
         }.onFailure {
             logger.fException(it) { "request default focus requester failed" }
         }
+    }
+
+    LaunchedEffect(userViewModel.isLogin) {
+        dynamicViewModel.onLoginStateChanged(userViewModel.isLogin)
+        liveViewModel.onLoginStateChanged(userViewModel.isLogin)
     }
 
     BackHandler {
@@ -147,10 +164,22 @@ fun MainScreen(
                 when (screen) {
                     LeftNaviItem.Search -> SearchInputScreen(defaultFocusRequester = searchFocusRequester)
                     LeftNaviItem.Personal -> PersonalContent(navFocusRequester = personalFocusRequester)
-                    LeftNaviItem.Home -> HomeContent(navFocusRequester = mainFocusRequester)
-                    LeftNaviItem.UGC -> UgcContent(navFocusRequester = ugcFocusRequester)
+                    LeftNaviItem.Home -> HomeContent(
+                        navFocusRequester = mainFocusRequester,
+                        startupTab = Prefs.firstHomeTopNavItem.toHomeStartDestination()
+                    )
+                    LeftNaviItem.Dynamic -> DynamicsScreen(
+                        dynamicViewModel = dynamicViewModel,
+                        defaultFocusRequester = dynamicFocusRequester
+                    )
                     LeftNaviItem.PGC -> PgcContent(navFocusRequester = pgcFocusRequester)
-                    else -> {}
+                    LeftNaviItem.Live -> LiveContent(
+                        navFocusRequester = liveFocusRequester,
+                        onLogin = {
+                            context.startActivity(Intent(context, LoginActivity::class.java))
+                        },
+                        liveViewModel = liveViewModel
+                    )
                 }
             }
 
@@ -185,10 +214,7 @@ fun MainScreen(
                         onHide = { showUserPanel = false },
                         onGoUserSwitch = {
                             context.startActivity(Intent(context, UserSwitchActivity::class.java))
-                        },
-                        onGoFollowingUp = {
-                            context.startActivity(Intent(context, FollowActivity::class.java))
-                        },
+                        }
                     )
                 }
             }
