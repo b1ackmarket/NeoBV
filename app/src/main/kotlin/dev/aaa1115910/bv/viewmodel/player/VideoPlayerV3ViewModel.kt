@@ -723,22 +723,9 @@ class VideoPlayerV3ViewModel(
 
         // 更新UiState
         _uiState.update {
-            it.copy(
-                aid = newVideo.aid,
-                bvid = AvBvConverter.av2bv(newVideo.aid),
-                cid = newVideo.cid,
-                epid = newVideo.epid,
-                seasonId = newVideo.seasonId ?: 0,
-                title = newVideo.title,
-                isBuffering = true,
-                videoShot = null,
-                publishDateText = "",
-                playCountText = "",
-                danmakuMask = null,
-                subtitleList = emptyList(),
-                subtitleData = emptyList(),
-                relatedVideos = emptyList(),
-                isFollowingUp = false,
+            it.copyForVideoSwitch(
+                newVideo = newVideo,
+                clearDetailMetadata = shouldUpdateVideoDetail
             )
         }
 
@@ -1665,6 +1652,29 @@ class VideoPlayerV3ViewModel(
         val videoUrl: String,
         val audioUrl: String?,
         val useDashMpd: Boolean = false
+    )
+}
+
+internal fun PlayerUiState.copyForVideoSwitch(
+    newVideo: VideoListItem,
+    clearDetailMetadata: Boolean
+): PlayerUiState {
+    return copy(
+        aid = newVideo.aid,
+        bvid = AvBvConverter.av2bv(newVideo.aid),
+        cid = newVideo.cid,
+        epid = newVideo.epid,
+        seasonId = newVideo.seasonId ?: 0,
+        title = newVideo.title,
+        isBuffering = true,
+        videoShot = null,
+        publishDateText = if (clearDetailMetadata) "" else publishDateText,
+        playCountText = if (clearDetailMetadata) "" else playCountText,
+        danmakuMask = null,
+        subtitleList = emptyList(),
+        subtitleData = emptyList(),
+        relatedVideos = emptyList(),
+        isFollowingUp = false,
     )
 }
 
