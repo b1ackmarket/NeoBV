@@ -22,7 +22,6 @@ import androidx.compose.ui.platform.LocalContext
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.DanmakuPlayerCompose
-import dev.aaa1115910.bv.component.controllers.PlayerUpPanelUiState
 import dev.aaa1115910.bv.component.controllers.VideoPlayerController
 import dev.aaa1115910.bv.component.controllers.VideoProgressSeek
 import dev.aaa1115910.bv.component.ifElse
@@ -165,41 +164,15 @@ fun VideoPlayerV3Screen(
         onCancelSkipToNextEp = {
             playerViewModel.cancelPlayNext()
         },
-        onConfirmPendingPluginAction = {
-            playerViewModel.confirmPendingPluginAction()
-        },
-        onDismissPendingPluginAction = {
-            playerViewModel.dismissPendingPluginAction()
-        },
         onToggleLoop = {
             isLooping = !isLooping
         },
         onGoToUpPage = {
-            playerViewModel.loadUpPanelVideos()
-        },
-        upPanelUiState = PlayerUpPanelUiState(
-            upName = uiState.authorName,
-            upFace = uiState.authorFace,
-            latestSelected = playerViewModel.isUpPanelLatestSelected,
-            isFollowing = uiState.isFollowingUp,
-            videos = playerViewModel.upPanelVideos
-        ),
-        onUpPanelVideoClicked = { video ->
-            video.cid?.let {
-                playerViewModel.playNewVideo(
-                    VideoListItem(
-                        aid = video.avid,
-                        cid = video.cid,
-                        title = video.title,
-                    )
-                )
-            }
-        },
-        onToggleUpPanelSort = {
-            playerViewModel.toggleUpPanelSort()
-        },
-        onToggleUpPanelFollow = {
-            playerViewModel.toggleUpPanelFollow()
+            UpInfoActivity.actionStart(
+                context,
+                mid = uiState.authorMid,
+                name = uiState.authorName
+            )
         },
 
         onMediaProfileSettingChange = { action ->
@@ -211,9 +184,6 @@ fun VideoPlayerV3Screen(
         onPlaySpeedChange = { speed ->
             logger.info { "Set default play speed: $speed" }
             playerViewModel.updatePlaySpeed(speed)
-        },
-        onShowPlayerStatsChange = { show ->
-            playerViewModel.setShowPlayerStats(show)
         },
         onDanmakuSettingChange = { action ->
             playerViewModel.updateDanmakuState(action)
