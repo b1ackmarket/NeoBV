@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,8 +30,12 @@ import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
+import dev.aaa1115910.bv.network.HttpServer
+import dev.aaa1115910.bv.plugin.impl.sponsorblock.PrefsSponsorBlockConfigStore
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.viewmodel.player.SeekStepOption
+import kotlinx.coroutines.launch
 
 @Composable
 fun AudioVideoSetting(
@@ -37,21 +43,30 @@ fun AudioVideoSetting(
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val sponsorBlockStore = remember { PrefsSponsorBlockConfigStore() }
 
     var showResolutionDialog by remember { mutableStateOf(false) }
     var showAudioCodecDialog by remember { mutableStateOf(false) }
     var showVideoCodecDialog by remember { mutableStateOf(false) }
     var showPlaySpeedDialog by remember { mutableStateOf(false) }
+    var showSeekStepDialog by remember { mutableStateOf(false) }
     var showActionAfterPlayDialog by remember { mutableStateOf(false) }
 
     var selectedResolution by remember { mutableStateOf(Prefs.defaultQuality) }
     var selectedVideoCodec by remember { mutableStateOf(Prefs.defaultVideoCodec) }
     var selectedAudioCodec by remember { mutableStateOf(Prefs.defaultAudio) }
     var selectedPlaySpeed by remember { mutableStateOf(Prefs.defaultPlaySpeed) }
+    var selectedSeekStep by remember { mutableStateOf(Prefs.seekStepOption) }
     var selectedActionAfterPlay by remember { mutableStateOf(Prefs.actionAfterPlay) }
 
     var enableFfmpegAudioRenderer by remember { mutableStateOf(Prefs.enableFfmpegAudioRenderer) }
     var enableSoftwareVideoRenderer by remember { mutableStateOf(Prefs.enableSoftwareVideoDecoder) }
+    var sponsorBlockEnabled by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        sponsorBlockEnabled = sponsorBlockStore.isEnabled()
+    }
 
     Column(
         modifier = modifier
@@ -87,6 +102,11 @@ fun AudioVideoSetting(
             onClick = { showPlaySpeedDialog = true }
         )
         SettingListItem(
+            title = "左右键快进/快退步长",
+            supportText = "当前：${selectedSeekStep.seconds} 秒",
+            onClick = { showSeekStepDialog = true }
+        )
+        SettingListItem(
             title = "播放结束动作",
             supportText = "当前：${selectedActionAfterPlay.getDisplayName(context)}",
             onClick = { showActionAfterPlayDialog = true }
@@ -108,6 +128,22 @@ fun AudioVideoSetting(
                 enableFfmpegAudioRenderer = it
                 Prefs.enableFfmpegAudioRenderer = it
             }
+        )
+        SettingSwitchListItem(
+            title = "空降助手",
+            supportText = "默认仅显示提示；分类细项请到局域网页里调整",
+            checked = sponsorBlockEnabled,
+            onCheckedChange = {
+                sponsorBlockEnabled = it
+                scope.launch {
+                    sponsorBlockStore.setEnabled(it)
+                }
+            }
+        )
+        SettingListItem(
+            title = "空降助手局域网页",
+            supportText = HttpServer.getServerAddress("/sponsorblock"),
+            onClick = { }
         )
     }
     // 弹窗复用组件
@@ -163,6 +199,19 @@ fun AudioVideoSetting(
         )
     }
 
+    if (showSeekStepDialog) {
+        OptionDialog(
+            options = SeekStepOption.entries.toTypedArray(),
+            selectedOption = selectedSeekStep,
+            onDismiss = { showSeekStepDialog = false },
+            onSelect = {
+                Prefs.seekStepOption = it
+                selectedSeekStep = it
+            },
+            getDisplayName = { "${it.seconds} 秒" }
+        )
+    }
+
     if (showActionAfterPlayDialog) {
         OptionDialog(
             options = ActionAfterPlayItems.entries.toTypedArray(),
@@ -194,5 +243,3 @@ enum class ActionAfterPlayItems (val code: Int, private val displayName: String)
         return displayName
     }
 }
-
-

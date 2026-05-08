@@ -13,6 +13,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.http.util.generateBuvid
 import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.component.HomePageSettingItem
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.PersonalTopNavItem
 import dev.aaa1115910.bv.component.controllers.DanmakuType
@@ -23,6 +24,7 @@ import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
+import dev.aaa1115910.bv.viewmodel.player.SeekStepOption
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -199,9 +201,16 @@ object Prefs {
         save = { it.code },
         restore = { PlaySpeedItem.fromCode(it) }
     )
+    var seekStepOption by pref(
+        PrefKeys.prefSeekStepSecondsKey,
+        SeekStepOption.Ten,
+        save = { it.seconds },
+        restore = { SeekStepOption.fromSeconds(it) }
+    )
     var showFps by pref(PrefKeys.prefShowFpsKey, false)
     var showVideoInfo by pref(PrefKeys.prefShowVideoInfoKey, true)
     var showPersistentSeek by pref(PrefKeys.prefShowPersistentSeekKey, false)
+    var showPlayerStats by pref(PrefKeys.prefShowPlayerStatsKey, false)
 
     // =========================================================================
     // 应用界面
@@ -221,9 +230,9 @@ object Prefs {
     )
     var firstHomeTopNavItem by pref(
         PrefKeys.prefFirstHomeTopNavItemKey,
-        HomeTopNavItem.Dynamics,
-        save = { it.code },
-        restore = { HomeTopNavItem.fromCode(it) }
+        HomePageSettingItem.Dynamic,
+        save = { it.ordinal },
+        restore = { HomePageSettingItem.entries.getOrElse(it) { HomePageSettingItem.Dynamic } }
     )
     var firstPersonalTopNavItem by pref(
         PrefKeys.prefFirstPersonalTopNavItemKey,
@@ -369,9 +378,11 @@ private object PrefKeys {
 
     // 播放器 - 界面
     val prefDefaultPlaySpeedKey = intPreferencesKey("dps")
+    val prefSeekStepSecondsKey = intPreferencesKey("seek_step_seconds")
     val prefShowFpsKey = booleanPreferencesKey("sf")
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
     val prefShowPersistentSeekKey = booleanPreferencesKey("show_persistent_seek")
+    val prefShowPlayerStatsKey = booleanPreferencesKey("show_player_stats")
 
     // 应用界面
     val prefDensityKey = floatPreferencesKey("density")
