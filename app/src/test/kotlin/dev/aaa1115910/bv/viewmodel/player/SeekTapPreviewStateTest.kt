@@ -47,7 +47,16 @@ class SeekTapPreviewStateTest {
             stepMs = SeekStepOption.Five.millis
         )
 
+        val upperBound = state.onDirectionalTap(
+            direction = SeekDirection.Forward,
+            nowMs = 4_000L,
+            currentPositionMs = 298_000L,
+            totalDurationMs = 300_000L,
+            stepMs = SeekStepOption.Five.millis
+        )
+
         assertEquals(SeekTapAction.DirectJump(0L), expired)
+        assertEquals(SeekTapAction.DirectJump(300_000L), upperBound)
     }
 
     @Test
