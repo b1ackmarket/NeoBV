@@ -2,13 +2,15 @@ package dev.aaa1115910.bv.component.controllers
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,11 +27,12 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.Subtitle
-import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.entity.VideoAspectRatio
@@ -40,10 +43,17 @@ import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.util.VideoShotImageCache
+import dev.aaa1115910.bv.util.PlayerUiTextFormatter
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.player.DanmakuSettingAction
 import dev.aaa1115910.bv.viewmodel.player.MediaProfileSettingAction
+import dev.aaa1115910.bv.viewmodel.player.PlayerOverlayState
+import dev.aaa1115910.bv.viewmodel.player.PlayerSidePanel
+import dev.aaa1115910.bv.viewmodel.player.SeekDirection
+import dev.aaa1115910.bv.viewmodel.player.SeekTapAction
+import dev.aaa1115910.bv.viewmodel.player.SeekTapPreviewState
 import dev.aaa1115910.bv.viewmodel.player.SubtitleSettingAction
+import dev.aaa1115910.bv.viewmodel.player.TempSpeedHoldState
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -55,6 +65,7 @@ fun VideoPlayerController(
     aid: Long,
     fromSeason: Boolean,
     proxyArea: ProxyArea,
+    seekStepMs: Long,
 
     // play state
     isLooping: Boolean,
@@ -72,14 +83,21 @@ fun VideoPlayerController(
     onGoTime: (time: Long) -> Unit,
     onBackToStart: () -> Unit,
     onCancelSkipToNextEp: () -> Unit,
+    onConfirmPendingPluginAction: () -> Unit,
+    onDismissPendingPluginAction: () -> Unit,
     onPlayNewVideo: (VideoListItem) -> Unit,
     onToggleLoop: () -> Unit,
     onGoToUpPage: () -> Unit,
+    upPanelUiState: PlayerUpPanelUiState = PlayerUpPanelUiState(),
+    onUpPanelVideoClicked: (VideoCardData) -> Unit = {},
+    onToggleUpPanelSort: () -> Unit = {},
+    onToggleUpPanelFollow: () -> Unit = {},
 
     //menu events
     onMediaProfileSettingChange: (MediaProfileSettingAction) -> Unit,
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
     onPlaySpeedChange: (Float) -> Unit,
+    onShowPlayerStatsChange: (Boolean) -> Unit,
     onDanmakuSettingChange: (DanmakuSettingAction) -> Unit,
     onSubtitleChange: (Subtitle) -> Unit,
     onSubtitleSettingChange: (SubtitleSettingAction) -> Unit,
@@ -94,45 +112,26 @@ fun VideoPlayerController(
     var showListController by remember { mutableStateOf(false) }
     var showMenuController by remember { mutableStateOf(false) }
     var showInfoSeekController by remember { mutableStateOf(false) }
-    var showRelatedVideosController by remember { mutableStateOf(false) }
-    val showClickableControllers by remember { derivedStateOf { showListController || showMenuController || showInfoSeekController || showRelatedVideosController } }
+    var overlayState by remember { mutableStateOf(PlayerOverlayState()) }
+    val showClickableControllers by remember {
+        derivedStateOf {
+            showListController ||
+                showMenuController ||
+                showInfoSeekController ||
+                overlayState.activePanel != PlayerSidePanel.None ||
+                uiState.pendingPluginAction != null
+        }
+    }
 
     var lastPressBack by remember { mutableLongStateOf(0L) }
     var goTime by remember { mutableLongStateOf(0L) }
 
     var isSeeking by remember { mutableStateOf(false) }
-    var seekChangeCount by remember { mutableIntStateOf(0) }
-    var lastSeekChangeTime by remember { mutableLongStateOf(0L) }
+    val tempSpeedHoldState = remember { TempSpeedHoldState() }
+    val seekTapState = remember { SeekTapPreviewState() }
 
     var seekCountdown: Job? by remember { mutableStateOf(null) }
     var hideInfoSeekControllerCountdown: Job? by remember { mutableStateOf(null) }
-
-    fun calCoefficient(): Int {
-        return if (System.currentTimeMillis() - lastSeekChangeTime < 200) {
-            seekChangeCount++
-            seekChangeCount / 5
-        } else {
-            seekChangeCount = 0
-            0
-        }
-    }
-
-    fun onTimeForward() {
-        isSeeking = true
-        val targetTime = goTime + (10000 + calCoefficient() * 5000)
-        goTime =
-            if (targetTime > seekerState.value.totalDuration) seekerState.value.totalDuration else targetTime
-        lastSeekChangeTime = System.currentTimeMillis()
-        logger.info { "onTimeForward: [goTime=$goTime]" }
-    }
-
-    fun onTimeBack() {
-        isSeeking = true
-        val targetTime = goTime - (10000 + calCoefficient() * 5000)
-        goTime = if (targetTime < 0) 0 else targetTime
-        lastSeekChangeTime = System.currentTimeMillis()
-        logger.info { "onTimeBack: [goTime=$goTime]" }
-    }
 
     fun startSeekCountdown() {
         seekCountdown?.cancel()
@@ -144,20 +143,38 @@ fun VideoPlayerController(
 
             isSeeking = false
             showInfoSeekController = false
+            seekTapState.clearPreview()
             hideInfoSeekControllerCountdown?.cancel()
         }
     }
 
-    fun onDirectionLeft() {
-        if (!isSeeking) goTime = seekerState.value.currentTime
-        onTimeBack()
-        startSeekCountdown()
-    }
+    fun applyDirectionalTap(direction: SeekDirection) {
+        val currentBase = if (isSeeking) goTime else seekerState.value.currentTime
+        when (
+            val action = seekTapState.onDirectionalTap(
+                direction = direction,
+                nowMs = System.currentTimeMillis(),
+                currentPositionMs = currentBase,
+                totalDurationMs = seekerState.value.totalDuration,
+                stepMs = seekStepMs
+            )
+        ) {
+            is SeekTapAction.DirectJump -> {
+                goTime = action.targetPositionMs
+                isSeeking = false
+                showInfoSeekController = false
+                seekCountdown?.cancel()
+                onGoTime(action.targetPositionMs)
+            }
 
-    fun onDirectionRight() {
-        if (!isSeeking) goTime = seekerState.value.currentTime
-        onTimeForward()
-        startSeekCountdown()
+            is SeekTapAction.StartOrUpdatePreview -> {
+                if (!isSeeking && isPlaying) onPause()
+                goTime = action.targetPositionMs
+                isSeeking = true
+                showInfoSeekController = true
+                startSeekCountdown()
+            }
+        }
     }
 
     fun onSeekGoTime() {
@@ -166,6 +183,14 @@ fun VideoPlayerController(
         if (!isPlaying) onPlay()
         showInfoSeekController = false
         seekCountdown?.cancel()
+        seekTapState.clearPreview()
+    }
+
+    fun cancelSeekPreview() {
+        isSeeking = false
+        showInfoSeekController = false
+        seekCountdown?.cancel()
+        seekTapState.clearPreview()
     }
 
     fun onPlayPause() {
@@ -186,10 +211,16 @@ fun VideoPlayerController(
         when (event.key) {
             Key.Back -> {
                 if (showClickableControllers) {
+                    if (isSeeking) {
+                        cancelSeekPreview()
+                    }
+                    if (uiState.pendingPluginAction != null) {
+                        onDismissPendingPluginAction()
+                    }
                     showMenuController = false
                     showListController = false
-                    showInfoSeekController = false
-                    showRelatedVideosController = false
+                    if (!isSeeking) showInfoSeekController = false
+                    overlayState = overlayState.closePanel()
                 } else {
                     val currentTime = System.currentTimeMillis()
                     if (currentTime - lastPressBack < 3000) {
@@ -229,48 +260,62 @@ fun VideoPlayerController(
             }
         }
 
-        if (showClickableControllers) {
-            return false
-        } else {
-            when (event.key) {
-                Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
-                    if (event.type == KeyEventType.KeyDown) {
-                        if (event.nativeKeyEvent.isLongPress) {
-                            showMenuController = true
-                        }
-                        return true
-                    } else {
+        when (event.key) {
+            Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
+                if (event.type == KeyEventType.KeyDown) {
+                    if (showClickableControllers && !isSeeking && uiState.pendingPluginAction == null) {
+                        return false
+                    }
+                    if (event.nativeKeyEvent.isLongPress && !tempSpeedHoldState.isHoldingSpeed) {
+                        tempSpeedHoldState.onLongPressTriggered(uiState.playSpeed)
+                        onPlaySpeedChange(tempSpeedHoldState.temporarySpeed)
+                    }
+                    return true
+                } else {
+                    if (tempSpeedHoldState.isHoldingSpeed) {
+                        onPlaySpeedChange(tempSpeedHoldState.onKeyReleased())
+                    } else if (showClickableControllers && !isSeeking && uiState.pendingPluginAction == null) {
+                        return false
+                    } else if (uiState.pendingPluginAction != null) {
+                        onConfirmPendingPluginAction()
+                    } else if (isSeeking) {
+                        onSeekGoTime()
+                    } else if (!showClickableControllers) {
                         if (uiState.showBackToStart) {
                             onBackToStart()
                         } else {
                             onPlayPause()
                         }
-                        return true
                     }
-                }
-
-                Key.DirectionUp -> {
-                    showListController = true
                     return true
                 }
+            }
+        }
 
-                Key.DirectionDown -> {
-                    showInfoSeekController = true
-                    return true
-                }
+        if (showClickableControllers) {
+            return false
+        }
 
-                Key.MediaRewind, Key.DirectionLeft -> {
-                    if (uiState.showSkipToNextEp) onCancelSkipToNextEp()
-                    showInfoSeekController = true
-                    onDirectionLeft()
-                    return true
-                }
+        when (event.key) {
+            Key.DirectionUp -> {
+                showListController = true
+                return true
+            }
 
-                Key.MediaFastForward, Key.DirectionRight -> {
-                    showInfoSeekController = true
-                    onDirectionRight()
-                    return true
-                }
+            Key.DirectionDown -> {
+                showInfoSeekController = true
+                return true
+            }
+
+            Key.MediaRewind, Key.DirectionLeft -> {
+                if (uiState.showSkipToNextEp) onCancelSkipToNextEp()
+                applyDirectionalTap(SeekDirection.Backward)
+                return true
+            }
+
+            Key.MediaFastForward, Key.DirectionRight -> {
+                applyDirectionalTap(SeekDirection.Forward)
+                return true
             }
         }
 
@@ -281,12 +326,13 @@ fun VideoPlayerController(
         modifier = modifier
             .background(Color.Black)
             .focusable()
-            .onPreviewKeyEvent { event ->
+                .onPreviewKeyEvent { event ->
                 // 重置 info 控制器的隐藏倒计时 (只要有按键活动就重置)
                 if (showInfoSeekController) {
                     hideInfoSeekControllerCountdown?.cancel()
                     hideInfoSeekControllerCountdown = scope.launch {
                         delay(5000)
+                        isSeeking = false
                         showInfoSeekController = false
                     }
                 }
@@ -295,7 +341,7 @@ fun VideoPlayerController(
             }
     ) {
         content()
-        if (BuildConfig.DEBUG) {
+        if (uiState.showPlayerStats) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -307,6 +353,34 @@ fun VideoPlayerController(
                     modifier = Modifier.padding(8.dp),
                     text = seekerState.value.debugInfo
                 )
+            }
+        }
+
+        if (showClickableControllers && uiState.onlineCount != null && uiState.onlineCount > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 28.dp, bottom = 92.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(Color.Black.copy(alpha = 0.36f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.contact_page_24px),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = Color.White
+                    )
+                    Text(
+                        text = PlayerUiTextFormatter.onlineCount(uiState.onlineCount),
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
             }
         }
         if (uiState.subtitleId != -1L) {
@@ -325,6 +399,7 @@ fun VideoPlayerController(
             showBackToStart = uiState.showBackToStart,
             showSkipToNextEp = uiState.showSkipToNextEp,
             showPreviewTip = uiState.showPreviewTip,
+            pluginTipMessage = uiState.pluginTipMessage,
         )
 
         PlayStateTips(
@@ -334,13 +409,21 @@ fun VideoPlayerController(
             errorMessage = (uiState.playerState as? PlayerState.Error)?.message,
         )
 
-        RelatedVideosController(
-            show = showRelatedVideosController,
+        PlayerSidePanels(
+            activePanel = overlayState.activePanel,
             relatedVideos = uiState.relatedVideos,
-            onVideoClicked = {
+            upPanelUiState = upPanelUiState,
+            onClose = { overlayState = overlayState.closePanel() },
+            onRelatedVideoClicked = {
                 onRelatedVideoClicked(it)
-                showRelatedVideosController = false
-            }
+                overlayState = overlayState.closePanel()
+            },
+            onUpVideoClicked = {
+                onUpPanelVideoClicked(it)
+                overlayState = overlayState.closePanel()
+            },
+            onToggleUpSort = onToggleUpPanelSort,
+            onToggleUpFollow = onToggleUpPanelFollow
         )
 
         ControllerVideoInfo(
@@ -356,8 +439,8 @@ fun VideoPlayerController(
             fromSeason = fromSeason,
             danmakuEnabled = uiState.danmakuState.enabledTypes.isNotEmpty(),
             isLooping = isLooping,
-            onDirectionLeft = { onDirectionLeft() },
-            onDirectionRight = { onDirectionRight() },
+            onDirectionLeft = { applyDirectionalTap(SeekDirection.Backward) },
+            onDirectionRight = { applyDirectionalTap(SeekDirection.Forward) },
             onSeekGoTime = { onSeekGoTime() },
             onPlayPause = { onPlayPause() },
             onDanmakuSwitchChange = {
@@ -372,10 +455,8 @@ fun VideoPlayerController(
                 showMenuController = true
             },
             onShowRelatedVideos = {
-                if (isPlaying) onPause()
-
                 showInfoSeekController = false
-                showRelatedVideosController = true
+                overlayState = overlayState.open(PlayerSidePanel.RelatedVideos)
             },
             onGoToVideoInfo = {
                 VideoInfoActivity.actionStart(
@@ -387,7 +468,11 @@ fun VideoPlayerController(
                 )
             },
             onToggleLoop = onToggleLoop,
-            onGoToUpPage = onGoToUpPage
+            onGoToUpPage = {
+                showInfoSeekController = false
+                onGoToUpPage()
+                overlayState = overlayState.open(PlayerSidePanel.UpSpace)
+            }
         )
 
         VideoListController(
@@ -417,6 +502,7 @@ fun VideoPlayerController(
             },
             onAspectRatioChange = onAspectRatioChange,
             onPlaySpeedChange = onPlaySpeedChange,
+            onShowPlayerStatsChange = onShowPlayerStatsChange,
             onDanmakuSwitchChange = { danmakuTypes ->
                 onDanmakuSettingChange(DanmakuSettingAction.SetEnabledTypes(danmakuTypes))
             },
@@ -448,6 +534,3 @@ fun VideoPlayerController(
         )
     }
 }
-
-
-
