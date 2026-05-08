@@ -12,6 +12,8 @@ import dev.aaa1115910.bv.screen.resolveUpPanelVideoClickAction
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
 import dev.aaa1115910.bv.component.controllers.shouldCloseSidePanelForPreviewKey
 import dev.aaa1115910.bv.viewmodel.player.normalizeAvailableVideoCodecs
+import dev.aaa1115910.biliapi.entity.user.SpaceVideoOrder
+import dev.aaa1115910.bv.viewmodel.player.shouldApplyUpPanelLoadResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -133,6 +135,34 @@ class PlayerOverlayStateTest {
             normalizeAvailableVideoCodecs(
                 current = listOf(VideoCodec.HEVC),
                 active = VideoCodec.HVC1
+            )
+        )
+    }
+
+    @Test
+    fun `stale up panel load result is ignored when author or sort changed`() {
+        assertTrue(
+            shouldApplyUpPanelLoadResult(
+                requestedAuthorMid = 1L,
+                requestedOrder = SpaceVideoOrder.PubDate,
+                currentAuthorMid = 1L,
+                currentOrder = SpaceVideoOrder.PubDate
+            )
+        )
+        assertFalse(
+            shouldApplyUpPanelLoadResult(
+                requestedAuthorMid = 1L,
+                requestedOrder = SpaceVideoOrder.PubDate,
+                currentAuthorMid = 2L,
+                currentOrder = SpaceVideoOrder.PubDate
+            )
+        )
+        assertFalse(
+            shouldApplyUpPanelLoadResult(
+                requestedAuthorMid = 1L,
+                requestedOrder = SpaceVideoOrder.PubDate,
+                currentAuthorMid = 1L,
+                currentOrder = SpaceVideoOrder.Click
             )
         )
     }

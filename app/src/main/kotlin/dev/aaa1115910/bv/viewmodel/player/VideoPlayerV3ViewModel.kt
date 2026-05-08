@@ -98,6 +98,15 @@ internal fun normalizeAvailableVideoCodecs(
     return if (current.contains(active)) current else current + active
 }
 
+internal fun shouldApplyUpPanelLoadResult(
+    requestedAuthorMid: Long,
+    requestedOrder: SpaceVideoOrder,
+    currentAuthorMid: Long,
+    currentOrder: SpaceVideoOrder
+): Boolean {
+    return requestedAuthorMid == currentAuthorMid && requestedOrder == currentOrder
+}
+
 @KoinViewModel
 
 class VideoPlayerV3ViewModel(
@@ -136,6 +145,7 @@ class VideoPlayerV3ViewModel(
     private var loadVideoJob: Job? = null
     private var pluginPollingJob: Job? = null
     private var onlineCountJob: Job? = null
+    private var upPanelLoadJob: Job? = null
     private var upPanelOrder by mutableStateOf(SpaceVideoOrder.PubDate)
     val isUpPanelLatestSelected: Boolean
         get() = upPanelOrder == SpaceVideoOrder.PubDate
@@ -215,6 +225,8 @@ class VideoPlayerV3ViewModel(
     }
 
     private fun resetUpPanelVideos() {
+        upPanelLoadJob?.cancel()
+        upPanelLoadJob = null
         upPanelVideos = emptyList()
     }
 
@@ -643,15 +655,30 @@ class VideoPlayerV3ViewModel(
 
     fun loadUpPanelVideos() {
         val authorMid = _uiState.value.authorMid
+        val requestedOrder = upPanelOrder
         resetUpPanelVideos()
         if (authorMid == 0L) return
-        viewModelScope.launch(Dispatchers.IO) {
+        upPanelLoadJob = viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 val data = userRepository.getSpaceVideos(
                     mid = authorMid,
-                    order = upPanelOrder,
+                    order = requestedOrder,
                     preferApiType = Prefs.apiType
                 )
+                if (!shouldApplyUpPanelLoadResult(
+                        requestedAuthorMid = authorMid,
+                        requestedOrder = requestedOrder,
+                        currentAuthorMid = _uiState.value.authorMid,
+                        currentOrder = upPanelOrder
+                    )
+                ) {
+                    upPanelLoadJob = null
+                    logger.fInfo {
+                        "Ignore stale up panel load result. requestedMid=$authorMid requestedOrder=$requestedOrder " +
+                            "currentMid=${_uiState.value.authorMid} currentOrder=$upPanelOrder"
+                    }
+                    return@runCatching
+                }
                 upPanelVideos = data.videos.map { item ->
                     VideoCardData(
                         avid = item.aid,
@@ -666,8 +693,14 @@ class VideoPlayerV3ViewModel(
                         pubTime = item.pubTime
                     )
                 }
-            }.onFailure {
-                logger.fWarn { "Load up panel videos failed: ${it.message}" }
+                upPanelLoadJob = null
+            }.onFailure { error ->
+                if (error is CancellationException) {
+                    logger.fInfo { "Up panel load cancelled. mid=$authorMid order=$requestedOrder" }
+                    return@onFailure
+                }
+                upPanelLoadJob = null
+                logger.fWarn { "Load up panel videos failed: ${error.message}" }
             }
         }
     }
