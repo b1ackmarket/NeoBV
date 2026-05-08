@@ -18,9 +18,13 @@ import com.kuaishou.akdanmaku.render.SimpleRenderer
 import com.kuaishou.akdanmaku.ui.DanmakuPlayer
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.PlayData
+import dev.aaa1115910.biliapi.util.AvBvConverter
 import dev.aaa1115910.biliapi.entity.video.HeartbeatVideoType
 import dev.aaa1115910.biliapi.entity.video.VideoPage
+import dev.aaa1115910.biliapi.http.util.toSmartDate
+import dev.aaa1115910.biliapi.entity.user.SpaceVideoOrder
 import dev.aaa1115910.biliapi.http.BiliHttpApi
+import dev.aaa1115910.biliapi.repositories.UserRepository
 import dev.aaa1115910.biliapi.repositories.VideoPlayRepository
 import dev.aaa1115910.bilisubtitle.SubtitleParser
 import dev.aaa1115910.bv.BVApp
@@ -32,7 +36,14 @@ import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.network.HttpServer
+import dev.aaa1115910.bv.network.MpdGenerator
+import dev.aaa1115910.bv.plugin.api.PlayerPluginContext
+import dev.aaa1115910.bv.plugin.api.PluginPlaybackAction
+import dev.aaa1115910.bv.plugin.core.PluginManager
+import dev.aaa1115910.bv.plugin.impl.sponsorblock.SponsorBlockPlugin
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.player.VideoPlayerListener
 import dev.aaa1115910.bv.player.VideoPlayerOptions
@@ -46,11 +57,13 @@ import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.state.SubtitleState
+import dev.aaa1115910.bv.util.PlayerUiTextFormatter
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
 import dev.aaa1115910.bv.util.formatHourMinSec
+import dev.aaa1115910.bv.util.toWanString
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
@@ -82,7 +95,8 @@ import kotlin.coroutines.cancellation.CancellationException
 
 class VideoPlayerV3ViewModel(
     private val videoInfoRepository: VideoInfoRepository,
-    private val videoPlayRepository: VideoPlayRepository
+    private val videoPlayRepository: VideoPlayRepository,
+    private val userRepository: UserRepository
 ) : ViewModel() {
     private val logger = KotlinLogging.logger { }
 
@@ -92,6 +106,9 @@ class VideoPlayerV3ViewModel(
         private set
 
     private var playData: PlayData? = null
+    private var currentStreamCandidate: StreamCandidate? = null
+    private var fallbackPlanner: PlaybackFallbackPlanner? = null
+    private var isRetryingPlayback = false
 
     private val detachedWorkScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -110,6 +127,13 @@ class VideoPlayerV3ViewModel(
     private var clockUpdateJob: Job? = null
     private var heartbeatJob: Job? = null
     private var loadVideoJob: Job? = null
+    private var pluginPollingJob: Job? = null
+    private var onlineCountJob: Job? = null
+    private var upPanelOrder by mutableStateOf(SpaceVideoOrder.PubDate)
+    val isUpPanelLatestSelected: Boolean
+        get() = upPanelOrder == SpaceVideoOrder.PubDate
+    var upPanelVideos by mutableStateOf<List<VideoCardData>>(emptyList())
+        private set
 
     private var backToStartCountdownJob: Job? = null
     private var playNextCountdownJob: Job? = null
@@ -118,6 +142,7 @@ class VideoPlayerV3ViewModel(
     private val videoPlayerListener = object : VideoPlayerListener {
         override fun onError(error: Exception) {
             logger.info { "onError: $error" }
+            if (tryFallbackPlayback(error)) return
             _uiState.update {
                 it.copy(
                     playerState = PlayerState.Error(
@@ -162,6 +187,12 @@ class VideoPlayerV3ViewModel(
             logger.info { "onEnd" }
             danmakuPlayer?.pause()
             stopSeekerUpdater()
+            viewModelScope.launch(Dispatchers.IO) {
+                PluginManager.getPlayerPlugins().forEach { plugin ->
+                    runCatching { plugin.onPlaybackEnded() }
+                        .onFailure { logger.fWarn { "Plugin ${plugin.id} onPlaybackEnded failed: ${it.message}" } }
+                }
+            }
 
             _uiState.update { it.copy(playerState = PlayerState.Ended) }
             viewModelScope.launch {
@@ -187,11 +218,13 @@ class VideoPlayerV3ViewModel(
         seasonId: Int,
         proxyArea: ProxyArea = ProxyArea.MainLand,
         authorMid: Long = 0,
-        authorName: String
+        authorName: String,
+        authorFace: String = ""
     ) {
         _uiState.update {
             it.copy(
                 aid = aid,
+                bvid = AvBvConverter.av2bv(aid),
                 cid = cid,
                 epid = epid.takeIf { epid -> epid != 0 },
                 seasonId = seasonId,
@@ -202,6 +235,7 @@ class VideoPlayerV3ViewModel(
                 proxyArea = proxyArea,
                 authorMid = authorMid,
                 authorName = authorName,
+                authorFace = authorFace,
                 mediaProfileState = MediaProfileState(
                     qualityId = Prefs.defaultQuality.code,
                     videoCodec = Prefs.defaultVideoCodec,
@@ -220,7 +254,8 @@ class VideoPlayerV3ViewModel(
                     fontSize = Prefs.defaultSubtitleFontSize,
                     opacity = Prefs.defaultSubtitleBackgroundOpacity,
                     bottomPadding = Prefs.defaultSubtitleBottomPadding
-                )
+                ),
+                showPlayerStats = Prefs.showPlayerStats
             )
         }
 
@@ -245,8 +280,17 @@ class VideoPlayerV3ViewModel(
                 if (newDetail == null) return@onEach
 
                 _uiState.update { currentState ->
-                    currentState.copy(relatedVideos = newDetail.relatedVideos)
+                    currentState.copy(
+                        bvid = newDetail.bvid.orEmpty().ifBlank { currentState.bvid },
+                        relatedVideos = newDetail.relatedVideos,
+                        authorMid = newDetail.author.mid,
+                        authorName = newDetail.author.name,
+                        authorFace = newDetail.author.face,
+                        publishDateText = newDetail.publishDate.time.toSmartDate().orEmpty(),
+                        playCountText = PlayerUiTextFormatter.playCount(newDetail.stat.view)
+                    )
                 }
+                refreshUpFollowState()
                 logger.fInfo { "Sync related videos from repo" }
             }
             .launchIn(viewModelScope)
@@ -339,6 +383,11 @@ class VideoPlayerV3ViewModel(
         _uiState.update { it.copy(playSpeed = targetSpeed) }
         videoPlayer?.speed = targetSpeed
         danmakuPlayer?.updatePlaySpeed(targetSpeed)
+    }
+
+    fun setShowPlayerStats(show: Boolean) {
+        Prefs.showPlayerStats = show
+        _uiState.update { it.copy(showPlayerStats = show) }
     }
 
     fun updateVideoAspectRatio(aspectRatio: VideoAspectRatio) {
@@ -544,6 +593,8 @@ class VideoPlayerV3ViewModel(
                 delay(100)
             }
         }
+        startPluginPolling()
+        startOnlineCountPolling()
     }
 
     fun seekToTime(time: Long) {
@@ -554,8 +605,97 @@ class VideoPlayerV3ViewModel(
         danmakuPlayer?.pause()
     }
 
+    fun confirmPendingPluginAction() {
+        val action = _uiState.value.pendingPluginAction ?: return
+        videoPlayer?.seekTo(action.targetPositionMs)
+        danmakuPlayer?.seekTo(action.targetPositionMs)
+        danmakuPlayer?.pause()
+        PluginManager.getPlayerPlugin<SponsorBlockPlugin>("sponsorblock")?.markHandled(action.segmentId)
+        _uiState.update {
+            it.copy(
+                pendingPluginAction = null,
+                pluginTipMessage = "已跳过片段"
+            )
+        }
+        startTransientPluginTipCountdown()
+    }
+
+    fun dismissPendingPluginAction() {
+        _uiState.update { it.copy(pendingPluginAction = null, pluginTipMessage = null) }
+    }
+
+    fun loadUpPanelVideos() {
+        val authorMid = _uiState.value.authorMid
+        if (authorMid == 0L) return
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val data = userRepository.getSpaceVideos(
+                    mid = authorMid,
+                    order = upPanelOrder,
+                    preferApiType = Prefs.apiType
+                )
+                upPanelVideos = data.videos.map { item ->
+                    VideoCardData(
+                        avid = item.aid,
+                        title = item.title,
+                        cover = item.cover,
+                        upName = item.author,
+                        upMid = authorMid,
+                        playString = item.play.takeIf { it != -1 }.toWanString(),
+                        danmakuString = item.danmaku.takeIf { it != -1 }.toWanString(),
+                        timeString = (item.duration * 1000L).formatHourMinSec(),
+                        pubTime = item.pubTime
+                    )
+                }
+            }.onFailure {
+                logger.fWarn { "Load up panel videos failed: ${it.message}" }
+            }
+        }
+    }
+
+    fun toggleUpPanelSort() {
+        upPanelOrder = if (upPanelOrder == SpaceVideoOrder.PubDate) {
+            SpaceVideoOrder.Click
+        } else {
+            SpaceVideoOrder.PubDate
+        }
+        loadUpPanelVideos()
+    }
+
+    fun toggleUpPanelFollow() {
+        val authorMid = _uiState.value.authorMid
+        if (authorMid == 0L) return
+        val targetFollowState = !_uiState.value.isFollowingUp
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val success = if (targetFollowState) {
+                userRepository.followUser(
+                    mid = authorMid,
+                    preferApiType = Prefs.apiType
+                )
+            } else {
+                userRepository.unfollowUser(
+                    mid = authorMid,
+                    preferApiType = Prefs.apiType
+                )
+            }
+
+            if (success) {
+                _uiState.update { it.copy(isFollowingUp = targetFollowState) }
+            } else {
+                refreshUpFollowState()
+            }
+        }
+    }
+
     fun playNewVideo(newVideo: VideoListItem) {
         videoPlayer?.pause()
+        viewModelScope.launch(Dispatchers.IO) {
+            PluginManager.getPlayerPlugins().forEach { plugin ->
+                runCatching { plugin.onPlaybackEnded() }
+                    .onFailure { logger.fWarn { "Plugin ${plugin.id} reset before switching video failed: ${it.message}" } }
+            }
+        }
 
         val state = _uiState.value
 
@@ -585,16 +725,20 @@ class VideoPlayerV3ViewModel(
         _uiState.update {
             it.copy(
                 aid = newVideo.aid,
+                bvid = AvBvConverter.av2bv(newVideo.aid),
                 cid = newVideo.cid,
                 epid = newVideo.epid,
                 seasonId = newVideo.seasonId ?: 0,
                 title = newVideo.title,
                 isBuffering = true,
                 videoShot = null,
+                publishDateText = "",
+                playCountText = "",
                 danmakuMask = null,
                 subtitleList = emptyList(),
                 subtitleData = emptyList(),
                 relatedVideos = emptyList(),
+                isFollowingUp = false,
             )
         }
 
@@ -616,6 +760,7 @@ class VideoPlayerV3ViewModel(
         loadVideoJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 resolveUrlsAndPlay(avid, cid, epid)
+                notifyPluginsVideoLoaded()
 
                 launch {
                     updateSubtitle()
@@ -845,26 +990,7 @@ class VideoPlayerV3ViewModel(
         logger.fInfo {
             "Video quality：${state.availableQuality[targetQn]}, video encoding：$targetCodec"
         }
-
-        val foundVideoItem = currentPlayData.dashVideos.find {
-            when (Prefs.apiType) {
-                ApiType.Web -> it.quality == targetQn && it.codecs?.startsWith(targetCodec.prefix) == true
-                ApiType.App -> {
-                    if (currentPlayData.codec.isEmpty()) it.quality == targetQn
-                    else it.quality == targetQn && it.codecs?.startsWith(targetCodec.prefix) == true
-                }
-            }
-        }
-
-        val actualVideoItem = foundVideoItem ?: currentPlayData.dashVideos.firstOrNull() ?: run {
-            logger.fWarn { "No available video stream found" }
-            return null
-        }
-
-        var videoUrl = actualVideoItem.baseUrl
-        val videoUrls = mutableListOf<String?>()
-        videoUrls.add(actualVideoItem.baseUrl)
-        videoUrls.addAll(actualVideoItem.backUrl)
+        logger.fInfo { "Available dash videos count: ${currentPlayData.dashVideos.size}" }
 
         val audioItem = currentPlayData.dashAudios.find { it.codecId == targetAudio.code }
             ?: currentPlayData.dolby.takeIf { it?.codecId == targetAudio.code }
@@ -875,6 +1001,42 @@ class VideoPlayerV3ViewModel(
         val audioUrls = mutableListOf<String>()
         audioItem?.baseUrl?.let { audioUrls.add(it) }
         audioUrls.addAll(audioItem?.backUrl ?: emptyList())
+
+        val planner = PlaybackFallbackPlanner(
+            candidates = currentPlayData.dashVideos.map { video ->
+                StreamCandidate(
+                    quality = video.quality,
+                    codecPrefix = VideoCodec.fromCodecString(video.codecs.orEmpty())?.prefix.orEmpty(),
+                    videoUrl = video.baseUrl,
+                    audioUrl = audioUrl
+                )
+            }
+        )
+
+        val preferredCandidate = planner.selectPreferred(
+            quality = targetQn,
+            codecPrefix = targetCodec.prefix
+        )
+        fallbackPlanner = planner
+        currentStreamCandidate = preferredCandidate
+        logger.fInfo {
+            "Preferred candidate: ${preferredCandidate?.quality}/${preferredCandidate?.codecPrefix} " +
+                "video=${preferredCandidate?.videoUrl}"
+        }
+
+        val actualVideoItem = currentPlayData.dashVideos.firstOrNull { video ->
+            preferredCandidate != null &&
+                video.quality == preferredCandidate.quality &&
+                video.baseUrl == preferredCandidate.videoUrl
+        } ?: currentPlayData.dashVideos.firstOrNull() ?: run {
+            logger.fWarn { "No available video stream found" }
+            return null
+        }
+
+        var videoUrl = actualVideoItem.baseUrl
+        val videoUrls = mutableListOf<String?>()
+        videoUrls.add(actualVideoItem.baseUrl)
+        videoUrls.addAll(actualVideoItem.backUrl)
 
         logger.fInfo { "all video hosts: ${videoUrls.map { with(URI(it)) { "$scheme://$authority" } }}" }
         logger.fInfo { "all audio hosts: ${audioUrls.map { with(URI(it)) { "$scheme://$authority" } }}" }
@@ -900,7 +1062,64 @@ class VideoPlayerV3ViewModel(
             )
         }
 
-        return MediaUrls(videoUrl, audioUrl)
+        val shouldUseDashMpd =
+            actualVideoItem.quality >= Resolution.R8K.code &&
+                !actualVideoItem.initialization.isNullOrBlank() &&
+                !actualVideoItem.indexRange.isNullOrBlank()
+
+        val playbackUrl = if (shouldUseDashMpd) {
+            val mpdContent = MpdGenerator.generate(
+                videoUrl = videoUrl,
+                audioUrl = audioUrl,
+                videoCodec = actualVideoItem.codecs.orEmpty().ifBlank { targetCodec.prefix },
+                width = actualVideoItem.width,
+                height = actualVideoItem.height,
+                frameRate = actualVideoItem.frameRate,
+                bandwidth = actualVideoItem.bandwidth,
+                initialization = actualVideoItem.initialization,
+                indexRange = actualVideoItem.indexRange
+            )
+            HttpServer.setMpdContent(mpdContent)
+            HttpServer.getMpdUrl()
+        } else {
+            videoUrl
+        }
+
+        return MediaUrls(
+            videoUrl = playbackUrl,
+            audioUrl = if (shouldUseDashMpd) null else audioUrl,
+            useDashMpd = shouldUseDashMpd
+        )
+    }
+
+    private fun tryFallbackPlayback(error: Exception): Boolean {
+        if (isRetryingPlayback) return false
+        val planner = fallbackPlanner ?: return false
+        val currentCandidate = currentStreamCandidate ?: return false
+        val nextCandidate = planner.nextAfterFailure(currentCandidate) ?: return false
+        val currentAudio = _uiState.value.mediaProfileState.audio
+        logger.fWarn {
+            "Retry playback after error. from=${currentCandidate.quality}/${currentCandidate.codecPrefix} " +
+                "to=${nextCandidate.quality}/${nextCandidate.codecPrefix}. error=${error.message}"
+        }
+
+        isRetryingPlayback = true
+        viewModelScope.launch(Dispatchers.Main) {
+            runCatching {
+                val mediaUrls = resolveMediaUrls(
+                    qn = nextCandidate.quality,
+                    codec = VideoCodec.fromCodecString(nextCandidate.codecPrefix) ?: _uiState.value.mediaProfileState.videoCodec,
+                    audio = currentAudio
+                ) ?: return@runCatching
+                executePlayback(mediaUrls)
+            }.onSuccess {
+                _uiState.update { it.copy(pluginTipMessage = null) }
+            }.onFailure {
+                logger.fWarn { "Fallback playback failed: ${it.message}" }
+            }
+            isRetryingPlayback = false
+        }
+        return true
     }
 
     private fun executePlayback(mediaUrls: MediaUrls) {
@@ -909,8 +1128,13 @@ class VideoPlayerV3ViewModel(
             return
         }
 
-        logger.info { "Execute playback -> Video: ${mediaUrls.videoUrl}, Audio: ${mediaUrls.audioUrl}" }
-        player.playUrl(mediaUrls.videoUrl, mediaUrls.audioUrl)
+        logger.info { "Execute playback -> Video: ${mediaUrls.videoUrl}, Audio: ${mediaUrls.audioUrl}, dash=${mediaUrls.useDashMpd}" }
+        logger.fInfo { "Current stream candidate before play: $currentStreamCandidate" }
+        if (mediaUrls.useDashMpd) {
+            player.playDash(mediaUrls.videoUrl)
+        } else {
+            player.playUrl(mediaUrls.videoUrl, mediaUrls.audioUrl)
+        }
         player.prepare()
         player.start()
     }
@@ -1250,6 +1474,10 @@ class VideoPlayerV3ViewModel(
     private fun stopSeekerUpdater() {
         seekerUpdateJob?.cancel()
         seekerUpdateJob = null
+        pluginPollingJob?.cancel()
+        pluginPollingJob = null
+        onlineCountJob?.cancel()
+        onlineCountJob = null
     }
 
     private fun updateSeekerState() {
@@ -1264,6 +1492,102 @@ class VideoPlayerV3ViewModel(
                 bufferedPercentage = player.bufferedPercentage,
                 debugInfo = player.debugInfo
             )
+        }
+    }
+
+    private fun startPluginPolling() {
+        if (pluginPollingJob?.isActive == true) return
+        pluginPollingJob = viewModelScope.launch(Dispatchers.Main) {
+            while (isActive) {
+                processPluginPlaybackActions()
+                delay(300)
+            }
+        }
+    }
+
+    private fun startOnlineCountPolling() {
+        if (onlineCountJob?.isActive == true) return
+        onlineCountJob = viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                val state = _uiState.value
+                val onlineCount = videoPlayRepository.getOnlineCount(
+                    aid = state.aid,
+                    cid = state.cid,
+                    preferApiType = Prefs.apiType
+                )
+                _uiState.update { it.copy(onlineCount = onlineCount) }
+                delay(60_000)
+            }
+        }
+    }
+
+    private fun refreshUpFollowState() {
+        val authorMid = _uiState.value.authorMid
+        if (authorMid == 0L) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val isFollowing = userRepository.checkIsFollowing(
+                mid = authorMid,
+                preferApiType = Prefs.apiType
+            )
+            _uiState.update { it.copy(isFollowingUp = isFollowing ?: false) }
+        }
+    }
+
+    private suspend fun notifyPluginsVideoLoaded() {
+        val state = _uiState.value
+        val context = PlayerPluginContext(
+            aid = state.aid,
+            cid = state.cid,
+            bvid = state.bvid,
+            title = state.title
+        )
+        PluginManager.getPlayerPlugins().forEach { plugin ->
+            runCatching { plugin.onVideoLoaded(context) }
+                .onFailure { logger.fWarn { "Plugin ${plugin.id} onVideoLoaded failed: ${it.message}" } }
+        }
+    }
+
+    private suspend fun processPluginPlaybackActions() {
+        val player = videoPlayer ?: return
+        if (_uiState.value.pendingPluginAction != null) return
+        val positionMs = player.currentPosition
+        PluginManager.getPlayerPlugins().forEach { plugin ->
+            when (val action = runCatching { plugin.onPlaybackPosition(positionMs) }.getOrNull()) {
+                is PluginPlaybackAction.AutoSkip -> {
+                    player.seekTo(action.targetPositionMs)
+                    danmakuPlayer?.seekTo(action.targetPositionMs)
+                    danmakuPlayer?.pause()
+                    _uiState.update {
+                        it.copy(
+                            pendingPluginAction = null,
+                            pluginTipMessage = action.message
+                        )
+                    }
+                    startTransientPluginTipCountdown()
+                    return
+                }
+
+                is PluginPlaybackAction.PromptSkip -> {
+                    _uiState.update {
+                        it.copy(
+                            pendingPluginAction = action,
+                            pluginTipMessage = action.message
+                        )
+                    }
+                    return
+                }
+
+                else -> Unit
+            }
+        }
+    }
+
+    private fun startTransientPluginTipCountdown() {
+        previewTipCountdownJob?.cancel()
+        previewTipCountdownJob = viewModelScope.launch {
+            delay(2500)
+            _uiState.update { it.copy(pluginTipMessage = null) }
         }
     }
 
@@ -1339,7 +1663,8 @@ class VideoPlayerV3ViewModel(
 
     private data class MediaUrls(
         val videoUrl: String,
-        val audioUrl: String?
+        val audioUrl: String?,
+        val useDashMpd: Boolean = false
     )
 }
 

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -51,6 +52,7 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
+import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.R
@@ -68,6 +70,9 @@ fun ControllerVideoInfo(
     goTime: Long,
     seekerState: SeekerState,
     title: String,
+    authorName: String,
+    publishDateText: String,
+    playCountText: String,
     clock: Pair<Int, Int>,
     videoShot: VideoShot?,
     videoShotCache: VideoShotImageCache,
@@ -78,6 +83,7 @@ fun ControllerVideoInfo(
     onDirectionRight: () -> Unit,
     onSeekGoTime: () -> Unit,
     onPlayPause: () -> Unit,
+    onShowVideoList: () -> Unit,
     onDanmakuSwitchChange: () -> Unit,
     onShowSettings: () -> Unit,
     onShowRelatedVideos: () -> Unit,
@@ -98,6 +104,9 @@ fun ControllerVideoInfo(
             ControllerVideoInfoTop(
                 modifier = Modifier.align(Alignment.TopCenter),
                 title = title,
+                authorName = authorName,
+                publishDateText = publishDateText,
+                playCountText = playCountText,
                 clock = clock
             )
         }
@@ -124,6 +133,7 @@ fun ControllerVideoInfo(
                 onDirectionRight = onDirectionRight,
                 onSeekGoTime = onSeekGoTime,
                 onPlayPause = onPlayPause,
+                onShowVideoList = onShowVideoList,
                 onDanmakuSwitchChange = onDanmakuSwitchChange,
                 onShowSettings = onShowSettings,
                 onShowRelatedVideos = onShowRelatedVideos,
@@ -139,6 +149,9 @@ fun ControllerVideoInfo(
 fun ControllerVideoInfoTop(
     modifier: Modifier = Modifier,
     title: String,
+    authorName: String,
+    publishDateText: String,
+    playCountText: String,
     clock: Pair<Int, Int>
 ) {
     Column(
@@ -185,6 +198,41 @@ fun ControllerVideoInfoTop(
                 minute = clock.second,
             )
         }
+        if (authorName.isNotBlank() || publishDateText.isNotBlank() || playCountText.isNotBlank()) {
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (authorName.isNotBlank()) {
+                    Text(
+                        text = authorName,
+                        color = Color.White.copy(alpha = 0.84f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (publishDateText.isNotBlank()) {
+                    Text(
+                        text = publishDateText,
+                        color = Color.White.copy(alpha = 0.64f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (playCountText.isNotBlank()) {
+                    Text(
+                        text = playCountText,
+                        color = Color.White.copy(alpha = 0.64f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -204,6 +252,7 @@ fun ControllerVideoInfoBottom(
     onDirectionRight: () -> Unit,
     onSeekGoTime: () -> Unit,
     onPlayPause: () -> Unit,
+    onShowVideoList: () -> Unit,
     onDanmakuSwitchChange: () -> Unit,
     onShowSettings: () -> Unit,
     onShowRelatedVideos: () -> Unit,
@@ -234,16 +283,53 @@ fun ControllerVideoInfoBottom(
             ),
         verticalArrangement = Arrangement.Bottom
     ) {
-        if (isSeeking && videoShot != null) {
-            VideoShot(
+        if (isSeeking) {
+            Box(
                 modifier = Modifier
-                    .padding(horizontal = 48.dp),
-                videoShot = videoShot,
-                imageCache = videoShotCache,
-                position = goTime,
-                duration = seekerState.totalDuration,
-                coercedOffset = (-24).dp
-            )
+                    .fillMaxWidth()
+                    .padding(bottom = 18.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    modifier = Modifier.widthIn(max = 420.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = SurfaceDefaults.colors(
+                        containerColor = Color(0xD9111218)
+                    )
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        if (videoShot != null) {
+                            VideoShot(
+                                modifier = Modifier.fillMaxWidth(),
+                                videoShot = videoShot,
+                                imageCache = videoShotCache,
+                                position = goTime,
+                                duration = seekerState.totalDuration,
+                                centerPreview = true,
+                                previewHeight = 172.dp
+                            )
+                        }
+                        Column(
+                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "${goTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
+                                color = Color.White,
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                            Text(
+                                modifier = Modifier.padding(top = 4.dp),
+                                text = "按确定跳转",
+                                color = Color.White.copy(alpha = 0.8f),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+            }
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -315,12 +401,12 @@ fun ControllerVideoInfoBottom(
         }
 
         val icons = listOfNotNull(
-            (R.drawable.play_pause_24px to "播放/暂停") to onPlayPause,
+            (R.drawable.related_videos_24px to "选集") to onShowVideoList,
             ((if (danmakuEnabled) (R.drawable.danmaku_on_24px) else (R.drawable.danmaku_off_24px)) to "弹幕开关") to onDanmakuSwitchChange,
             (R.drawable.settings_24px to "打开设置") to onShowSettings,
             if (!fromSeason) (R.drawable.info_24px to "视频信息") to onGoToVideoInfo else null,
-            if (!fromSeason) (R.drawable.contact_page_24px to "up主页") to onGoToUpPage else null,
-            if (!fromSeason)(R.drawable.related_videos_24px to "相关视频") to onShowRelatedVideos else null,
+            if (!fromSeason) (R.drawable.contact_page_24px to "UP主页") to onGoToUpPage else null,
+            if (!fromSeason) (R.drawable.related_videos_24px to "更多视频") to onShowRelatedVideos else null,
             ((if (isLooping) (R.drawable.repeat_one_on_24px) else (R.drawable.repeat_one_24px)) to "循环播放") to onToggleLoop,
         )
 
@@ -415,6 +501,9 @@ private fun ControllerVideoInfoPreview() {
             goTime = 0,
             seekerState = SeekerState(0, 0, 0, ""),
             title = "【A320】民航史上最佳逆袭！A320的前世今生！民航史上最佳逆袭！A320的前世今生！",
+            authorName = "BV 官方",
+            publishDateText = "5月8日",
+            playCountText = "12.3万播放",
             clock = Pair(12, 30),
             videoShot = null,
             videoShotCache = VideoShotImageCache(),
@@ -425,6 +514,7 @@ private fun ControllerVideoInfoPreview() {
             onDirectionLeft = {},
             onSeekGoTime = {},
             onPlayPause = {},
+            onShowVideoList = {},
             onDanmakuSwitchChange = {},
             onShowSettings = {},
             onShowRelatedVideos = {},

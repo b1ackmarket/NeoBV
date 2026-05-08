@@ -15,16 +15,21 @@ import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.plugin.api.PluginPlaybackAction
 
 // 1. 核心 UI 状态 (低频更新)
 data class PlayerUiState(
     // 视频信息
     val aid: Long = 0,
+    val bvid: String = "",
     val cid: Long = 0,
     val epid: Int? = null,
     val seasonId: Int = 0,
     val authorMid: Long = 0,
     val authorName: String = "",
+    val authorFace: String = "",
+    val publishDateText: String = "",
+    val playCountText: String = "",
     val title: String = "",
     val videoHeight: Int = 0,
     val videoWidth: Int = 0,
@@ -45,6 +50,10 @@ data class PlayerUiState(
     val showSkipToNextEp: Boolean = false,
     val showBackToStart: Boolean = false,
     val showPreviewTip: Boolean = false,
+    val pendingPluginAction: PluginPlaybackAction.PromptSkip? = null,
+    val pluginTipMessage: String? = null,
+    val onlineCount: Int? = null,
+    val showPlayerStats: Boolean = false,
 
     // 播放器配置与资源
     val availableQuality: Map<Int, String> = emptyMap(),
@@ -54,6 +63,7 @@ data class PlayerUiState(
 
     // 相关视频
     val relatedVideos: List<VideoCardData> = emptyList(),
+    val isFollowingUp: Boolean = false,
 
     // ==== 当前选中状态 ====
 

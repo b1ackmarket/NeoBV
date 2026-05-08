@@ -31,7 +31,9 @@ import dev.aaa1115910.bv.component.ifElse
 fun PlaySpeedMenuList(
     modifier: Modifier = Modifier,
     currentSelectedPlaySpeedItem: PlaySpeedItem,
+    showPlayerStats: Boolean,
     onPlaySpeedChange: (Float) -> Unit,
+    onShowPlayerStatsChange: (Boolean) -> Unit,
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
     val context = LocalContext.current
@@ -60,6 +62,15 @@ fun PlaySpeedMenuList(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(8.dp),
         ) {
+            item {
+                MenuListItem(
+                    text = "统计信息",
+                    selected = false,
+                    onClick = {
+                        onShowPlayerStatsChange(!showPlayerStats)
+                    },
+                )
+            }
             itemsIndexed(PlaySpeedItem.entries.toMutableList()) { index, item ->
                 MenuListItem(
                     modifier = Modifier

@@ -403,6 +403,9 @@ fun VideoPlayerController(
             goTime = goTime,
             seekerState = seekerState.value,
             title = uiState.title,
+            authorName = uiState.authorName,
+            publishDateText = uiState.publishDateText,
+            playCountText = uiState.playCountText,
             clock = uiState.clock,
             videoShot = uiState.videoShot,
             videoShotCache = videoShotCache,
@@ -413,6 +416,10 @@ fun VideoPlayerController(
             onDirectionRight = { onDirectionRight() },
             onSeekGoTime = { onSeekGoTime() },
             onPlayPause = { onPlayPause() },
+            onShowVideoList = {
+                showInfoSeekController = false
+                showListController = true
+            },
             onDanmakuSwitchChange = {
                 if (uiState.danmakuState.enabledTypes.isEmpty()) {
                     onDanmakuSettingChange(DanmakuSettingAction.SetEnabledTypes(DanmakuType.entries))
@@ -426,7 +433,6 @@ fun VideoPlayerController(
             },
             onShowRelatedVideos = {
                 if (isPlaying) onPause()
-
                 showInfoSeekController = false
                 showRelatedVideosController = true
             },
