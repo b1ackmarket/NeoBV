@@ -20,7 +20,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
-import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.DanmakuPlayerCompose
 import dev.aaa1115910.bv.component.controllers.PlayerUpPanelUiState
@@ -206,13 +205,6 @@ fun VideoPlayerV3Screen(
         },
         onToggleLoop = {
             isLooping = !isLooping
-        },
-        onGoToUpPage = {
-            UpInfoActivity.actionStart(
-                context,
-                mid = uiState.authorMid,
-                name = uiState.authorName
-            )
         },
         upPanelUiState = PlayerUpPanelUiState(
             upName = uiState.authorName,

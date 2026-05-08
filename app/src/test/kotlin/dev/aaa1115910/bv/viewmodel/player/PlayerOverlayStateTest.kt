@@ -2,6 +2,7 @@ package dev.aaa1115910.bv.viewmodel.player
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.component.controllers.hasClickableControllerOverlay
@@ -10,6 +11,7 @@ import dev.aaa1115910.bv.screen.UpPanelVideoClickAction
 import dev.aaa1115910.bv.screen.resolveUpPanelVideoClickAction
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
 import dev.aaa1115910.bv.component.controllers.shouldCloseSidePanelForPreviewKey
+import dev.aaa1115910.bv.viewmodel.player.normalizeAvailableVideoCodecs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -122,6 +124,17 @@ class PlayerOverlayStateTest {
             playInline
         )
         assertEquals(UpPanelVideoClickAction.OpenDetails(aid = 3L), openDetails)
+    }
+
+    @Test
+    fun `resolved codec variant is added to available codec list for active selection`() {
+        assertEquals(
+            listOf(VideoCodec.HEVC, VideoCodec.HVC1),
+            normalizeAvailableVideoCodecs(
+                current = listOf(VideoCodec.HEVC),
+                active = VideoCodec.HVC1
+            )
+        )
     }
 
     @Test

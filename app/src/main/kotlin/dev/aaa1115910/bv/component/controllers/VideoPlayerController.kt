@@ -100,7 +100,6 @@ fun VideoPlayerController(
     onCancelSkipToNextEp: () -> Unit,
     onPlayNewVideo: (VideoListItem) -> Unit,
     onToggleLoop: () -> Unit,
-    onGoToUpPage: () -> Unit,
     upPanelUiState: PlayerUpPanelUiState,
     onOpenUpPanel: () -> Unit,
     onUpVideoClicked: (VideoCardData) -> Unit,

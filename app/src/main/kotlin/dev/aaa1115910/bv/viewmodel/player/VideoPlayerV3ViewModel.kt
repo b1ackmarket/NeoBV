@@ -91,6 +91,13 @@ import java.net.URI
 import java.util.Calendar
 import kotlin.coroutines.cancellation.CancellationException
 
+internal fun normalizeAvailableVideoCodecs(
+    current: List<VideoCodec>,
+    active: VideoCodec
+): List<VideoCodec> {
+    return if (current.contains(active)) current else current + active
+}
+
 @KoinViewModel
 
 class VideoPlayerV3ViewModel(
@@ -207,6 +214,10 @@ class VideoPlayerV3ViewModel(
         }
     }
 
+    private fun resetUpPanelVideos() {
+        upPanelVideos = emptyList()
+    }
+
     fun init(
         aid: Long,
         cid: Long,
@@ -258,6 +269,8 @@ class VideoPlayerV3ViewModel(
                 showPlayerStats = Prefs.showPlayerStats
             )
         }
+
+        resetUpPanelVideos()
 
         startClockUpdater()
 
@@ -630,6 +643,7 @@ class VideoPlayerV3ViewModel(
 
     fun loadUpPanelVideos() {
         val authorMid = _uiState.value.authorMid
+        resetUpPanelVideos()
         if (authorMid == 0L) return
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
@@ -695,6 +709,7 @@ class VideoPlayerV3ViewModel(
 
     fun playNewVideo(newVideo: VideoListItem) {
         videoPlayer?.pause()
+        resetUpPanelVideos()
         viewModelScope.launch(Dispatchers.IO) {
             PluginManager.getPlayerPlugins().forEach { plugin ->
                 runCatching { plugin.onPlaybackEnded() }
@@ -935,7 +950,10 @@ class VideoPlayerV3ViewModel(
             val codec = VideoCodec.fromCodecId(videoItem.codecId)
             _uiState.update {
                 it.copy(
-                    availableVideoCodec = listOf(codec),
+                    availableVideoCodec = normalizeAvailableVideoCodecs(
+                        current = listOf(codec),
+                        active = codec
+                    ),
                     mediaProfileState = it.mediaProfileState.copy(
                         videoCodec = VideoCodec.fromCodecId(videoItem.codecId)
                     )
@@ -958,7 +976,10 @@ class VideoPlayerV3ViewModel(
 
         _uiState.update {
             it.copy(
-                availableVideoCodec = codecList,
+                availableVideoCodec = normalizeAvailableVideoCodecs(
+                    current = codecList,
+                    active = targetVideoCodec
+                ),
                 mediaProfileState = it.mediaProfileState.copy(videoCodec = targetVideoCodec)
             )
         }
@@ -1048,12 +1069,16 @@ class VideoPlayerV3ViewModel(
         logger.info { "Audio url: $audioUrl" }
 
         _uiState.update {
+            val actualCodec = VideoCodec.fromCodecString(actualVideoItem.codecs.orEmpty())
+            val mediaProfileState = actualCodec?.let { codecValue ->
+                it.mediaProfileState.copy(videoCodec = codecValue)
+            } ?: it.mediaProfileState
             it.copy(
-                mediaProfileState = VideoCodec.fromCodecString(actualVideoItem.codecs.orEmpty())
-                    ?.let { actualCodec ->
-                        it.mediaProfileState.copy(videoCodec = actualCodec)
-                    }
-                    ?: it.mediaProfileState,
+                availableVideoCodec = normalizeAvailableVideoCodecs(
+                    current = it.availableVideoCodec,
+                    active = mediaProfileState.videoCodec
+                ),
+                mediaProfileState = mediaProfileState,
                 videoHeight = actualVideoItem.height,
                 videoWidth = actualVideoItem.width
             )

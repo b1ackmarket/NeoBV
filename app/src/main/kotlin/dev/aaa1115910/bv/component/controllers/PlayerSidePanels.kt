@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -221,21 +222,22 @@ private fun PlayerUpSpacePanel(
                     )
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(modifier = Modifier.onFocusChanged { onHeaderFocusChanged(it.isFocused) }) {
-                    PlayerPanelChip(
-                        text = if (state.latestSelected) "最新" else "最热",
-                        emphasized = false,
-                        onClick = onToggleSort
-                    )
-                }
-                Box(modifier = Modifier.onFocusChanged { onHeaderFocusChanged(it.isFocused) }) {
-                    PlayerPanelChip(
-                        text = if (state.isFollowing) "已关注" else "+ 关注",
-                        emphasized = !state.isFollowing,
-                        onClick = onToggleFollow
-                    )
-                }
+            Row(
+                modifier = Modifier
+                    .onFocusChanged { onHeaderFocusChanged(it.hasFocus) }
+                    .focusTarget(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                PlayerPanelChip(
+                    text = if (state.latestSelected) "最新" else "最热",
+                    emphasized = false,
+                    onClick = onToggleSort
+                )
+                PlayerPanelChip(
+                    text = if (state.isFollowing) "已关注" else "+ 关注",
+                    emphasized = !state.isFollowing,
+                    onClick = onToggleFollow
+                )
             }
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
