@@ -28,6 +28,38 @@ class SeekTapPreviewStateTest {
     }
 
     @Test
+    fun `clear preview resets tap window so next tap jumps directly again`() {
+        val state = SeekTapPreviewState()
+
+        state.onDirectionalTap(
+            direction = SeekDirection.Forward,
+            nowMs = 1_000L,
+            currentPositionMs = 120_000L,
+            totalDurationMs = 300_000L,
+            stepMs = SeekStepOption.Ten.millis
+        )
+        state.onDirectionalTap(
+            direction = SeekDirection.Forward,
+            nowMs = 1_500L,
+            currentPositionMs = 130_000L,
+            totalDurationMs = 300_000L,
+            stepMs = SeekStepOption.Ten.millis
+        )
+
+        state.clearPreview()
+
+        val next = state.onDirectionalTap(
+            direction = SeekDirection.Forward,
+            nowMs = 1_800L,
+            currentPositionMs = 140_000L,
+            totalDurationMs = 300_000L,
+            stepMs = SeekStepOption.Ten.millis
+        )
+
+        assertEquals(SeekTapAction.DirectJump(150_000L), next)
+    }
+
+    @Test
     fun `window expiry resets to direct jump and boundaries clamp correctly`() {
         val state = SeekTapPreviewState()
 

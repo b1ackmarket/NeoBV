@@ -58,5 +58,6 @@ class SeekTapPreviewState(
 
     fun clearPreview() {
         previewActive = false
+        lastDirectionalTapAtMs = Long.MIN_VALUE
     }
 }
