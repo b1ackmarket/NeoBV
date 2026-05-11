@@ -1,6 +1,8 @@
 package dev.aaa1115910.biliapi.http.util
 
 import io.ktor.utils.io.core.use
+import org.brotli.dec.BrotliInputStream
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.zip.Deflater
 import java.util.zip.Inflater
@@ -30,3 +32,6 @@ fun ByteArray.zlibDecompress(): ByteArray {
         outputStream.toByteArray()
     }
 }
+
+fun ByteArray.brotliDecompress(): ByteArray =
+    BrotliInputStream(ByteArrayInputStream(this)).use { it.readBytes() }

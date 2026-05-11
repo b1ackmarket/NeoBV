@@ -3,9 +3,11 @@ package dev.aaa1115910.biliapi.websocket
 import dev.aaa1115910.biliapi.http.BiliLiveHttpApi
 import dev.aaa1115910.biliapi.http.entity.live.DanmakuEvent
 import dev.aaa1115910.biliapi.http.entity.live.FrameHeader
+import dev.aaa1115910.biliapi.http.entity.live.HostListItem
 import dev.aaa1115910.biliapi.http.entity.live.LiveEvent
 import dev.aaa1115910.biliapi.http.entity.live.readFrameHeader
 import dev.aaa1115910.biliapi.http.plugins.BiliUserAgent
+import dev.aaa1115910.biliapi.http.util.brotliDecompress
 import dev.aaa1115910.biliapi.http.util.zlibDecompress
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.HttpClient
@@ -20,6 +22,7 @@ import io.ktor.utils.io.core.writePacket
 import io.ktor.websocket.Frame
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -63,13 +66,13 @@ object LiveDataWebSocket {
     suspend fun connectLiveEvent(
         roomId: Int,
         onEvent: (event: LiveEvent) -> Unit
-    ) {
+    ): Job {
         val danmuInfo =
             BiliLiveHttpApi.getLiveDanmuInfo(roomId).data ?: throw CancellationException()
         val realRoomId =
             BiliLiveHttpApi.getLiveRoomPlayInfo(roomId).data?.roomId
                 ?: throw CancellationException()
-        val hosts = danmuInfo.hostList.last()
+        val hosts = chooseLiveDanmakuHost(danmuInfo.hostList)
 
         val data = buildJsonObject {
             put("uid", 0)
@@ -120,9 +123,16 @@ object LiveDataWebSocket {
         job.invokeOnCompletion {
             it?.printStackTrace()
         }
+        return job
     }
 
-    private suspend fun handleLiveEventData(data: ByteArray): List<LiveEvent> {
+    internal fun chooseLiveDanmakuHost(hosts: List<HostListItem>): HostListItem {
+        return hosts.firstOrNull { it.wssPort > 0 }
+            ?: hosts.firstOrNull()
+            ?: throw CancellationException("No live danmaku host")
+    }
+
+    internal suspend fun handleLiveEventData(data: ByteArray): List<LiveEvent> {
         val result = mutableListOf<LiveEvent>()
         withContext(Dispatchers.IO) {
             if (data.size <= 16) return@withContext
@@ -161,8 +171,8 @@ object LiveDataWebSocket {
 
                     //普通包正文使用brotli压缩,解压为一个带头部的协议0普通包
                     3 -> {
-                        logger.warn { "todo package version: ${head.version}" }
-                        bytePack.readByteArray()
+                        val decompress = bytePack.readByteArray().brotliDecompress()
+                        result += handleLiveEventBodyDecompress(decompress)
                     }
 
                     else -> {
@@ -230,8 +240,9 @@ object LiveDataWebSocket {
     private fun handleLiveCMDEventString(strData: String): LiveEvent? {
         val dataJson = Json.parseToJsonElement(strData).jsonObject
         val cmd = dataJson["cmd"]!!.jsonPrimitive.content
+        val normalizedCmd = cmd.substringBefore(":")
 
-        when (cmd) {
+        when (normalizedCmd) {
             "COMBO_SEND" -> {}
             "DANMU_MSG" -> {
                 runCatching {

@@ -43,6 +43,13 @@ private fun getMixinKey(orig: String): String =
 private val HttpRequestBuilder.isAppRequest: Boolean
     get() = url.parameters.contains("access_key") || url.host == "app.bilibili.com"
 
+internal fun shouldUseWbiSignForGetPath(encodedPath: String): Boolean {
+    return encodedPath.contains("wbi") ||
+            encodedPath.contains("/pgc/player/web/playurl") ||
+            encodedPath.contains("/pgc/player/web/v2/playurl") ||
+            encodedPath.contains("/xlive/web-room/v1/index/getDanmuInfo")
+}
+
 fun HttpRequestBuilder.encAppPost() {
     var parameters = (body as FormDataContent).formData
     parameters += Parameters.build { append("appkey", APP_KEY) }
@@ -110,10 +117,7 @@ fun HttpClient.encApiSign() = plugin(HttpSend)
 
         when (request.method) {
             HttpMethod.Get -> {
-                val isWbiRequest = request.url.encodedPath.contains("wbi") ||
-                        request.url.encodedPath.contains("/pgc/player/web/playurl") ||
-                        request.url.encodedPath.contains("/pgc/player/web/v2/playurl")
-                if (isWbiRequest) {
+                if (shouldUseWbiSignForGetPath(request.url.encodedPath)) {
                     println("Enc wbi for get request: ${getUrlWithoutAccessToken(request.url)}")
                     request.encWbi()
                 } else if (request.isAppRequest) {

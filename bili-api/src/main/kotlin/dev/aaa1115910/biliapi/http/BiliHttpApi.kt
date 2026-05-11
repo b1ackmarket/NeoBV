@@ -128,6 +128,12 @@ object BiliHttpApi {
         }
     }
 
+    private fun ensureClientCreated() {
+        if (!::client.isInitialized) {
+            createClient()
+        }
+    }
+
     private fun createClient() {
         client = HttpClient(OkHttp) {
             BiliUserAgent()
@@ -1493,7 +1499,10 @@ object BiliHttpApi {
      * 内含 wbi keys
      */
     suspend fun getWebInterfaceNav(): BiliResponse<NavResponseData> =
-        client.get("/x/web-interface/nav").body()
+        run {
+            ensureClientCreated()
+            client.get("/x/web-interface/nav").body()
+        }
 
     /**
      * 更新 wbi keys

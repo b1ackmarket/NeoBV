@@ -18,11 +18,15 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -143,6 +147,7 @@ fun DynamicsScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 itemsIndexed(dynamicViewModel.authorFilters) { _, author ->
+                    var isFocused by remember(author) { mutableStateOf(false) }
                     val isAllAuthors = author == DynamicViewModel.ALL_UP_AUTHORS_FILTER
                     val isSelected = if (isAllAuthors) {
                         selectedAuthor == null
@@ -153,12 +158,14 @@ fun DynamicsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .ifElse(isSelected, Modifier.focusRequester(defaultFocusRequester))
+                            .onFocusChanged { isFocused = it.isFocused }
                             .focusProperties {
                                 right = firstGridItemFocusRequester
                             },
                         onClick = {
                             dynamicViewModel.selectAuthor(if (isAllAuthors) null else author)
                         },
+                        shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.large),
                         colors = ClickableSurfaceDefaults.colors(
                             containerColor = if (isSelected) {
                                 MaterialTheme.colorScheme.surface
@@ -166,14 +173,18 @@ fun DynamicsScreen(
                                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                             },
                             focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
-                            pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
+                            pressedContainerColor = MaterialTheme.colorScheme.inverseSurface,
+                            focusedContentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                            pressedContentColor = MaterialTheme.colorScheme.inverseOnSurface
                         )
                     ) {
                         Text(
                             modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
                             text = author,
                             style = MaterialTheme.typography.bodyLarge,
-                            color = if (isSelected) {
+                            color = if (isFocused) {
+                                MaterialTheme.colorScheme.inverseOnSurface
+                            } else if (isSelected) {
                                 MaterialTheme.colorScheme.onSurface
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant

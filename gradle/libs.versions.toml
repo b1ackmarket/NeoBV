@@ -1,6 +1,7 @@
 [versions]
 akdanmaku = "1.0.2"
 androidsvg = "1.4"
+brotli-dec = "0.1.2"
 coil = "2.7.0"
 firebase-bom = "33.14.0"
 geetest-sensebot = "4.4.4"
@@ -31,6 +32,9 @@ akdanmaku = { module = "com.github.Frost819:AkDanmaku", version.ref = "akdanmaku
 
 # https://github.com/BigBadaboom/androidsvg
 androidSvg = { module = "com.caverock:androidsvg-aar", version.ref = "androidsvg" }
+
+# https://github.com/google/brotli
+brotli-dec = { module = "org.brotli:dec", version.ref = "brotli-dec" }
 
 # https://coil-kt.github.io/coil
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }

@@ -28,6 +28,7 @@ import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.entity.Audio
+import dev.aaa1115910.bv.entity.live.LiveDefaultQuality
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.network.HttpServer
@@ -47,6 +48,7 @@ fun AudioVideoSetting(
     val sponsorBlockStore = remember { PrefsSponsorBlockConfigStore() }
 
     var showResolutionDialog by remember { mutableStateOf(false) }
+    var showLiveQualityDialog by remember { mutableStateOf(false) }
     var showAudioCodecDialog by remember { mutableStateOf(false) }
     var showVideoCodecDialog by remember { mutableStateOf(false) }
     var showPlaySpeedDialog by remember { mutableStateOf(false) }
@@ -54,6 +56,7 @@ fun AudioVideoSetting(
     var showActionAfterPlayDialog by remember { mutableStateOf(false) }
 
     var selectedResolution by remember { mutableStateOf(Prefs.defaultQuality) }
+    var selectedLiveQuality by remember { mutableStateOf(Prefs.defaultLiveQuality) }
     var selectedVideoCodec by remember { mutableStateOf(Prefs.defaultVideoCodec) }
     var selectedAudioCodec by remember { mutableStateOf(Prefs.defaultAudio) }
     var selectedPlaySpeed by remember { mutableStateOf(Prefs.defaultPlaySpeed) }
@@ -82,9 +85,14 @@ fun AudioVideoSetting(
         )
         Spacer(modifier = Modifier.height(12.dp))
         SettingListItem(
-            title = "默认分辨率",
+            title = "默认视频画质",
             supportText = "当前：${selectedResolution.getDisplayName(context)}",
             onClick = { showResolutionDialog = true }
+        )
+        SettingListItem(
+            title = "默认直播画质",
+            supportText = "当前：${selectedLiveQuality.displayName}",
+            onClick = { showLiveQualityDialog = true }
         )
         SettingListItem(
             title = "默认视频编码",
@@ -170,6 +178,19 @@ fun AudioVideoSetting(
                 selectedVideoCodec = it
             },
             getDisplayName = { it.getDisplayName(context) }
+        )
+    }
+
+    if (showLiveQualityDialog) {
+        OptionDialog(
+            options = LiveDefaultQuality.entries.toTypedArray(),
+            selectedOption = selectedLiveQuality,
+            onDismiss = { showLiveQualityDialog = false },
+            onSelect = {
+                Prefs.defaultLiveQuality = it
+                selectedLiveQuality = it
+            },
+            getDisplayName = { it.displayName }
         )
     }
 

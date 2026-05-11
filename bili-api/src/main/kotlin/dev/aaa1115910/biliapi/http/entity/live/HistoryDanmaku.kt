@@ -2,8 +2,17 @@ package dev.aaa1115910.biliapi.http.entity.live
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Transient
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -36,7 +45,8 @@ data class HistoryDanmaku(
         val rank: Int,
         @SerialName("teamid")
         val teamId: Int,
-        val rnd: Int,
+        @Serializable(with = HistoryDanmakuRndSerializer::class)
+        val rnd: Long,
         @SerialName("user_title")
         val userTitle: String,
         @SerialName("guard_level")
@@ -65,6 +75,24 @@ data class HistoryDanmaku(
                 )
             }.getOrNull()
         }
+    }
+}
+
+private object HistoryDanmakuRndSerializer : KSerializer<Long> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("HistoryDanmakuRnd", PrimitiveKind.LONG)
+
+    override fun deserialize(decoder: Decoder): Long {
+        val jsonDecoder = decoder as? JsonDecoder ?: return decoder.decodeLong()
+        val primitive = jsonDecoder.decodeJsonElement() as? JsonPrimitive ?: return 0L
+        return primitive.contentOrNull
+            ?.takeIf { it.isNotBlank() }
+            ?.toLongOrNull()
+            ?: 0L
+    }
+
+    override fun serialize(encoder: Encoder, value: Long) {
+        encoder.encodeLong(value)
     }
 }
 

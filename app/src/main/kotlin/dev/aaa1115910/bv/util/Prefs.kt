@@ -19,6 +19,7 @@ import dev.aaa1115910.bv.component.PersonalTopNavItem
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.entity.Audio
+import dev.aaa1115910.bv.entity.live.LiveDefaultQuality
 import dev.aaa1115910.bv.entity.PlayerType
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -112,6 +113,12 @@ object Prefs {
         Resolution.R1080P,
         save = { it.code },
         restore = { Resolution.fromCode(it) }
+    )
+    var defaultLiveQuality by pref(
+        PrefKeys.prefDefaultLiveQualityKey,
+        LiveDefaultQuality.Original,
+        save = { it.qn },
+        restore = { LiveDefaultQuality.fromQn(it) }
     )
     var defaultVideoCodec by pref(
         PrefKeys.prefDefaultVideoCodecKey,
@@ -354,6 +361,7 @@ private object PrefKeys {
 
     // 播放器 - 视频
     val prefDefaultQualityKey = intPreferencesKey("dq")
+    val prefDefaultLiveQualityKey = intPreferencesKey("dlq")
     val prefDefaultVideoCodecKey = intPreferencesKey("dvc")
     val prefPlayerTypeKey = intPreferencesKey("pt")
     val prefEnableSoftwareVideoDecoder = booleanPreferencesKey("enable_software_video_decoder")
