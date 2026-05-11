@@ -3,6 +3,7 @@ package dev.aaa1115910.bv.network
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.PrefsSponsorBlockConfigStore
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.SkipPolicy
+import dev.aaa1115910.bv.plugin.impl.sponsorblock.SponsorBlockCategoryStyle
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.SponsorBlockConfig
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import io.ktor.http.ContentDisposition
@@ -434,16 +435,7 @@ object HttpServer {
                               font-size: 14px;
                               color: var(--muted);
                             }
-                            .dot-sponsor { background: #43d676; }
-                            .dot-selfpromo { background: #ffe24d; }
-                            .dot-exclusive_access { background: #1fd2a4; }
-                            .dot-interaction { background: #d94bff; }
-                            .dot-poi_highlight { background: #ff4aa5; }
-                            .dot-intro { background: #22d6ff; }
-                            .dot-outro { background: #1547ff; }
-                            .dot-preview { background: #33a3ff; }
-                            .dot-filler { background: #8f96a3; }
-                            .dot-music_offtopic { background: #ffab1f; }
+                            ${SponsorBlockCategoryStyle.cssDotRules()}
                           </style>
                         </head>
                         <body>

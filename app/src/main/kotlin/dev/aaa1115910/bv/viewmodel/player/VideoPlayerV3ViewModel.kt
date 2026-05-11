@@ -211,7 +211,12 @@ class VideoPlayerV3ViewModel(
                 }
             }
 
-            _uiState.update { it.copy(playerState = PlayerState.Ended) }
+            _uiState.update {
+                it.copy(
+                    playerState = PlayerState.Ended,
+                    sponsorBlockProgressMarks = emptyList()
+                )
+            }
             viewModelScope.launch {
                 _uiEffect.emit(PlayerUiEffect.PlayEnded)
             }
@@ -749,6 +754,7 @@ class VideoPlayerV3ViewModel(
                     .onFailure { logger.fWarn { "Plugin ${plugin.id} reset before switching video failed: ${it.message}" } }
             }
         }
+        _uiState.update { it.copy(sponsorBlockProgressMarks = emptyList()) }
 
         val state = _uiState.value
 
@@ -797,6 +803,7 @@ class VideoPlayerV3ViewModel(
         val epid = state.epid
 
         loadVideoJob?.cancel()
+        _uiState.update { it.copy(sponsorBlockProgressMarks = emptyList()) }
         loadVideoJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 resolveUrlsAndPlay(avid, cid, epid)
@@ -1177,7 +1184,7 @@ class VideoPlayerV3ViewModel(
         return true
     }
 
-    private fun executePlayback(mediaUrls: MediaUrls) {
+    private fun executePlayback(mediaUrls: MediaUrls, startPositionMs: Long? = null) {
         val player = videoPlayer ?: run {
             logger.error { "VideoPlayer is not initialized!" }
             return
@@ -1191,6 +1198,9 @@ class VideoPlayerV3ViewModel(
             player.playUrl(mediaUrls.videoUrl, mediaUrls.audioUrl)
         }
         player.prepare()
+        if (startPositionMs != null && startPositionMs > 0L) {
+            player.seekTo(startPositionMs)
+        }
         player.start()
     }
 
@@ -1601,12 +1611,29 @@ class VideoPlayerV3ViewModel(
             runCatching { plugin.onVideoLoaded(context) }
                 .onFailure { logger.fWarn { "Plugin ${plugin.id} onVideoLoaded failed: ${it.message}" } }
         }
+        _uiState.update {
+            it.copy(
+                sponsorBlockProgressMarks = PluginManager
+                    .getPlayerPlugin<SponsorBlockPlugin>("sponsorblock")
+                    ?.progressMarks()
+                    .orEmpty()
+            )
+        }
     }
 
     private suspend fun processPluginPlaybackActions() {
         val player = videoPlayer ?: return
-        if (_uiState.value.pendingPluginAction != null) return
         val positionMs = player.currentPosition
+        val pendingAction = _uiState.value.pendingPluginAction
+        if (pendingAction != null) {
+            val stillInsidePromptWindow =
+                positionMs in pendingAction.startPositionMs..<pendingAction.targetPositionMs
+            if (!stillInsidePromptWindow) {
+                _uiState.update { it.copy(pendingPluginAction = null, pluginTipMessage = null) }
+            }
+            return
+        }
+        if (positionMs < 5_000L) return
         PluginManager.getPlayerPlugins().forEach { plugin ->
             when (val action = runCatching { plugin.onPlaybackPosition(positionMs) }.getOrNull()) {
                 is PluginPlaybackAction.AutoSkip -> {

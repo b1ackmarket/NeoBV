@@ -10,6 +10,7 @@ import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bilisubtitle.entity.SubtitleItem
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.entity.Audio
+import dev.aaa1115910.bv.entity.ProgressSegmentMark
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoListItem
@@ -54,6 +55,7 @@ data class PlayerUiState(
     val pluginTipMessage: String? = null,
     val onlineCount: Int? = null,
     val showPlayerStats: Boolean = false,
+    val sponsorBlockProgressMarks: List<ProgressSegmentMark> = emptyList(),
 
     // 播放器配置与资源
     val availableQuality: Map<Int, String> = emptyMap(),

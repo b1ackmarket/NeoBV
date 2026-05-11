@@ -16,6 +16,7 @@ class SponsorBlockPlugin(
     private var segments: List<SponsorSegment> = emptyList()
     private val handledSegmentIds = linkedSetOf<String>()
     private val dismissedSegmentIds = linkedSetOf<String>()
+    private val minimumActivationPositionMs = 5_000L
 
     override suspend fun onVideoLoaded(context: PlayerPluginContext) {
         enabled = configStore.isEnabled()
@@ -31,6 +32,7 @@ class SponsorBlockPlugin(
 
     override suspend fun onPlaybackPosition(positionMs: Long): PluginPlaybackAction {
         if (!enabled || segments.isEmpty()) return PluginPlaybackAction.None
+        if (positionMs < minimumActivationPositionMs) return PluginPlaybackAction.None
 
         dismissedSegmentIds.removeAll { segmentId ->
             segments.firstOrNull { it.id == segmentId }?.contains(positionMs) != true
@@ -54,6 +56,7 @@ class SponsorBlockPlugin(
             SkipPolicy.Prompt -> {
                 PluginPlaybackAction.PromptSkip(
                     segmentId = segment.id,
+                    startPositionMs = segment.startMs,
                     targetPositionMs = segment.endMs,
                     message = promptMessageFor(segment.category),
                     category = segment.category
@@ -71,6 +74,8 @@ class SponsorBlockPlugin(
     }
 
     fun debugLoadedSegmentCount(): Int = segments.size
+
+    fun progressMarks() = buildSponsorBlockProgressMarks(config = config, segments = segments)
 
     fun markHandled(segmentId: String) {
         dismissedSegmentIds -= segmentId

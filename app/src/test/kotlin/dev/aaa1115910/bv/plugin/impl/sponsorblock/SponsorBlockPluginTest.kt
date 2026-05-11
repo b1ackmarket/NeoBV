@@ -58,11 +58,11 @@ class SponsorBlockPluginTest {
         val introAction = plugin.onPlaybackPosition(31_000L)
 
         assertEquals(
-            PluginPlaybackAction.PromptSkip("seg-sponsor", 20_000L, "显示提示：赞助/恰饭", "sponsor"),
+            PluginPlaybackAction.PromptSkip("seg-sponsor", 10_000L, 20_000L, "显示提示：赞助/恰饭", "sponsor"),
             sponsorAction
         )
         assertEquals(
-            PluginPlaybackAction.PromptSkip("seg-intro", 45_000L, "显示提示：片头", "intro"),
+            PluginPlaybackAction.PromptSkip("seg-intro", 30_000L, 45_000L, "显示提示：片头", "intro"),
             introAction
         )
     }
@@ -113,6 +113,7 @@ class SponsorBlockPluginTest {
             assertEquals(
                 PluginPlaybackAction.PromptSkip(
                     "seg-sponsor",
+                    10_000L,
                     20_000L,
                     "显示提示：赞助/恰饭",
                     "sponsor"
@@ -124,6 +125,7 @@ class SponsorBlockPluginTest {
             assertEquals(
                 PluginPlaybackAction.PromptSkip(
                     "seg-sponsor",
+                    10_000L,
                     20_000L,
                     "显示提示：赞助/恰饭",
                     "sponsor"
@@ -161,6 +163,7 @@ class SponsorBlockPluginTest {
         assertEquals(
             PluginPlaybackAction.PromptSkip(
                 "seg-sponsor",
+                10_000L,
                 20_000L,
                 "显示提示：赞助/恰饭",
                 "sponsor"
@@ -197,11 +200,46 @@ class SponsorBlockPluginTest {
         assertEquals(
             PluginPlaybackAction.PromptSkip(
                 "seg-sponsor",
+                10_000L,
                 20_000L,
                 "显示提示：赞助/恰饭",
                 "sponsor"
             ),
             action
+        )
+    }
+
+    @Test
+    fun `plugin ignores segments before five seconds but can still trigger afterwards`() = runBlocking {
+        val plugin = SponsorBlockPlugin(
+            api = FakeSponsorBlockApi(
+                listOf(SponsorSegment("seg-intro", "intro", 0L, 8_000L))
+            ),
+            configStore = InMemorySponsorBlockConfigStore(
+                enabled = true,
+                config = SponsorBlockConfig.default()
+            )
+        )
+
+        plugin.onVideoLoaded(
+            PlayerPluginContext(
+                aid = 1L,
+                cid = 2L,
+                bvid = "BV1xx411c7mD",
+                title = "test"
+            )
+        )
+
+        assertTrue(plugin.onPlaybackPosition(4_000L) is PluginPlaybackAction.None)
+        assertEquals(
+            PluginPlaybackAction.PromptSkip(
+                "seg-intro",
+                0L,
+                8_000L,
+                "显示提示：片头",
+                "intro"
+            ),
+            plugin.onPlaybackPosition(5_000L)
         )
     }
 

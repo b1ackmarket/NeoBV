@@ -17,6 +17,11 @@ import dev.aaa1115910.biliapi.repositories.AuthRepository
 import dev.aaa1115910.biliapi.repositories.BiliApiModule
 import dev.aaa1115910.biliapi.repositories.ChannelRepository
 import dev.aaa1115910.bv.dao.AppDatabase
+import dev.aaa1115910.bv.plugin.core.PluginManager
+import dev.aaa1115910.bv.plugin.impl.sponsorblock.HttpSponsorBlockApi
+import dev.aaa1115910.bv.plugin.impl.sponsorblock.PrefsSponsorBlockConfigStore
+import dev.aaa1115910.bv.plugin.impl.sponsorblock.SponsorBlockPlugin
+import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs
 import org.koin.android.ext.koin.androidContext
@@ -61,6 +66,8 @@ class BVApp : Application(), KoinComponent {
         initDeviceInfo()
         initRepository()
         initProxy()
+        initPlugins()
+        HttpServer.startServer()
 
         BiliHttpApi.init(buvid3 = Prefs.buvid3)
     }
@@ -116,6 +123,15 @@ class BVApp : Application(), KoinComponent {
             WebViewCompat.getCurrentLoadedWebViewPackage()?.versionName
                 ?.substringBefore(".")?.toInt()
         }.getOrDefault(144) ?: 144
+    }
+
+    private fun initPlugins() {
+        PluginManager.register(
+            SponsorBlockPlugin(
+                api = HttpSponsorBlockApi(),
+                configStore = PrefsSponsorBlockConfigStore()
+            )
+        )
     }
 }
 
