@@ -2,7 +2,7 @@ import java.io.File
 
 object AppConfiguration {
     const val appId = "dev.aaa1115910.bv"
-    const val applicationId = "dev.frost819.bv" //由于小米电视屏蔽原包名，此包名仅用于apk打包
+    const val applicationId = "dev.b1ackmarket.bv"
     const val compileSdk = 36
     const val minSdk = 21
     const val targetSdk = 36

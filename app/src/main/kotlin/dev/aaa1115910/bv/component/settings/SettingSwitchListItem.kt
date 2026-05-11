@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +33,10 @@ fun SettingSwitchListItem(
 ) {
     var hasFocus by remember { mutableStateOf(defaultHasFocus) }
     var switchChecked by remember { mutableStateOf(checked) }
+
+    LaunchedEffect(checked) {
+        switchChecked = checked
+    }
 
     ListItem(
         modifier = modifier

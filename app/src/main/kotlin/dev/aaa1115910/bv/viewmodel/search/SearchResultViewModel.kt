@@ -43,8 +43,27 @@ class SearchResultViewModel(
     var selectedPartition: Partition? by mutableStateOf(null)
     var selectedChildPartition: Partition? by mutableStateOf(null)
 
-    private var updating = false
-    private val hasMore = true
+    private val loadingStates = SearchType.entries.associateWith { mutableStateOf(false) }
+    private val hasMoreStates = SearchType.entries.associateWith { mutableStateOf(true) }
+    private val accumulators = SearchType.entries.associateWith { searchType ->
+        when (searchType) {
+            SearchType.Video -> SearchResultAccumulator<SearchTypeResult.Video, SearchTypePage>(
+                itemKey = { it.aid },
+                initialCursor = SearchTypePage()
+            )
+
+            SearchType.MediaBangumi,
+            SearchType.MediaFt -> SearchResultAccumulator<SearchTypeResult.Pgc, SearchTypePage>(
+                itemKey = { it.seasonId },
+                initialCursor = SearchTypePage()
+            )
+
+            SearchType.BiliUser -> SearchResultAccumulator<SearchTypeResult.User, SearchTypePage>(
+                itemKey = { it.mid },
+                initialCursor = SearchTypePage()
+            )
+        }
+    }
 
     var enableProxySearchResult = false
 
@@ -55,6 +74,16 @@ class SearchResultViewModel(
     }
 
     private fun resetPages() {
+        SearchType.entries.forEach { searchType ->
+            loadingStates.getValue(searchType).value = false
+            hasMoreStates.getValue(searchType).value = true
+            when (searchType) {
+                SearchType.Video -> accumulators.getValue(searchType).video().clear(SearchTypePage())
+                SearchType.MediaBangumi -> accumulators.getValue(searchType).pgc().clear(SearchTypePage())
+                SearchType.MediaFt -> accumulators.getValue(searchType).pgc().clear(SearchTypePage())
+                SearchType.BiliUser -> accumulators.getValue(searchType).user().clear(SearchTypePage())
+            }
+        }
         videoSearchResult = videoSearchResult.resetPage()
         mediaBangumiSearchResult = mediaBangumiSearchResult.resetPage()
         mediaFtSearchResult = mediaFtSearchResult.resetPage()
@@ -72,10 +101,12 @@ class SearchResultViewModel(
         searchType: SearchType,
         ignoreUpdating: Boolean = false
     ) {
-        if (!hasMore) return
-        if (updating && !ignoreUpdating) return
+        val isLoadingState = loadingStates.getValue(searchType)
+        val hasMoreState = hasMoreStates.getValue(searchType)
+        if (!hasMoreState.value) return
+        if (isLoadingState.value && !ignoreUpdating) return
 
-        updating = true
+        isLoadingState.value = true
         viewModelScope.launch(Dispatchers.IO) {
             val page = when (searchType) {
                 SearchType.Video -> videoSearchResult.page
@@ -96,27 +127,47 @@ class SearchResultViewModel(
                     enableProxy = enableProxySearchResult
                 )
                 withContext(Dispatchers.Main) {
+                    hasMoreState.value = searchResultResponse.page != page
                     when (searchType) {
                         SearchType.Video -> {
-                            videoSearchResult = videoSearchResult.appendSearchResultData(searchResultResponse)
-
+                            val accumulator = accumulators.getValue(searchType).video()
+                            accumulator.append(searchResultResponse.page, searchResultResponse.videos)
+                            videoSearchResult = videoSearchResult.copy(
+                                videos = accumulator.items,
+                                page = accumulator.cursor
+                            )
                         }
 
                         SearchType.MediaBangumi -> {
-                            mediaBangumiSearchResult = mediaBangumiSearchResult.appendSearchResultData(searchResultResponse)
+                            val accumulator = accumulators.getValue(searchType).pgc()
+                            accumulator.append(searchResultResponse.page, searchResultResponse.pgcs)
+                            mediaBangumiSearchResult = mediaBangumiSearchResult.copy(
+                                mediaBangumis = accumulator.items,
+                                page = accumulator.cursor
+                            )
                         }
 
                         SearchType.MediaFt -> {
-                            mediaFtSearchResult = mediaFtSearchResult.appendSearchResultData(searchResultResponse)
+                            val accumulator = accumulators.getValue(searchType).pgc()
+                            accumulator.append(searchResultResponse.page, searchResultResponse.pgcs)
+                            mediaFtSearchResult = mediaFtSearchResult.copy(
+                                mediaFts = accumulator.items,
+                                page = accumulator.cursor
+                            )
                         }
 
                         SearchType.BiliUser -> {
-                            biliUserSearchResult = biliUserSearchResult.appendSearchResultData(searchResultResponse)
+                            val accumulator = accumulators.getValue(searchType).user()
+                            accumulator.append(searchResultResponse.page, searchResultResponse.users)
+                            biliUserSearchResult = biliUserSearchResult.copy(
+                                biliUsers = accumulator.items,
+                                page = accumulator.cursor
+                            )
                         }
                     }
                 }
             }
-            updating = false
+            isLoadingState.value = false
         }
     }
 
@@ -163,6 +214,15 @@ class SearchResultViewModel(
 
     }
 }
+
+private fun SearchResultAccumulator<*, *>.video() =
+    this as SearchResultAccumulator<SearchTypeResult.Video, SearchTypePage>
+
+private fun SearchResultAccumulator<*, *>.pgc() =
+    this as SearchResultAccumulator<SearchTypeResult.Pgc, SearchTypePage>
+
+private fun SearchResultAccumulator<*, *>.user() =
+    this as SearchResultAccumulator<SearchTypeResult.User, SearchTypePage>
 
 enum class SearchResultType(
     val type: String,

@@ -16,6 +16,7 @@
 buildSrc/.kotlin/
 .superpowers/
 tmp/
+/scripts/render_bilitv_drawables.py
 
 # Logs, diagnostics, and local previews
 *.log

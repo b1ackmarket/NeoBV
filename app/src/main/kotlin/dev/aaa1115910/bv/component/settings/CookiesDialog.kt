@@ -63,7 +63,7 @@ fun CookiesDialog(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "导出会默认写入电视共享 Documents 目录，便于在 debug / release 之间转移登录信息。",
+                        text = "导出会默认写入电视Documents目录，方便转移登录信息。",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

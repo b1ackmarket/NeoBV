@@ -73,7 +73,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            if (signingProp.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         debug {
             isMinifyEnabled = false
@@ -82,7 +84,9 @@ android {
                 "proguard-rules.pro"
             )
             applicationIdSuffix = ".debug"
-            signingConfig = signingConfigs.getByName("debug")
+            if (signingProp.exists()) {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
         create("r8Test") {
             isMinifyEnabled = true
@@ -126,16 +130,16 @@ android {
         }
     }
 
-    /*splits {
-        if (gradle.startParameter.taskNames.find { it.startsWith("assembleDefault") } != null) {
+    if (providers.gradleProperty("arm64Only").orNull == "true") {
+        splits {
             abi {
                 isEnable = true
                 reset()
-                include("x86_64", "x86", "arm64-v8a", "armeabi-v7a")
-                isUniversalApk = true
+                include("arm64-v8a")
+                isUniversalApk = false
             }
         }
-    }*/
+    }
 
     applicationVariants.configureEach {
         val variant = this

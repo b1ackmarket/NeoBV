@@ -93,10 +93,6 @@ fun AboutSetting(
                 Text(text = stringResource(R.string.settings_version_check_update_button))
             }
         }
-        Text(
-            modifier = Modifier.align(Alignment.BottomCenter),
-            text = "https://github.com/Frost819/bv"
-        )
     }
 
     UpdateDialog(

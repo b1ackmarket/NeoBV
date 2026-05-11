@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.ApiType
+import dev.aaa1115910.biliapi.repositories.SearchFilterDuration
+import dev.aaa1115910.biliapi.repositories.SearchFilterOrderType
 import dev.aaa1115910.biliapi.repositories.SearchType
 import dev.aaa1115910.biliapi.repositories.SearchTypeResult
 import dev.aaa1115910.bv.R
@@ -75,6 +77,16 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import org.koin.androidx.compose.koinViewModel
+
+internal data class SearchResultUpdateTrigger(
+    val keyword: String,
+    val order: SearchFilterOrderType,
+    val duration: SearchFilterDuration,
+    val partitionTid: Int?,
+    val childPartitionTid: Int?
+) {
+    val isReady: Boolean get() = keyword.isNotBlank()
+}
 
 @Composable
 fun SearchResultScreen(
@@ -179,10 +191,17 @@ fun SearchResultScreen(
         }
     }
 
-    LaunchedEffect(
-        selectedOrder, selectedDuration, selectedPartition, selectedChildPartition
-    ) {
-        logger.fInfo { "Start update search result because filter updated" }
+    val searchUpdateTrigger = SearchResultUpdateTrigger(
+        keyword = searchResultViewModel.keyword,
+        order = selectedOrder,
+        duration = selectedDuration,
+        partitionTid = selectedPartition?.tid,
+        childPartitionTid = selectedChildPartition?.tid
+    )
+
+    LaunchedEffect(searchUpdateTrigger) {
+        if (!searchUpdateTrigger.isReady) return@LaunchedEffect
+        logger.fInfo { "Start update search result because keyword or filter updated" }
         searchResultViewModel.update()
     }
 
