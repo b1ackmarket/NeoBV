@@ -1,5 +1,5 @@
 *.iml
-.gradle
+.gradle/
 /local.properties
 .DS_Store
 /build
@@ -10,3 +10,23 @@
 /.idea/jarRepositories.xml
 /.idea/migrations.xml
 /.idea/codeStyles/
+
+# Local Kotlin/agent/tool state
+.kotlin/
+buildSrc/.kotlin/
+.superpowers/
+tmp/
+
+# Logs, diagnostics, and local previews
+*.log
+*.hprof
+*.heapsnapshot
+hs_err_pid*
+replay_pid*
+
+# Signing keys and private release material
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
