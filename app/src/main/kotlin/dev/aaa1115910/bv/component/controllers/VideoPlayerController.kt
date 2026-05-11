@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +40,7 @@ import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
+import dev.aaa1115910.bv.util.PlayerUiTextFormatter
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.player.DanmakuSettingAction
@@ -49,6 +51,7 @@ import dev.aaa1115910.bv.viewmodel.player.SeekDirection
 import dev.aaa1115910.bv.viewmodel.player.SeekTapAction
 import dev.aaa1115910.bv.viewmodel.player.SeekTapPreviewState
 import dev.aaa1115910.bv.viewmodel.player.SubtitleSettingAction
+import dev.aaa1115910.bv.viewmodel.player.TempSpeedHoldState
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -110,10 +113,14 @@ fun VideoPlayerController(
     onMediaProfileSettingChange: (MediaProfileSettingAction) -> Unit,
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
     onPlaySpeedChange: (Float) -> Unit,
+    setShowPlayerStats: (Boolean) -> Unit,
     onDanmakuSettingChange: (DanmakuSettingAction) -> Unit,
     onSubtitleChange: (Subtitle) -> Unit,
     onSubtitleSettingChange: (SubtitleSettingAction) -> Unit,
     onRelatedVideoClicked: (VideoCardData) -> Unit,
+    confirmPendingPluginAction: () -> Unit,
+    dismissPendingPluginAction: () -> Unit,
+    showEndedRelatedVideosToken: Int = 0,
 
     content: @Composable () -> Unit
 ) {
@@ -150,12 +157,22 @@ fun VideoPlayerController(
     var goTime by remember { mutableLongStateOf(0L) }
 
     var isSeeking by remember { mutableStateOf(false) }
+    var resumeAfterSeekPreview by remember { mutableStateOf(false) }
     var seekChangeCount by remember { mutableIntStateOf(0) }
     var lastSeekChangeTime by remember { mutableLongStateOf(0L) }
     val seekTapState = remember { SeekTapPreviewState() }
+    val tempSpeedHoldState = remember { TempSpeedHoldState() }
 
     var seekCountdown: Job? by remember { mutableStateOf(null) }
     var hideInfoSeekControllerCountdown: Job? by remember { mutableStateOf(null) }
+    val videoListPanelState by remember(uiState.availableVideoList, uiState.cid) {
+        derivedStateOf {
+            resolveVideoListPanelState(
+                currentCid = uiState.cid,
+                videoList = uiState.availableVideoList
+            )
+        }
+    }
 
     fun calCoefficient(): Int {
         return if (System.currentTimeMillis() - lastSeekChangeTime < 200) {
@@ -184,31 +201,16 @@ fun VideoPlayerController(
         logger.info { "onTimeBack: [goTime=$goTime]" }
     }
 
-    fun startSeekCountdown() {
-        seekCountdown?.cancel()
-        seekCountdown = scope.launch {
-            delay(1000)
-
-            onGoTime(goTime)
-            if (!isPlaying) onPlay()
-
-            isSeeking = false
-            showInfoSeekController = false
-            seekTapState.clearPreview()
-            hideInfoSeekControllerCountdown?.cancel()
-        }
-    }
-
     fun onDirectionLeft() {
+        if (!isSeeking && isPlaying) onPause()
         if (!isSeeking) goTime = seekerState.value.currentTime
         onTimeBack()
-        startSeekCountdown()
     }
 
     fun onDirectionRight() {
+        if (!isSeeking && isPlaying) onPause()
         if (!isSeeking) goTime = seekerState.value.currentTime
         onTimeForward()
-        startSeekCountdown()
     }
 
     fun applyOuterDirectionalTap(direction: SeekDirection) {
@@ -221,20 +223,29 @@ fun VideoPlayerController(
                 stepMs = seekStepMs
             )
         ) {
-            is SeekTapAction.DirectJump -> {
+            is SeekTapAction.PendingDirectJump -> {
                 goTime = action.targetPositionMs
                 isSeeking = false
                 showInfoSeekController = false
                 seekCountdown?.cancel()
-                onGoTime(action.targetPositionMs)
+                seekCountdown = scope.launch {
+                    delay(1_000L)
+                    onGoTime(action.targetPositionMs)
+                    seekTapState.clearPendingJump()
+                    seekCountdown = null
+                }
             }
 
             is SeekTapAction.StartOrUpdatePreview -> {
-                if (!isSeeking && isPlaying) onPause()
+                if (!isSeeking) {
+                    resumeAfterSeekPreview = isPlaying
+                    if (resumeAfterSeekPreview) onPause()
+                }
                 goTime = action.targetPositionMs
                 isSeeking = true
                 showInfoSeekController = true
-                startSeekCountdown()
+                seekCountdown?.cancel()
+                seekCountdown = null
             }
         }
     }
@@ -242,7 +253,8 @@ fun VideoPlayerController(
     fun onSeekGoTime() {
         onGoTime(goTime)
         isSeeking = false
-        if (!isPlaying) onPlay()
+        if (resumeAfterSeekPreview) onPlay()
+        resumeAfterSeekPreview = false
         showInfoSeekController = false
         seekCountdown?.cancel()
         seekTapState.clearPreview()
@@ -250,6 +262,8 @@ fun VideoPlayerController(
 
     fun cancelSeekPreview() {
         isSeeking = false
+        if (resumeAfterSeekPreview) onPlay()
+        resumeAfterSeekPreview = false
         showInfoSeekController = false
         seekCountdown?.cancel()
         seekTapState.clearPreview()
@@ -268,6 +282,11 @@ fun VideoPlayerController(
         val isConfirmKey =
             event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.Spacebar
 
+        if (isConfirmKey && event.type == KeyEventType.KeyUp && tempSpeedHoldState.isHoldingSpeed) {
+            onPlaySpeedChange(tempSpeedHoldState.onKeyReleased())
+            return true
+        }
+
         if (event.type == KeyEventType.KeyUp && !isConfirmKey) {
             return true
         }
@@ -276,6 +295,10 @@ fun VideoPlayerController(
 
         when (event.key) {
             Key.Back -> {
+                if (uiState.pendingPluginAction != null) {
+                    dismissPendingPluginAction()
+                    return true
+                }
                 if (showClickableControllers) {
                     if (hasSecondaryOverlayOpen) {
                         showMenuController = false
@@ -333,13 +356,19 @@ fun VideoPlayerController(
             when (event.key) {
                 Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
                     if (event.type == KeyEventType.KeyDown) {
-                        if (event.nativeKeyEvent.isLongPress) {
-                            showMenuController = true
+                        if (!showClickableControllers && event.nativeKeyEvent.isLongPress) {
+                            if (!tempSpeedHoldState.isHoldingSpeed) {
+                                tempSpeedHoldState.onLongPressTriggered(uiState.playSpeed)
+                                onPlaySpeedChange(tempSpeedHoldState.temporarySpeed)
+                            }
+                            return true
                         }
                         return true
                     } else {
                         if (uiState.showBackToStart) {
                             onBackToStart()
+                        } else if (uiState.pendingPluginAction != null) {
+                            confirmPendingPluginAction()
                         } else {
                             onPlayPause()
                         }
@@ -381,21 +410,32 @@ fun VideoPlayerController(
                 // 重置 info 控制器的隐藏倒计时 (只要有按键活动就重置)
                 if (showInfoSeekController) {
                     hideInfoSeekControllerCountdown?.cancel()
-                    hideInfoSeekControllerCountdown = scope.launch {
-                        delay(5000)
-                        showInfoSeekController = false
+                    if (!isSeeking) {
+                        hideInfoSeekControllerCountdown = scope.launch {
+                            delay(5000)
+                            showInfoSeekController = false
+                        }
                     }
                 }
                 // 调用分离出去的处理函数
                 handleKeyEvent(event)
             }
     ) {
+        LaunchedEffect(showEndedRelatedVideosToken) {
+            if (showEndedRelatedVideosToken > 0) {
+                showInfoSeekController = false
+                showMenuController = false
+                showListController = false
+                overlayState = overlayState.closePanel()
+                showRelatedVideosController = true
+            }
+        }
         content()
-        if (BuildConfig.DEBUG) {
+        if (BuildConfig.DEBUG || uiState.showPlayerStats) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(8.dp)
+                    .padding(start = 8.dp, top = if (uiState.showPlayerStats) 56.dp else 8.dp)
                     .clip(MaterialTheme.shapes.medium)
                     .background(Color.Black.copy(alpha = 0.3f))
             ) {
@@ -421,6 +461,9 @@ fun VideoPlayerController(
             showBackToStart = uiState.showBackToStart,
             showSkipToNextEp = uiState.showSkipToNextEp,
             showPreviewTip = uiState.showPreviewTip,
+            showOnlineCount = uiState.onlineCount != null,
+            onlineCountText = uiState.onlineCount?.let { PlayerUiTextFormatter.onlineCount(it) },
+            pluginTipMessage = uiState.pluginTipMessage,
         )
 
         PlayStateTips(
@@ -449,6 +492,9 @@ fun VideoPlayerController(
             authorName = uiState.authorName,
             publishDateText = uiState.publishDateText,
             playCountText = uiState.playCountText,
+            videoListButtonLabel = videoListPanelState.buttonLabel,
+            onlineCountText = uiState.onlineCount?.let { PlayerUiTextFormatter.onlineCount(it) }.orEmpty(),
+            sponsorBlockProgressMarks = uiState.sponsorBlockProgressMarks,
             clock = uiState.clock,
             videoShot = uiState.videoShot,
             videoShotCache = videoShotCache,
@@ -475,9 +521,10 @@ fun VideoPlayerController(
                 showMenuController = true
             },
             onShowRelatedVideos = {
-                if (isPlaying) onPause()
                 showInfoSeekController = false
-                showRelatedVideosController = true
+                showMenuController = false
+                showListController = false
+                overlayState = overlayState.open(PlayerSidePanel.RelatedVideos)
             },
             onGoToVideoInfo = {
                 VideoInfoActivity.actionStart(
@@ -521,7 +568,7 @@ fun VideoPlayerController(
         VideoListController(
             show = showListController,
             currentCid = uiState.cid,
-            videoList = uiState.availableVideoList,
+            panelState = videoListPanelState,
             onPlayNewVideo = onPlayNewVideo
         )
 
@@ -545,6 +592,7 @@ fun VideoPlayerController(
             },
             onAspectRatioChange = onAspectRatioChange,
             onPlaySpeedChange = onPlaySpeedChange,
+            onShowPlayerStatsChange = setShowPlayerStats,
             onDanmakuSwitchChange = { danmakuTypes ->
                 onDanmakuSettingChange(DanmakuSettingAction.SetEnabledTypes(danmakuTypes))
             },

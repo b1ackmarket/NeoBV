@@ -14,10 +14,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ClearAll
 import androidx.compose.material.icons.outlined.ClosedCaption
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -54,8 +56,8 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.playermenu.ClosedCaptionMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.DanmakuMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.MenuNavList
+import dev.aaa1115910.bv.component.controllers.playermenu.PlayerStatsMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.PictureMenuList
-import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedMenuList
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.VideoAspectRatio
@@ -63,6 +65,20 @@ import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.swapList
+
+internal data class PlayerMenuNavState(
+    val selectedNavItem: VideoPlayerMenuNavItem,
+    val focusedNavItem: VideoPlayerMenuNavItem,
+    val focusState: MenuFocusState
+)
+
+internal fun defaultPlayerMenuNavState(): PlayerMenuNavState {
+    return PlayerMenuNavState(
+        selectedNavItem = VideoPlayerMenuNavItem.PlaySpeed,
+        focusedNavItem = VideoPlayerMenuNavItem.PlaySpeed,
+        focusState = MenuFocusState.MenuNav
+    )
+}
 
 @Composable
 fun MenuController(
@@ -73,6 +89,7 @@ fun MenuController(
     onCodecChange: (VideoCodec) -> Unit = {},
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
     onPlaySpeedChange: (Float) -> Unit = {},
+    onShowPlayerStatsChange: (Boolean) -> Unit = {},
     onAudioChange: (Audio) -> Unit,
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
     onDanmakuSizeChange: (Float) -> Unit,
@@ -103,24 +120,27 @@ fun MenuController(
             enter = expandHorizontally(),
             exit = shrinkHorizontally()
         ) {
-            MenuController(
-                uiState = uiState,
-                onResolutionChange = onResolutionChange,
-                onCodecChange = onCodecChange,
-                onAspectRatioChange = onAspectRatioChange,
-                onPlaySpeedChange = onPlaySpeedChange,
-                onAudioChange = onAudioChange,
-                onDanmakuSwitchChange = onDanmakuSwitchChange,
-                onDanmakuSizeChange = onDanmakuSizeChange,
-                onDanmakuOpacityChange = onDanmakuOpacityChange,
-                onDanmakuSpeedFactorChange = onDanmakuSpeedFactorChange,
-                onDanmakuAreaChange = onDanmakuAreaChange,
-                onDanmakuMaskChange = onDanmakuMaskChange,
-                onSubtitleChange = onSubtitleChange,
-                onSubtitleSizeChange = onSubtitleSizeChange,
-                onSubtitleBackgroundOpacityChange = onSubtitleBackgroundOpacityChange,
-                onSubtitleBottomPadding = onSubtitleBottomPadding
-            )
+            key(show) {
+                MenuController(
+                    uiState = uiState,
+                    onResolutionChange = onResolutionChange,
+                    onCodecChange = onCodecChange,
+                    onAspectRatioChange = onAspectRatioChange,
+                    onPlaySpeedChange = onPlaySpeedChange,
+                    onShowPlayerStatsChange = onShowPlayerStatsChange,
+                    onAudioChange = onAudioChange,
+                    onDanmakuSwitchChange = onDanmakuSwitchChange,
+                    onDanmakuSizeChange = onDanmakuSizeChange,
+                    onDanmakuOpacityChange = onDanmakuOpacityChange,
+                    onDanmakuSpeedFactorChange = onDanmakuSpeedFactorChange,
+                    onDanmakuAreaChange = onDanmakuAreaChange,
+                    onDanmakuMaskChange = onDanmakuMaskChange,
+                    onSubtitleChange = onSubtitleChange,
+                    onSubtitleSizeChange = onSubtitleSizeChange,
+                    onSubtitleBackgroundOpacityChange = onSubtitleBackgroundOpacityChange,
+                    onSubtitleBottomPadding = onSubtitleBottomPadding
+                )
+            }
         }
     }
 }
@@ -133,6 +153,7 @@ fun MenuController(
     onCodecChange: (VideoCodec) -> Unit = {},
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
     onPlaySpeedChange: (Float) -> Unit,
+    onShowPlayerStatsChange: (Boolean) -> Unit,
     onAudioChange: (Audio) -> Unit,
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
     onDanmakuSizeChange: (Float) -> Unit,
@@ -145,8 +166,10 @@ fun MenuController(
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
     onSubtitleBottomPadding: (Dp) -> Unit
 ) {
-    var selectedNavItem by remember { mutableStateOf(VideoPlayerMenuNavItem.PlaySpeed) }
-    var focusState by remember { mutableStateOf(MenuFocusState.MenuNav) }
+    val defaultState = defaultPlayerMenuNavState()
+    var selectedNavItem by remember { mutableStateOf(defaultState.selectedNavItem) }
+    var focusedNavItem by remember { mutableStateOf(defaultState.focusedNavItem) }
+    var focusState by remember { mutableStateOf(defaultState.focusState) }
 
     Surface(
         modifier = modifier
@@ -172,6 +195,7 @@ fun MenuController(
                     onPlaySpeedChange = onPlaySpeedChange,
                     onAspectRatioChange = onAspectRatioChange,
                     onAudioChange = onAudioChange,
+                    onShowPlayerStatsChange = onShowPlayerStatsChange,
                     onDanmakuSwitchChange = onDanmakuSwitchChange,
                     onDanmakuSizeChange = onDanmakuSizeChange,
                     onDanmakuOpacityChange = onDanmakuOpacityChange,
@@ -193,11 +217,23 @@ fun MenuController(
                                 }
                                 return@onPreviewKeyEvent true
                             }
-                            if (it.key == Key.DirectionLeft) focusState = MenuFocusState.Menu
+                            if (it.key == Key.DirectionLeft) {
+                                focusState = MenuFocusState.Menu
+                                return@onPreviewKeyEvent true
+                            }
                             false
                         },
+                    focusedMenu = focusedNavItem,
                     selectedMenu = selectedNavItem,
-                    onSelectedChanged = { selectedNavItem = it },
+                    onSelectedChanged = { item ->
+                        focusedNavItem = item
+                        selectedNavItem = item
+                    },
+                    onItemClick = { item ->
+                        focusedNavItem = item
+                        selectedNavItem = item
+                        focusState = MenuFocusState.Menu
+                    },
                     isFocusing = focusState == MenuFocusState.MenuNav
                 )
             }
@@ -214,6 +250,7 @@ private fun MenuList(
     onCodecChange: (VideoCodec) -> Unit,
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
     onPlaySpeedChange: (Float) -> Unit,
+    onShowPlayerStatsChange: (Boolean) -> Unit,
     onAudioChange: (Audio) -> Unit,
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
     onDanmakuSizeChange: (Float) -> Unit,
@@ -232,6 +269,14 @@ private fun MenuList(
         contentAlignment = Alignment.Center
     ) {
         when (selectedNavMenu) {
+            VideoPlayerMenuNavItem.Stats -> {
+                PlayerStatsMenuList(
+                    currentShowPlayerStats = uiState.showPlayerStats,
+                    onShowPlayerStatsChange = onShowPlayerStatsChange,
+                    onFocusStateChange = onFocusStateChange
+                )
+            }
+
             VideoPlayerMenuNavItem.Picture -> {
                 PictureMenuList(
                     availableQualityIds = uiState.availableQuality.keys.toList(),
@@ -251,7 +296,7 @@ private fun MenuList(
 
             VideoPlayerMenuNavItem.PlaySpeed -> {
                 PlaySpeedMenuList(
-                    currentSelectedPlaySpeedItem = PlaySpeedItem.fromSpeed(uiState.playSpeed),
+                    currentPlaySpeed = uiState.playSpeed,
                     onPlaySpeedChange = onPlaySpeedChange,
                     onFocusStateChange = onFocusStateChange,
                 )
@@ -312,7 +357,8 @@ enum class VideoPlayerMenuNavItem(private val strRes: Int, val icon: ImageVector
     PlaySpeed(R.string.video_player_menu_picture_play_speed, Icons.Outlined.Speed),
     Picture(R.string.video_player_menu_nav_picture, Icons.Outlined.Image),
     Danmaku(R.string.video_player_menu_nav_danmaku, Icons.Outlined.ClearAll),
-    ClosedCaption(R.string.video_player_menu_nav_subtitle, Icons.Outlined.ClosedCaption);
+    ClosedCaption(R.string.video_player_menu_nav_subtitle, Icons.Outlined.ClosedCaption),
+    Stats(R.string.video_player_menu_nav_stats, Icons.Outlined.Info);
 
     fun getDisplayName(context: Context) = context.getString(strRes)
 }
@@ -364,7 +410,6 @@ fun MenuControllerPreview() {
     var currentCodec by remember { mutableStateOf(VideoCodec.HEVC) }
     var currentVideoAspectRatio by remember { mutableStateOf(VideoAspectRatio.Default) }
     var currentPlaySpeed by remember { mutableFloatStateOf(1f) }
-    var currentSelectedPlaySpeedItem by remember { mutableStateOf(PlaySpeedItem.x1) }
     var currentAudio by remember { mutableStateOf(Audio.A192K) }
 
     val currentDanmakuSwitch = remember { mutableStateListOf<DanmakuType>() }
@@ -440,6 +485,7 @@ fun MenuControllerPreview() {
                     onCodecChange = { currentCodec = it },
                     onAspectRatioChange = { currentVideoAspectRatio = it },
                     onPlaySpeedChange = { currentPlaySpeed = it },
+                    onShowPlayerStatsChange = { },
                     onAudioChange = { currentAudio = it },
                     onDanmakuSwitchChange = {
                         val a = currentDanmakuSwitch.toList()

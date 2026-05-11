@@ -42,7 +42,9 @@ data class PlayData(
                     height = it.dashVideo.height,
                     frameRate = it.dashVideo.frameRate,
                     backUrl = it.dashVideo.backupUrlList,
-                    codecs = CodeType.fromCodecId(it.dashVideo.codecid).str
+                    codecs = CodeType.fromCodecId(it.dashVideo.codecid).str,
+                    initialization = null,
+                    indexRange = null
                 )
             }.toMutableList()
 
@@ -64,7 +66,9 @@ data class PlayData(
                                 height = 0,
                                 frameRate = "",
                                 backUrl = firstSegment.backupUrlList,  // 使用 durl 的备用 URL
-                                codecs = CodeType.fromCodecId(stream.streamInfo.quality).str
+                                codecs = CodeType.fromCodecId(stream.streamInfo.quality).str,
+                                initialization = null,
+                                indexRange = null
                             )
                         )
                     }
@@ -143,7 +147,9 @@ data class PlayData(
                     height = it.dashVideo.height,
                     frameRate = it.dashVideo.frameRate,
                     backUrl = it.dashVideo.backupUrlList,
-                    codecs = CodeType.fromCodecId(it.dashVideo.codecid).str
+                    codecs = CodeType.fromCodecId(it.dashVideo.codecid).str,
+                    initialization = null,
+                    indexRange = null
                 )
             }.toMutableList()
 
@@ -163,7 +169,9 @@ data class PlayData(
                                 height = 0,
                                 frameRate = "",
                                 backUrl = firstSegment.backupUrlList,  // 使用 durl 的备用 URL
-                                codecs = CodeType.fromCodecId(stream.info.quality).str
+                                codecs = CodeType.fromCodecId(stream.info.quality).str,
+                                initialization = null,
+                                indexRange = null
                             )
                         )
                     }
@@ -231,7 +239,9 @@ data class PlayData(
                         height = it.height,
                         frameRate = it.frameRate,
                         backUrl = it.backupUrl,
-                        codecs = it.codecs
+                        codecs = it.codecs,
+                        initialization = it.segmentBase.initialization,
+                        indexRange = it.segmentBase.indexRange
                     )
                 }
             } else {
@@ -243,7 +253,9 @@ data class PlayData(
                         backUrl = it.backupUrl,
                         codecId = playUrlData.videoCodecId,
                         // durl 模式下没有这些信息，给默认值
-                        bandwidth = 0, width = 0, height = 0, frameRate = "", codecs = ""
+                        bandwidth = 0, width = 0, height = 0, frameRate = "", codecs = "",
+                        initialization = null,
+                        indexRange = null
                     )
                 }
             }
@@ -302,7 +314,9 @@ data class PlayData(
                     height = it.height,
                     frameRate = it.frameRate,
                     backUrl = it.backupUrl,
-                    codecs = it.codecs
+                    codecs = it.codecs,
+                    initialization = it.segmentBase.initialization,
+                    indexRange = it.segmentBase.indexRange
                 )
             }
             val dashAudios = audios?.map {
@@ -360,7 +374,9 @@ data class PlayData(
                     height = it.height,
                     frameRate = it.frameRate,
                     backUrl = it.backupUrl,
-                    codecs = it.codecs
+                    codecs = it.codecs,
+                    initialization = it.segmentBase.initialization,
+                    indexRange = it.segmentBase.indexRange
                 )
             }
             val dashAudios = audios?.map {
@@ -443,7 +459,9 @@ data class DashVideo(
     val height: Int,
     val frameRate: String,
     val backUrl: List<String>,
-    val codecs: String? = null
+    val codecs: String? = null,
+    val initialization: String? = null,
+    val indexRange: String? = null
 )
 
 /**

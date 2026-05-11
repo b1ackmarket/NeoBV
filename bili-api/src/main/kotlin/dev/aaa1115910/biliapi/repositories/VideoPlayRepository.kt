@@ -21,9 +21,27 @@ import dev.aaa1115910.biliapi.http.BiliHttpProxyApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
 import bilibili.pgc.gateway.player.v2.PlayURLGrpcKt as PgcPlayURLGrpcKt
+
+internal fun resolveSubtitleFallback(
+    preferredTracks: List<Subtitle>,
+    fallbackTracks: List<Subtitle>
+): List<Subtitle> {
+    if (preferredTracks.isEmpty()) return fallbackTracks
+    if (fallbackTracks.isEmpty()) return preferredTracks
+
+    val merged = linkedMapOf<String, Subtitle>()
+    preferredTracks.forEach { subtitle ->
+        merged[subtitle.lang] = subtitle
+    }
+    fallbackTracks.forEach { subtitle ->
+        merged.putIfAbsent(subtitle.lang, subtitle)
+    }
+    return merged.values.toList()
+}
 
 @Single
 class VideoPlayRepository(
@@ -208,30 +226,15 @@ class VideoPlayRepository(
         preferApiType: ApiType = ApiType.Web
     ): List<Subtitle> {
         return when (preferApiType) {
-            ApiType.Web -> {
-                val response = BiliHttpApi.getVideoMoreInfo(
-                    avid = aid,
-                    cid = cid,
-                    sessData = authRepository.sessionData ?: "",
-                    buvid3 = authRepository.buvid3 ?: ""
-                ).getResponseData()
-                response.subtitle?.subtitles
-                    ?.map { Subtitle.fromSubtitleItem(it) }
-                    ?: emptyList()
-            }
+            ApiType.Web -> resolveMergedSubtitleTracks(
+                preferredFetch = { fetchWebSubtitleTracks(aid, cid) },
+                fallbackFetch = { fetchAppSubtitleTracks(aid, cid) }
+            )
 
-            ApiType.App -> {
-                val dmViewReply = runCatching {
-                    danmakuStub?.dmView(dmViewReq {
-                        pid = aid
-                        oid = cid
-                        type = 1
-                    })
-                }.onFailure { handleGrpcException(it) }.getOrThrow()
-                dmViewReply?.subtitle?.subtitlesList
-                    ?.map { Subtitle.fromSubtitleItem(it) }
-                    ?: emptyList()
-            }
+            ApiType.App -> resolveMergedSubtitleTracks(
+                preferredFetch = { fetchAppSubtitleTracks(aid, cid) },
+                fallbackFetch = { fetchWebSubtitleTracks(aid, cid) }
+            )
         }
     }
 
@@ -324,5 +327,68 @@ class VideoPlayRepository(
         }
         val videoShot = VideoShot.fromVideoShot(videoShortResponse.getResponseData())
         return videoShot
+    }
+
+    suspend fun getOnlineCount(
+        aid: Long,
+        cid: Long,
+        preferApiType: ApiType = ApiType.Web
+    ): Int? {
+        return when (preferApiType) {
+            ApiType.Web -> runCatching {
+                BiliHttpApi.getVideoMoreInfo(
+                    avid = aid,
+                    cid = cid,
+                    sessData = authRepository.sessionData ?: "",
+                    buvid3 = authRepository.buvid3 ?: ""
+                ).getResponseData().onlineCount
+            }.getOrNull()
+
+            ApiType.App -> null
+        }
+    }
+
+    private suspend fun fetchWebSubtitleTracks(
+        aid: Long,
+        cid: Long
+    ): List<Subtitle> {
+        val response = BiliHttpApi.getVideoMoreInfo(
+            avid = aid,
+            cid = cid,
+            sessData = authRepository.sessionData ?: "",
+            buvid3 = authRepository.buvid3 ?: ""
+        ).getResponseData()
+        return response.subtitle?.subtitles
+            ?.map { Subtitle.fromSubtitleItem(it) }
+            ?: emptyList()
+    }
+
+    private suspend fun fetchAppSubtitleTracks(
+        aid: Long,
+        cid: Long
+    ): List<Subtitle> {
+        val dmViewReply = runCatching {
+            danmakuStub?.dmView(dmViewReq {
+                pid = aid
+                oid = cid
+                type = 1
+            })
+        }.onFailure { handleGrpcException(it) }.getOrThrow()
+        return dmViewReply?.subtitle?.subtitlesList
+            ?.map { Subtitle.fromSubtitleItem(it) }
+            ?: emptyList()
+    }
+
+    private suspend fun resolveMergedSubtitleTracks(
+        preferredFetch: suspend () -> List<Subtitle>,
+        fallbackFetch: suspend () -> List<Subtitle>
+    ): List<Subtitle> = coroutineScope {
+        val preferredTracks = async {
+            runCatching { preferredFetch() }.getOrElse { emptyList() }
+        }
+        val fallbackTracks = async {
+            runCatching { fallbackFetch() }.getOrElse { emptyList() }
+        }
+        resolveSubtitleFallback(preferredTracks.await(), fallbackTracks.await())
     }
 }

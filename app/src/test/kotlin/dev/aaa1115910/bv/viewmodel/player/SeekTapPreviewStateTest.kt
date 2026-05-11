@@ -23,12 +23,12 @@ class SeekTapPreviewStateTest {
             stepMs = SeekStepOption.Ten.millis
         )
 
-        assertEquals(SeekTapAction.DirectJump(130_000L), first)
+        assertEquals(SeekTapAction.PendingDirectJump(130_000L), first)
         assertEquals(SeekTapAction.StartOrUpdatePreview(140_000L), second)
     }
 
     @Test
-    fun `clear preview resets tap window so next tap jumps directly again`() {
+    fun `clearing preview resets tap window so next tap becomes pending jump again`() {
         val state = SeekTapPreviewState()
 
         state.onDirectionalTap(
@@ -56,11 +56,11 @@ class SeekTapPreviewStateTest {
             stepMs = SeekStepOption.Ten.millis
         )
 
-        assertEquals(SeekTapAction.DirectJump(150_000L), next)
+        assertEquals(SeekTapAction.PendingDirectJump(150_000L), next)
     }
 
     @Test
-    fun `window expiry resets to direct jump and boundaries clamp correctly`() {
+    fun `window expiry resets to pending jump and boundaries clamp correctly`() {
         val state = SeekTapPreviewState()
 
         state.onDirectionalTap(
@@ -87,8 +87,32 @@ class SeekTapPreviewStateTest {
             stepMs = SeekStepOption.Five.millis
         )
 
-        assertEquals(SeekTapAction.DirectJump(0L), expired)
-        assertEquals(SeekTapAction.DirectJump(300_000L), upperBound)
+        assertEquals(SeekTapAction.PendingDirectJump(0L), expired)
+        assertEquals(SeekTapAction.PendingDirectJump(300_000L), upperBound)
+    }
+
+    @Test
+    fun `clearing pending jump cancels the double tap window`() {
+        val state = SeekTapPreviewState()
+
+        state.onDirectionalTap(
+            direction = SeekDirection.Forward,
+            nowMs = 1_000L,
+            currentPositionMs = 120_000L,
+            totalDurationMs = 300_000L,
+            stepMs = SeekStepOption.Ten.millis
+        )
+        state.clearPendingJump()
+
+        val next = state.onDirectionalTap(
+            direction = SeekDirection.Forward,
+            nowMs = 1_300L,
+            currentPositionMs = 130_000L,
+            totalDurationMs = 300_000L,
+            stepMs = SeekStepOption.Ten.millis
+        )
+
+        assertEquals(SeekTapAction.PendingDirectJump(140_000L), next)
     }
 
     @Test

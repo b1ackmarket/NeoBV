@@ -39,6 +39,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Border
@@ -59,6 +60,33 @@ internal fun shouldCloseSidePanelForPreviewKey(
     if (eventType != KeyEventType.KeyDown) return false
     if (key == Key.Back) return true
     return key == Key.DirectionLeft && !headerHasFocus
+}
+
+internal const val UP_PANEL_NAME_MAX_DISPLAY_UNITS = 14
+
+internal fun truncateUpPanelName(
+    name: String,
+    maxDisplayUnits: Int = UP_PANEL_NAME_MAX_DISPLAY_UNITS
+): String {
+    if (name.isBlank()) return name
+    val totalUnits = name.fold(0) { acc: Int, char ->
+        acc + if (char.code <= 0x7F) 1 else 2
+    }
+    if (totalUnits <= maxDisplayUnits) return name
+
+    val ellipsisUnits = 1
+    val targetUnits = (maxDisplayUnits - ellipsisUnits).coerceAtLeast(0)
+    var units = 0
+    val builder = StringBuilder()
+    for (char in name) {
+        val charUnits = if (char.code <= 0x7F) 1 else 2
+        if (units + charUnits > targetUnits) {
+            return builder.append('…').toString()
+        }
+        builder.append(char)
+        units += charUnits
+    }
+    return builder.toString()
 }
 
 data class PlayerUpPanelUiState(
@@ -208,11 +236,17 @@ private fun PlayerUpSpacePanel(
                     contentDescription = null,
                     contentScale = ContentScale.Crop
                 )
-                Column(modifier = Modifier.padding(start = 10.dp)) {
+                Column(
+                    modifier = Modifier
+                        .padding(start = 10.dp, end = 12.dp)
+                        .weight(1f, fill = false)
+                ) {
                     Text(
-                        text = state.upName,
+                        text = truncateUpPanelName(state.upName),
                         color = Color.White,
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        maxLines = 1,
+                        overflow = TextOverflow.Clip
                     )
                     Text(
                         modifier = Modifier.padding(top = 2.dp),
@@ -223,20 +257,19 @@ private fun PlayerUpSpacePanel(
                 }
             }
             Row(
-                modifier = Modifier
-                    .onFocusChanged { onHeaderFocusChanged(it.hasFocus) }
-                    .focusTarget(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 PlayerPanelChip(
                     text = if (state.latestSelected) "最新" else "最热",
                     emphasized = false,
-                    onClick = onToggleSort
+                    onClick = onToggleSort,
+                    onFocusChanged = onHeaderFocusChanged
                 )
                 PlayerPanelChip(
                     text = if (state.isFollowing) "已关注" else "+ 关注",
                     emphasized = !state.isFollowing,
-                    onClick = onToggleFollow
+                    onClick = onToggleFollow,
+                    onFocusChanged = onHeaderFocusChanged
                 )
             }
         }
@@ -323,10 +356,18 @@ private fun PlayerSidePanelVideoItem(
 private fun PlayerPanelChip(
     text: String,
     emphasized: Boolean,
+    onFocusChanged: (Boolean) -> Unit,
     onClick: () -> Unit
 ) {
+    var isFocused by remember { mutableStateOf(false) }
     Surface(
         onClick = onClick,
+        modifier = Modifier
+            .onFocusChanged {
+                isFocused = it.hasFocus
+                onFocusChanged(it.hasFocus)
+            }
+            .focusTarget(),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = if (emphasized) Color(0xFFF4529B) else Color.White.copy(alpha = 0.12f),
             contentColor = Color.White,
@@ -335,11 +376,14 @@ private fun PlayerPanelChip(
         ),
         border = ClickableSurfaceDefaults.border(
             focusedBorder = Border(
-                border = androidx.compose.foundation.BorderStroke(2.dp, Color.White.copy(alpha = 0.85f)),
+                border = androidx.compose.foundation.BorderStroke(2.dp, Color.White.copy(alpha = 0.95f)),
                 shape = MaterialTheme.shapes.large
             ),
             border = Border(
-                border = androidx.compose.foundation.BorderStroke(0.dp, Color.Transparent),
+                border = androidx.compose.foundation.BorderStroke(
+                    if (isFocused) 2.dp else 1.dp,
+                    if (isFocused) Color.White.copy(alpha = 0.95f) else Color.White.copy(alpha = 0.08f)
+                ),
                 shape = MaterialTheme.shapes.large
             )
         ),

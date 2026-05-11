@@ -56,6 +56,7 @@ import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.entity.ProgressSegmentMark
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.VideoShotImageCache
@@ -73,6 +74,9 @@ fun ControllerVideoInfo(
     authorName: String,
     publishDateText: String,
     playCountText: String,
+    videoListButtonLabel: String,
+    onlineCountText: String,
+    sponsorBlockProgressMarks: List<ProgressSegmentMark> = emptyList(),
     clock: Pair<Int, Int>,
     videoShot: VideoShot?,
     videoShotCache: VideoShotImageCache,
@@ -107,6 +111,7 @@ fun ControllerVideoInfo(
                 authorName = authorName,
                 publishDateText = publishDateText,
                 playCountText = playCountText,
+                onlineCountText = onlineCountText,
                 clock = clock
             )
         }
@@ -129,6 +134,9 @@ fun ControllerVideoInfo(
                 fromSeason = fromSeason,
                 danmakuEnabled = danmakuEnabled,
                 isLooping = isLooping,
+                videoListButtonLabel = videoListButtonLabel,
+                onlineCountText = onlineCountText,
+                sponsorBlockProgressMarks = sponsorBlockProgressMarks,
                 onDirectionLeft = onDirectionLeft,
                 onDirectionRight = onDirectionRight,
                 onSeekGoTime = onSeekGoTime,
@@ -152,6 +160,7 @@ fun ControllerVideoInfoTop(
     authorName: String,
     publishDateText: String,
     playCountText: String,
+    onlineCountText: String,
     clock: Pair<Int, Int>
 ) {
     Column(
@@ -198,7 +207,11 @@ fun ControllerVideoInfoTop(
                 minute = clock.second,
             )
         }
-        if (authorName.isNotBlank() || publishDateText.isNotBlank() || playCountText.isNotBlank()) {
+        if (
+            authorName.isNotBlank() ||
+            publishDateText.isNotBlank() ||
+            playCountText.isNotBlank()
+        ) {
             Row(
                 modifier = Modifier.padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -248,6 +261,9 @@ fun ControllerVideoInfoBottom(
     fromSeason: Boolean,
     danmakuEnabled: Boolean,
     isLooping: Boolean,
+    videoListButtonLabel: String,
+    onlineCountText: String,
+    sponsorBlockProgressMarks: List<ProgressSegmentMark> = emptyList(),
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
     onSeekGoTime: () -> Unit,
@@ -420,12 +436,13 @@ fun ControllerVideoInfoBottom(
                 duration = seekerState.totalDuration,
                 position = if (isSeeking) goTime else seekerState.currentTime,
                 bufferedPercentage = seekerState.bufferedPercentage,
-                isPersistentSeek = false
+                isPersistentSeek = false,
+                segmentMarks = sponsorBlockProgressMarks
             )
         }
 
         val icons = listOfNotNull(
-            (R.drawable.related_videos_24px to "选集") to onShowVideoList,
+            (R.drawable.related_videos_24px to videoListButtonLabel) to onShowVideoList,
             ((if (danmakuEnabled) (R.drawable.danmaku_on_24px) else (R.drawable.danmaku_off_24px)) to "弹幕开关") to onDanmakuSwitchChange,
             (R.drawable.settings_24px to "打开设置") to onShowSettings,
             if (!fromSeason) (R.drawable.info_24px to "视频信息") to onGoToVideoInfo else null,
@@ -447,6 +464,7 @@ fun ControllerVideoInfoBottom(
                     return@onKeyEvent false
                 }
                 .padding(horizontal = 24.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
         ) {
             icons.forEach { (icon, function) ->
@@ -462,6 +480,14 @@ fun ControllerVideoInfoBottom(
                         modifier = Modifier.padding(5.dp)
                     )
                 }
+            }
+            if (onlineCountText.isNotBlank()) {
+                Box(modifier = Modifier.weight(1f))
+                Text(
+                    text = onlineCountText,
+                    color = Color.White.copy(alpha = 0.76f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
     }
@@ -528,6 +554,8 @@ private fun ControllerVideoInfoPreview() {
             authorName = "BV 官方",
             publishDateText = "5月8日",
             playCountText = "12.3万播放",
+            videoListButtonLabel = "选集",
+            onlineCountText = "256 人正在看",
             clock = Pair(12, 30),
             videoShot = null,
             videoShotCache = VideoShotImageCache(),

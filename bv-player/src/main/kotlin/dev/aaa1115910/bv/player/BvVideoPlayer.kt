@@ -15,6 +15,7 @@ import dev.aaa1115910.bv.player.impl.exo.ExoMediaPlayer
 fun BvVideoPlayer(
     modifier: Modifier = Modifier,
     videoPlayer: AbstractVideoPlayer?,
+    resizeMode: Int = AspectRatioFrameLayout.RESIZE_MODE_FILL,
 ) {
     if (videoPlayer is ExoMediaPlayer) {
         AndroidView(
@@ -22,12 +23,13 @@ fun BvVideoPlayer(
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     player = videoPlayer.mPlayer
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                    this.resizeMode = resizeMode
                     useController = false
                 }
             },
             update = { playerView ->
                 playerView.player = videoPlayer.mPlayer
+                playerView.resizeMode = resizeMode
             },
             onRelease = { playerView ->
                 playerView.player = null

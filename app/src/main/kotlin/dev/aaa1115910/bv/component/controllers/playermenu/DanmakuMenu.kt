@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -61,6 +63,22 @@ fun DanmakuMenuList(
 
     val focusRequester = remember { FocusRequester() }
     var selectedDanmakuMenuItem by remember { mutableStateOf(VideoPlayerDanmakuMenuItem.Switch) }
+    val menuItemRequesters = remember {
+        mutableStateListOf<FocusRequester>().apply {
+            addAll(VideoPlayerDanmakuMenuItem.entries.map { FocusRequester() })
+        }
+    }
+    val shouldFocusItems = focusState.focusState == MenuFocusState.Items
+
+    LaunchedEffect(focusState.focusState, selectedDanmakuMenuItem) {
+        if (focusState.focusState == MenuFocusState.Menu) {
+            val index = resolveParentMenuFocusIndex(
+                selectedIndex = selectedDanmakuMenuItem.ordinal,
+                itemCount = menuItemRequesters.size
+            )
+            menuItemRequesters[index].requestFocus()
+        }
+    }
 
     Row(
         modifier = modifier.fillMaxHeight(),
@@ -129,9 +147,9 @@ fun DanmakuMenuList(
                             }
                         }
                     },
+                    requestFocusWhen = shouldFocusItems,
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
-                        focusRequester.requestFocus()
                     }
                 )
 
@@ -143,6 +161,7 @@ fun DanmakuMenuList(
                     text = NumberFormat.getPercentInstance()
                         .apply { maximumFractionDigits = 0 }
                         .format(currentScale),
+                    requestFocusWhen = shouldFocusItems,
                     onValueChange = onDanmakuSizeChange,
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
@@ -155,6 +174,7 @@ fun DanmakuMenuList(
                     text = NumberFormat.getPercentInstance()
                         .apply { maximumFractionDigits = 0 }
                         .format(currentOpacity),
+                    requestFocusWhen = shouldFocusItems,
                     onValueChange = onDanmakuOpacityChange,
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
@@ -163,11 +183,11 @@ fun DanmakuMenuList(
                     modifier = menuItemsModifier,
                     items = DanmakuSpeedFactor.entries.map { it.getDisplayName(context) },
                     selected = DanmakuSpeedFactor.getIndexByFactor(currentSpeedFactor),
+                    requestFocusWhen = shouldFocusItems,
                     onSelectedChanged = {
                         onDanmakuSpeedFactorChange(DanmakuSpeedFactor.entries[it].factor) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
-                        focusRequester.requestFocus()
                     }
                 )
 
@@ -179,6 +199,7 @@ fun DanmakuMenuList(
                     text = NumberFormat.getPercentInstance()
                         .apply { maximumFractionDigits = 0 }
                         .format(currentArea),
+                    requestFocusWhen = shouldFocusItems,
                     onValueChange = onDanmakuAreaChange,
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
@@ -187,10 +208,10 @@ fun DanmakuMenuList(
                     modifier = menuItemsModifier,
                     items = listOf("关闭", "开启"),
                     selected = if (currentMaskEnabled) 1 else 0,
+                    requestFocusWhen = shouldFocusItems,
                     onSelectedChanged = { onDanmakuMaskChange(it == 1) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
-                        focusRequester.requestFocus()
                     }
                 )
             }
@@ -221,7 +242,8 @@ fun DanmakuMenuList(
             itemsIndexed(VideoPlayerDanmakuMenuItem.entries) { index, item ->
                 MenuListItem(
                     modifier = Modifier
-                        .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
+                        .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
+                        .focusRequester(menuItemRequesters[index]),
                     text = item.getDisplayName(context),
                     selected = selectedDanmakuMenuItem == item,
                     onClick = {},

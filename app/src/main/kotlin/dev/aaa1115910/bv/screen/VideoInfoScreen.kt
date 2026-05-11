@@ -103,9 +103,9 @@ import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.component.buttons.CoinButton
 import dev.aaa1115910.bv.component.buttons.FavoriteButton
 import dev.aaa1115910.bv.component.buttons.LikeButton
+import dev.aaa1115910.bv.component.controllers.resolvePlaybackVideoList
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.VideosRow
-import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
@@ -202,12 +202,12 @@ fun VideoInfoScreen(
 
         // 1. 更新播放列表
         videoDetailViewModel.updateVideoList(
-            listOf(
-                VideoListItem(
-                    aid = videoDetailState.aid,
-                    cid = targetCid,
-                    title = videoDetailState.title,
-                )
+            resolvePlaybackVideoList(
+                aid = videoDetailState.aid,
+                currentCid = targetCid,
+                title = videoDetailState.title,
+                pages = videoDetailState.pages,
+                ugcSeason = videoDetailState.ugcSeason
             )
         )
 

@@ -3,6 +3,7 @@ package dev.aaa1115910.bv.repository
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.video.RelatedVideo
 import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
+import dev.aaa1115910.bv.component.controllers.resolvePlaybackVideoList
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.util.formatHourMinSec
@@ -69,6 +70,45 @@ class VideoInfoRepository(private val videoDetailRepository: VideoDetailReposito
         )
 
         _videoDetailState.update { videoDetailState }
+
+        val currentList = _videoList.value
+        val shouldRefreshPlaybackList =
+            currentList.isEmpty() ||
+                currentList.none { it.aid == videoDetailState.aid } ||
+                (
+                    currentList.size == 1 &&
+                        currentList.first().aid == videoDetailState.aid &&
+                        currentList.first().ugcPages.isNullOrEmpty()
+                    )
+        if (shouldRefreshPlaybackList) {
+            _videoList.update {
+                resolvePlaybackVideoList(
+                    aid = videoDetailState.aid,
+                    currentCid = videoDetailState.cid,
+                    title = videoDetailState.title,
+                    pages = videoDetailState.pages,
+                    ugcSeason = videoDetailState.ugcSeason
+                )
+            }
+        }
+    }
+
+    suspend fun resolveDefaultVideoListItem(
+        aid: Long,
+        fallbackTitle: String,
+        preferApiType: ApiType
+    ): VideoListItem {
+        val videoDetail = videoDetailRepository.getVideoDetail(
+            aid = aid,
+            preferApiType = preferApiType
+        )
+        val currentPage = videoDetail.pages.firstOrNull { it.cid == videoDetail.cid }
+        return VideoListItem(
+            aid = videoDetail.aid,
+            cid = videoDetail.cid,
+            epid = videoDetail.epid,
+            title = currentPage?.title?.takeIf { it.isNotBlank() } ?: fallbackTitle
+        )
     }
 
     fun updateVideoList(videoListItem: List<VideoListItem>) {

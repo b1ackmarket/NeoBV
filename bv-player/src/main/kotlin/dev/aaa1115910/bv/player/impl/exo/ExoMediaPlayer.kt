@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -13,6 +14,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.Renderer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
+import androidx.media3.exoplayer.dash.DashMediaSource
+import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
@@ -90,6 +93,12 @@ class ExoMediaPlayer(
 
     @OptIn(UnstableApi::class)
     override fun playUrl(videoUrl: String?, audioUrl: String?) {
+        if (audioUrl == null && videoUrl?.contains(".m3u8") == true) {
+            mMediaSource = HlsMediaSource.Factory(dataSourceFactory)
+                .createMediaSource(MediaItem.fromUri(videoUrl))
+            return
+        }
+
         val videoMediaSource = videoUrl?.let {
             ProgressiveMediaSource.Factory(dataSourceFactory)
                 .createMediaSource(MediaItem.fromUri(it))
@@ -101,6 +110,16 @@ class ExoMediaPlayer(
 
         val mediaSources = listOfNotNull(videoMediaSource, audioMediaSource)
         mMediaSource = MergingMediaSource(*mediaSources.toTypedArray())
+    }
+
+    @OptIn(UnstableApi::class)
+    override fun playDash(mpdUrl: String) {
+        val mediaItem = MediaItem.Builder()
+            .setUri(mpdUrl)
+            .setMimeType(MimeTypes.APPLICATION_MPD)
+            .build()
+        mMediaSource = DashMediaSource.Factory(dataSourceFactory)
+            .createMediaSource(mediaItem)
     }
 
     @OptIn(UnstableApi::class)

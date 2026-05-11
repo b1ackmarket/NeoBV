@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -24,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,11 +57,26 @@ fun MenuListItem(
         ),
         label = "MenuListItem width [$text]"
     )
+    var hasFocus by remember { mutableStateOf(false) }
 
     DenseListItem(
         modifier = modifier
             .width(itemWidth)
-            .onFocusChanged { if (it.hasFocus) onFocus() },
+            .onFocusChanged {
+                hasFocus = it.hasFocus
+                if (it.hasFocus) onFocus()
+            }
+            .then(
+                if (selected && !hasFocus) {
+                    Modifier.border(
+                        width = 2.dp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                        shape = RoundedCornerShape(18.dp)
+                    )
+                } else {
+                    Modifier
+                }
+            ),
         selected = selected,
         onClick = onClick,
         headlineContent = {

@@ -4,6 +4,7 @@ import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class VideoPlayerV3ViewModelMetadataTest {
     @Test
@@ -50,5 +51,28 @@ class VideoPlayerV3ViewModelMetadataTest {
 
         assertEquals("", nextState.publishDateText)
         assertEquals("", nextState.playCountText)
+    }
+
+    @Test
+    fun `video switch resets subtitle selection and loaded subtitle data`() {
+        val currentState = PlayerUiState(
+            aid = 100L,
+            cid = 10L,
+            title = "Old",
+            subtitleId = 42L
+        ).copy(subtitleData = listOf())
+
+        val nextState = currentState.copyForVideoSwitch(
+            newVideo = VideoListItem(
+                aid = 200L,
+                cid = 30L,
+                title = "New"
+            ),
+            clearDetailMetadata = true
+        )
+
+        assertEquals(-1L, nextState.subtitleId)
+        assertTrue(nextState.subtitleData.isEmpty())
+        assertTrue(nextState.subtitleList.isEmpty())
     }
 }

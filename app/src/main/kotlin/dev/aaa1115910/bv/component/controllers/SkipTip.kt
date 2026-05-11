@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.runtime.Composable
@@ -41,6 +42,9 @@ fun SkipTips(
     showBackToStart: Boolean,
     showSkipToNextEp: Boolean,
     showPreviewTip: Boolean,
+    showOnlineCount: Boolean = false,
+    onlineCountText: String? = null,
+    pluginTipMessage: String? = null,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         // Column 自动管理堆叠，出现/消失时其他 tip 平滑移动
@@ -53,6 +57,16 @@ fun SkipTips(
             PlayerTip(
                 show = showPreviewTip,
                 text = "视频需付费，当前为试看片段",
+                icon = Icons.Outlined.Info,
+            )
+            PlayerTip(
+                show = showOnlineCount && !onlineCountText.isNullOrBlank(),
+                text = onlineCountText.orEmpty(),
+                icon = Icons.Outlined.People,
+            )
+            PlayerTip(
+                show = !pluginTipMessage.isNullOrBlank(),
+                text = pluginTipMessage.orEmpty(),
                 icon = Icons.Outlined.Info,
             )
             PlayerTip(
@@ -121,6 +135,9 @@ private fun SkipTipsPreview() {
     SkipTips(
         showBackToStart = true,
         showSkipToNextEp = true,
-        showPreviewTip = true
+        showPreviewTip = true,
+        showOnlineCount = true,
+        onlineCountText = "256 人正在看",
+        pluginTipMessage = "跳过片头"
     )
 }

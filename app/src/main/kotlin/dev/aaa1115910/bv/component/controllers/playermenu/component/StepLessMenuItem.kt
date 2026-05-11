@@ -9,8 +9,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.ArrowDropUp
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -26,9 +30,17 @@ fun StepLessMenuItem(
     text: String,
     step: Float = 0.01f,
     range: ClosedFloatingPointRange<Float> = 0f..1f,
+    requestFocusWhen: Boolean = false,
+    stepValueResolver: ((currentValue: Float, direction: Int) -> Float)? = null,
     onValueChange: (Float) -> Unit,
     onFocusBackToParent: () -> Unit
 ) {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(requestFocusWhen, text) {
+        if (requestFocusWhen) {
+            focusRequester.requestFocus()
+        }
+    }
     Box(
         modifier = modifier
             .fillMaxHeight()
@@ -49,25 +61,28 @@ fun StepLessMenuItem(
             MenuListItem(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .focusRequester(focusRequester)
                     .onPreviewKeyEvent {
                         when (it.key) {
                             Key.DirectionUp -> {
                                 if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
-                                if (value >= range.endInclusive - step) {
-                                    onValueChange(range.endInclusive)
+                                val nextValue = stepValueResolver?.invoke(value, 1) ?: if (value >= range.endInclusive - step) {
+                                    range.endInclusive
                                 } else {
-                                    onValueChange(value + step)
+                                    value + step
                                 }
+                                onValueChange(nextValue)
                                 return@onPreviewKeyEvent true
                             }
 
                             Key.DirectionDown -> {
                                 if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
-                                if (value - step <= range.start) {
-                                    onValueChange(range.start)
+                                val nextValue = stepValueResolver?.invoke(value, -1) ?: if (value - step <= range.start) {
+                                    range.start
                                 } else {
-                                    onValueChange(value - step)
+                                    value - step
                                 }
+                                onValueChange(nextValue)
                                 return@onPreviewKeyEvent true
                             }
                         }
@@ -88,9 +103,16 @@ fun StepLessMenuItem(
     text: String,
     step: Int = 1,
     range: IntRange = 0..100,
+    requestFocusWhen: Boolean = false,
     onValueChange: (Int) -> Unit,
     onFocusBackToParent: () -> Unit
 ) {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(requestFocusWhen, text) {
+        if (requestFocusWhen) {
+            focusRequester.requestFocus()
+        }
+    }
     Box(
         modifier = modifier
             .fillMaxHeight()
@@ -111,6 +133,7 @@ fun StepLessMenuItem(
             MenuListItem(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .focusRequester(focusRequester)
                     .onPreviewKeyEvent {
                         when (it.key) {
                             Key.DirectionUp -> {

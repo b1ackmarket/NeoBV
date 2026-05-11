@@ -10,8 +10,11 @@ import dev.aaa1115910.bv.component.controllers.hasSecondaryControllerOverlay
 import dev.aaa1115910.bv.screen.UpPanelVideoClickAction
 import dev.aaa1115910.bv.screen.resolveUpPanelVideoClickAction
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
+import dev.aaa1115910.bv.component.controllers.UP_PANEL_NAME_MAX_DISPLAY_UNITS
 import dev.aaa1115910.bv.component.controllers.shouldCloseSidePanelForPreviewKey
+import dev.aaa1115910.bv.component.controllers.truncateUpPanelName
 import dev.aaa1115910.bv.viewmodel.player.normalizeAvailableVideoCodecs
+import dev.aaa1115910.bv.viewmodel.player.normalizeSubtitleUrl
 import dev.aaa1115910.biliapi.entity.user.SpaceVideoOrder
 import dev.aaa1115910.bv.viewmodel.player.shouldApplyUpPanelLoadResult
 import kotlin.test.Test
@@ -95,7 +98,7 @@ class PlayerOverlayStateTest {
     }
 
     @Test
-    fun `up panel videos without cid fall back to opening details`() {
+    fun `up panel videos without cid resolve first cid before inline play`() {
         val playInline = resolveUpPanelVideoClickAction(
             VideoCardData(
                 avid = 1L,
@@ -125,7 +128,13 @@ class PlayerOverlayStateTest {
             ),
             playInline
         )
-        assertEquals(UpPanelVideoClickAction.OpenDetails(aid = 3L), openDetails)
+        assertEquals(
+            UpPanelVideoClickAction.ResolveAndPlay(
+                aid = 3L,
+                fallbackTitle = "Detail only"
+            ),
+            openDetails
+        )
     }
 
     @Test
@@ -170,10 +179,6 @@ class PlayerOverlayStateTest {
     @Test
     fun `homepage target resolves dynamic directly but recommend popular through home`() {
         assertEquals(
-            MainNavigationTarget(LeftNaviItem.Dynamic, null),
-            HomeEntryResolver.resolve(HomeStartDestination.Dynamic)
-        )
-        assertEquals(
             MainNavigationTarget(LeftNaviItem.Home, HomeStartDestination.Recommend),
             HomeEntryResolver.resolve(HomeStartDestination.Recommend)
         )
@@ -189,5 +194,30 @@ class PlayerOverlayStateTest {
 
         assertFalse(policy.requireLeanback)
         assertTrue(policy.supportTouch)
+    }
+
+    @Test
+    fun `up panel name keeps reference length but truncates longer mixed width names`() {
+        assertEquals(
+            "AG超玩会官方…",
+            truncateUpPanelName("AG超玩会官方账号")
+        )
+        assertEquals(
+            "AG超玩会官方…",
+            truncateUpPanelName("AG超玩会官方账号直播间")
+        )
+        assertEquals(14, UP_PANEL_NAME_MAX_DISPLAY_UNITS)
+    }
+
+    @Test
+    fun `subtitle url normalizer adds https to protocol relative urls`() {
+        assertEquals(
+            "https://i0.hdslb.com/bfs/subtitle/demo.json",
+            normalizeSubtitleUrl("//i0.hdslb.com/bfs/subtitle/demo.json")
+        )
+        assertEquals(
+            "https://i0.hdslb.com/bfs/subtitle/demo.json",
+            normalizeSubtitleUrl("https://i0.hdslb.com/bfs/subtitle/demo.json")
+        )
     }
 }

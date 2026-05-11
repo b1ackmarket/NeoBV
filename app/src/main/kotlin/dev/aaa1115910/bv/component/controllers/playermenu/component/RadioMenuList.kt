@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -24,10 +25,16 @@ fun RadioMenuList(
     modifier: Modifier = Modifier,
     items: List<String>,
     selected: Int = 0,
+    requestFocusWhen: Boolean = false,
     onSelectedChanged: (index: Int) -> Unit,
     onFocusBackToParent: () -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(requestFocusWhen, selected, items) {
+        if (requestFocusWhen && items.isNotEmpty()) {
+            focusRequester.requestFocus()
+        }
+    }
     LazyColumn(
         modifier = modifier
             .onPreviewKeyEvent {

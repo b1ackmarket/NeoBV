@@ -20,7 +20,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
-import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.DanmakuPlayerCompose
 import dev.aaa1115910.bv.component.controllers.PlayerUpPanelUiState
 import dev.aaa1115910.bv.component.controllers.VideoPlayerController
@@ -47,11 +46,11 @@ import kotlin.math.absoluteValue
 
 internal sealed interface UpPanelVideoClickAction {
     data class PlayInline(val video: VideoListItem) : UpPanelVideoClickAction
-    data class OpenDetails(val aid: Long) : UpPanelVideoClickAction
+    data class ResolveAndPlay(val aid: Long, val fallbackTitle: String) : UpPanelVideoClickAction
 }
 
 internal fun resolveUpPanelVideoClickAction(video: VideoCardData): UpPanelVideoClickAction {
-    val cid = video.cid
+    val cid = video.cid?.takeIf { it > 0 }
     return if (cid != null) {
         UpPanelVideoClickAction.PlayInline(
             VideoListItem(
@@ -61,7 +60,10 @@ internal fun resolveUpPanelVideoClickAction(video: VideoCardData): UpPanelVideoC
             )
         )
     } else {
-        UpPanelVideoClickAction.OpenDetails(aid = video.avid)
+        UpPanelVideoClickAction.ResolveAndPlay(
+            aid = video.avid,
+            fallbackTitle = video.title
+        )
     }
 }
 
@@ -72,11 +74,10 @@ internal fun executeUpPanelVideoClickAction(
 ) {
     when (val action = resolveUpPanelVideoClickAction(video)) {
         is UpPanelVideoClickAction.PlayInline -> playerViewModel.playNewVideo(action.video)
-        is UpPanelVideoClickAction.OpenDetails -> {
-            VideoInfoActivity.actionStart(
-                context = context,
+        is UpPanelVideoClickAction.ResolveAndPlay -> {
+            playerViewModel.playUpPanelVideoByAid(
                 aid = action.aid,
-                fromController = true
+                fallbackTitle = action.fallbackTitle
             )
         }
     }
@@ -96,6 +97,7 @@ fun VideoPlayerV3Screen(
     var currentDanmakuMaskFrame: DanmakuMaskFrame? by remember { mutableStateOf(null) }
 
     var isLooping by remember { mutableStateOf(false) }
+    var showEndedRelatedVideosToken by remember { mutableStateOf(0) }
     val uiState by playerViewModel.uiState.collectAsState()
     val seekerState = playerViewModel.seekerState.collectAsState()
 
@@ -115,6 +117,10 @@ fun VideoPlayerV3Screen(
                     }
 
                     playerViewModel.checkAndPlayNext()
+                }
+
+                PlayerUiEffect.ShowRecommendedVideos -> {
+                    showEndedRelatedVideosToken += 1
                 }
             }
         }
@@ -237,6 +243,9 @@ fun VideoPlayerV3Screen(
             logger.info { "Set default play speed: $speed" }
             playerViewModel.updatePlaySpeed(speed)
         },
+        setShowPlayerStats = { show ->
+            playerViewModel.setShowPlayerStats(show)
+        },
         onDanmakuSettingChange = { action ->
             playerViewModel.updateDanmakuState(action)
             logger.info { "On danmaku state change" }
@@ -259,6 +268,13 @@ fun VideoPlayerV3Screen(
                 )
             }
         },
+        confirmPendingPluginAction = {
+            playerViewModel.confirmPendingPluginAction()
+        },
+        dismissPendingPluginAction = {
+            playerViewModel.dismissPendingPluginAction()
+        },
+        showEndedRelatedVideosToken = showEndedRelatedVideosToken,
     ) {
         Box(
             modifier = Modifier.background(Color.Black),
@@ -308,7 +324,8 @@ fun VideoPlayerV3Screen(
                     duration = seekerState.value.totalDuration,
                     position = seekerState.value.currentTime,
                     bufferedPercentage = seekerState.value.bufferedPercentage,
-                    isPersistentSeek = true
+                    isPersistentSeek = true,
+                    segmentMarks = uiState.sponsorBlockProgressMarks
                 )
             }
         }

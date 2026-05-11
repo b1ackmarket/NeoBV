@@ -98,6 +98,14 @@ internal fun normalizeAvailableVideoCodecs(
     return if (current.contains(active)) current else current + active
 }
 
+internal fun normalizeSubtitleUrl(url: String): String {
+    return if (url.startsWith("//")) {
+        "https:$url"
+    } else {
+        url
+    }
+}
+
 internal fun shouldApplyUpPanelLoadResult(
     requestedAuthorMid: Long,
     requestedOrder: SpaceVideoOrder,
@@ -383,9 +391,11 @@ class VideoPlayerV3ViewModel(
                 val subtitle =
                     _uiState.value.subtitleList.find { it.id == id } ?: return@runCatching
                 subtitleName = subtitle.langDoc
-                logger.info { "Subtitle url: ${subtitle.url}" }
+                val subtitleUrl = normalizeSubtitleUrl(subtitle.url)
+                logger.info { "Subtitle url: $subtitleUrl" }
                 val client = HttpClient(OkHttp)
-                val responseText = client.get(subtitle.url).bodyAsText()
+                val responseText = client.get(subtitleUrl).bodyAsText()
+                client.close()
                 val subtitleData = SubtitleParser.fromBccString(responseText)
                 _uiState.update {
                     it.copy(
@@ -446,13 +456,7 @@ class VideoPlayerV3ViewModel(
             val mediaUrls = resolveMediaUrls(new.qualityId, new.videoCodec, new.audio)
 
             if (mediaUrls != null) {
-                // 执行播放逻辑
-                player.playUrl(mediaUrls.videoUrl, mediaUrls.audioUrl)
-                player.prepare()
-                if (currentPosition > 0) {
-                    player.seekTo(currentPosition)
-                }
-                player.start()
+                executePlayback(mediaUrls, startPositionMs = currentPosition.takeIf { it > 0L })
             }
         }
     }
@@ -549,6 +553,15 @@ class VideoPlayerV3ViewModel(
                     playNewVideo(newVideo = nextVideo)
 
                     // 因为番剧无相关视频，需要继续播放，所以在这里return
+                    return
+                }
+            }
+
+            ActionAfterPlayItems.ShowRelated -> {
+                if (_uiState.value.relatedVideos.isNotEmpty()) {
+                    viewModelScope.launch {
+                        _uiEffect.emit(PlayerUiEffect.ShowRecommendedVideos)
+                    }
                     return
                 }
             }
@@ -790,6 +803,26 @@ class VideoPlayerV3ViewModel(
 
         // 加载新播放url
         loadVideoWithResources()
+    }
+
+    fun playUpPanelVideoByAid(aid: Long, fallbackTitle: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                videoInfoRepository.resolveDefaultVideoListItem(
+                    aid = aid,
+                    fallbackTitle = fallbackTitle,
+                    preferApiType = Prefs.apiType
+                )
+            }.onSuccess { resolvedVideo ->
+                withContext(Dispatchers.Main) {
+                    playNewVideo(resolvedVideo)
+                }
+            }.onFailure { error ->
+                logger.fWarn {
+                    "Resolve up panel video cid failed. aid=$aid title=$fallbackTitle error=${error.message}"
+                }
+            }
+        }
     }
 
     fun trySendHeartbeat() {
@@ -1766,6 +1799,7 @@ internal fun PlayerUiState.copyForVideoSwitch(
         publishDateText = if (clearDetailMetadata) "" else publishDateText,
         playCountText = if (clearDetailMetadata) "" else playCountText,
         danmakuMask = null,
+        subtitleId = -1L,
         subtitleList = emptyList(),
         subtitleData = emptyList(),
         relatedVideos = emptyList(),

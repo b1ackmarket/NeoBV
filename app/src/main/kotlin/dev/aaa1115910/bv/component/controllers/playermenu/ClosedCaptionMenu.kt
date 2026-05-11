@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,6 +42,13 @@ import dev.aaa1115910.bv.component.controllers.playermenu.component.StepLessMenu
 import dev.aaa1115910.bv.component.ifElse
 import java.text.NumberFormat
 
+internal fun resolveSelectedSubtitleTrackIndex(
+    currentSubtitleId: Long,
+    tracks: List<Subtitle>
+): Int {
+    return tracks.indexOfFirst { it.id == currentSubtitleId }.takeIf { it >= 0 } ?: 0
+}
+
 @Composable
 fun ClosedCaptionMenuList(
     modifier: Modifier = Modifier,
@@ -60,6 +69,26 @@ fun ClosedCaptionMenuList(
 
     val focusRequester = remember { FocusRequester() }
     var selectedClosedCaptionMenuItem by remember { mutableStateOf(VideoPlayerClosedCaptionMenuItem.Switch) }
+    val menuItemRequesters = remember {
+        mutableStateListOf<FocusRequester>().apply {
+            addAll(VideoPlayerClosedCaptionMenuItem.entries.map { FocusRequester() })
+        }
+    }
+    val shouldFocusItems = focusState.focusState == MenuFocusState.Items
+    val selectedSubtitleIndex = resolveSelectedSubtitleTrackIndex(
+        currentSubtitleId = currentSubtitleId,
+        tracks = availableSubtitleTracks
+    )
+
+    LaunchedEffect(focusState.focusState, selectedClosedCaptionMenuItem) {
+        if (focusState.focusState == MenuFocusState.Menu) {
+            val index = resolveParentMenuFocusIndex(
+                selectedIndex = selectedClosedCaptionMenuItem.ordinal,
+                itemCount = menuItemRequesters.size
+            )
+            menuItemRequesters[index].requestFocus()
+        }
+    }
 
     Row(
         modifier = modifier.fillMaxHeight(),
@@ -78,11 +107,11 @@ fun ClosedCaptionMenuList(
                             .replace("（自动翻译）", "")
                             .trim() + if (it.type == SubtitleType.AI) "(AI)" else ""
                     },
-                    selected = availableSubtitleTracks.indexOfFirst { it.id == currentSubtitleId },
+                    selected = selectedSubtitleIndex,
+                    requestFocusWhen = shouldFocusItems,
                     onSelectedChanged = { onSubtitleChange(availableSubtitleTracks[it]) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
-                        focusRequester.requestFocus()
                     },
                 )
 
@@ -92,6 +121,7 @@ fun ClosedCaptionMenuList(
                     step = 1,
                     range = 12..48,
                     text = "${currentFontSize.value.toInt()} SP",
+                    requestFocusWhen = shouldFocusItems,
                     onValueChange = { onSubtitleSizeChange(it.sp) },
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
@@ -104,6 +134,7 @@ fun ClosedCaptionMenuList(
                     text = NumberFormat.getPercentInstance()
                         .apply { maximumFractionDigits = 0 }
                         .format(currentOpacity),
+                    requestFocusWhen = shouldFocusItems,
                     onValueChange = onSubtitleBackgroundOpacityChange,
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
@@ -114,6 +145,7 @@ fun ClosedCaptionMenuList(
                     step = 1,
                     range = 0..48,
                     text = "${currentPadding.value.toInt()} DP",
+                    requestFocusWhen = shouldFocusItems,
                     onValueChange = { onSubtitleBottomPadding(it.dp) },
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
@@ -145,7 +177,8 @@ fun ClosedCaptionMenuList(
             itemsIndexed(VideoPlayerClosedCaptionMenuItem.entries) { index, item ->
                 MenuListItem(
                     modifier = Modifier
-                        .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
+                        .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
+                        .focusRequester(menuItemRequesters[index]),
                     text = item.getDisplayName(context),
                     selected = selectedClosedCaptionMenuItem == item,
                     onClick = {},
