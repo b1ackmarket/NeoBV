@@ -92,7 +92,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Alpha debug build artifact
-          path: app/build/outputs/apk/default/debug/BV_${{ env.alpha_debug_info_version_code }}_${{ env.alpha_debug_info_version_name }}_default_universal.apk
+          path: app/build/outputs/apk/default/debug/NeoBV_${{ env.alpha_debug_info_version_code }}_${{ env.alpha_debug_info_version_name }}_default_universal.apk
 
       # upload artifacts alpha
 
@@ -106,7 +106,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Alpha build artifact
-          path: app/build/outputs/apk/default/alpha/BV_${{ env.alpha_info_version_code }}_${{ env.alpha_info_version_name }}_default_universal.apk
+          path: app/build/outputs/apk/default/alpha/NeoBV_${{ env.alpha_info_version_code }}_${{ env.alpha_info_version_name }}_default_universal.apk
 
       # zip mapping because softprops/action-gh-release can't upload folder
 
@@ -119,8 +119,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            app/build/outputs/apk/default/debug/BV_${{ env.alpha_debug_info_version_code }}_${{ env.alpha_debug_info_version_name }}_default_universal.apk
-            app/build/outputs/apk/default/alpha/BV_${{ env.alpha_info_version_code }}_${{ env.alpha_info_version_name }}_default_universal.apk
+            app/build/outputs/apk/default/debug/NeoBV_${{ env.alpha_debug_info_version_code }}_${{ env.alpha_debug_info_version_name }}_default_universal.apk
+            app/build/outputs/apk/default/alpha/NeoBV_${{ env.alpha_info_version_code }}_${{ env.alpha_info_version_name }}_default_universal.apk
             mapping.zip
           tag_name: ${{ env.tag_name }}
           name: ${{ env.alpha_info_version_name }}

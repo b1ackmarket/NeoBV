@@ -27,8 +27,18 @@ class UIDensityDialogStateTest {
         val state = UIDensityDialogState(initialDensity = 1.0f)
         state.step(direction = 1)
 
-        state.reset(2.3f)
+        state.open(2.3f)
 
         assertEquals(2.3f, state.displayDensity)
+    }
+
+    @Test
+    fun `density state steps from visible value after dialog opens`() {
+        val state = UIDensityDialogState(initialDensity = 1.0f)
+
+        state.open(2.0f)
+
+        assertEquals(1.9f, state.step(direction = -1))
+        assertEquals(1.8f, state.step(direction = -1))
     }
 }

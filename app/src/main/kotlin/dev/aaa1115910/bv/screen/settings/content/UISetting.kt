@@ -69,6 +69,7 @@ fun UISetting(
     var showPersistentSeek by remember { mutableStateOf(Prefs.showPersistentSeek) }
 
     val density by Prefs.densityFlow.collectAsState(context.resources.displayMetrics.widthPixels / 960f)
+    val densityDialogState = remember { UIDensityDialogState(density) }
     var selectedLeftNavItem by remember { mutableStateOf(Prefs.homeLeftNaviItem) }
     var selectedFirstHomeTopNavItem by remember { mutableStateOf(Prefs.firstHomeTopNavItem) }
     var selectedFirstPersonalTopNavItem by remember { mutableStateOf(Prefs.firstPersonalTopNavItem) }
@@ -136,7 +137,10 @@ fun UISetting(
                     SettingListItem(
                         title = stringResource(R.string.settings_ui_density_title),
                         supportText = stringResource(R.string.settings_ui_density_text),
-                        onClick = { showDensityDialog = true }
+                        onClick = {
+                            densityDialogState.open(density)
+                            showDensityDialog = true
+                        }
                     )
                 }
             }
@@ -146,7 +150,7 @@ fun UISetting(
     UIDensityDialog(
         show = showDensityDialog,
         onHideDialog = { showDensityDialog = false },
-        density = density,
+        densityState = densityDialogState,
         onDensityChange = { Prefs.density = it }
     )
 
@@ -194,7 +198,7 @@ internal class UIDensityDialogState(initialDensity: Float) {
     var displayDensity by mutableFloatStateOf(sanitizeDensity(initialDensity))
         private set
 
-    fun reset(density: Float) {
+    fun open(density: Float) {
         displayDensity = sanitizeDensity(density)
     }
 
@@ -220,18 +224,16 @@ private fun UIDensityDialog(
     modifier: Modifier = Modifier,
     show: Boolean,
     onHideDialog: () -> Unit,
-    density: Float,
+    densityState: UIDensityDialogState,
     onDensityChange: (Float) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
     val defaultDensity by remember { mutableFloatStateOf(context.resources.displayMetrics.widthPixels / 960f) }
-    val densityState = remember { UIDensityDialogState(density) }
 
     LaunchedEffect(show) {
         if (show) {
-            densityState.reset(density)
             focusRequester.requestFocus(scope)
         }
     }
@@ -284,12 +286,13 @@ private fun UIDensityDialog(
 fun UIDensityDialogPreview() {
     val show by remember { mutableStateOf(true) }
     var density by remember { mutableFloatStateOf(1.0f) }
+    val densityState = remember { UIDensityDialogState(density) }
 
     BVTheme {
         UIDensityDialog(
             show = show,
             onHideDialog = {},
-            density = density,
+            densityState = densityState,
             onDensityChange = { density = it }
         )
     }

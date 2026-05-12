@@ -10,7 +10,7 @@
 [![Fork](https://img.shields.io/badge/Fork-Frost819%2Fbv-6f42c1)](https://github.com/Frost819/bv)
 [![License](https://img.shields.io/github/license/b1ackmarket/NeoBV)](LICENSE)
 
-基于 `aaa1115910/bv` 与 `Frost819/bv` 继续演进，并吸收部分 `Hyper-Beast/BiliTV` 展示思路的 Android TV 第三方哔哩哔哩客户端。
+基于 `aaa1115910/bv` 与 `Frost819/bv` 继续演进，并借鉴 `Hyper-Beast/BiliTV` 部分 UX 的 Android TV 第三方哔哩哔哩客户端。
 
 </div>
 
@@ -24,55 +24,43 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 
 ### 重新设计导航栏布局及Icon
 
-- 补齐了直播入口、直播分区浏览、直播房间进入、直播播放页和直播右侧菜单。
+![NeoBV 主页](assets/主页.jpg)
+- 调整原有的分区逻辑，将原分区入口调整为主页的分区；重绘了部分 icon，特色更鲜明。
+
+![NeoBV 动态](assets/动态.jpg)
 - 动态页重做成左侧 `UP 主筛选` + 右侧三列视频网格，更像真正适合电视浏览的布局。
-- 调整原有的分区逻辑，将原分区入口调整为主页的分区。
-- 重绘了部分 icon，特色更鲜明。
 
 ### 更完整的 TV 播放器
 
-- 播放器 OSD 重新补强，标题区直接显示 `UP 主 / 发布时间 / 播放次数`。
-- 底部第一个按钮改成更常用的 `选集`，右侧菜单整理为 `统计信息 / 播放速度 / 画面音频 / 弹幕设置 / 字幕设置`。
-- `统计信息` 从 debug 版引入正式版，并可手动选择是否开启，`播放速度` 增加自定义挡位，日常调节更顺手。
-
-### SponsorBlock 接进播放器
-
-- SponsorBlock 不只是“网页专属”，而是真的接进了 TV 播放器体验。
-- 支持局域网网页配置分类策略。
-- 片段不仅能触发跳过逻辑，还会直接标在播放器大进度条和常显迷你进度条上，颜色与配置页颜色共用同一套映射。
-
-## 界面预览
-
-### 首页与导航栏
-
-![NeoBV 主页](assets/主页.jpg)
-![NeoBV 动态](assets/动态.jpg)
-
-- 左侧导航、卡片浏览和设置项布局都按电视遥控器操作重新整理过。
-- 动态页面创新布局，方便找到想看的up主。
-
-### 播放器 OSD 与控制
-
-![NeoBV 播放器速度设置](assets/右osd菜单-速度设置.jpg)
-![NeoBV 播放器右侧统计信息菜单](assets/右osd菜单-统计信息.jpg)
-![NeoBV 分P与合集菜单](assets/下osd菜单-分p与合集.jpg)
-![NeoBV 播放器下方 OSD 菜单](assets/下osd菜单-up主页.jpg)
-![NeoBV 更多视频菜单](assets/下osd菜单-更多视频.jpg)
 ![NeoBV 快进预览](assets/快进预览-连续点击两次右键触发.jpg)
-![NeoBV 播放结束自动推荐视频页面](assets/播放结束-推荐视频.jpg)
 
-- 下方 OSD 会优先承载更高频的选集、合集和更多视频操作。
-- 播放设置会把常用项目尽量放到更直接的位置，例如默认画质、默认直播画质、播放速度和播放结束动作。
+- 播放器 OSD 重新补强，标题区直接显示 `UP 主 / 发布时间 / 播放次数`。
 - 连续快进时会直接给出预览反馈，减少“按了但心里没底”的感觉。
 
-### SponsorBlock 与进度条标记
+![NeoBV 播放器速度设置](assets/右osd菜单-速度设置.jpg) 
+![NeoBV 播放器右侧统计信息菜单](assets/右osd菜单-统计信息.jpg)
+
+- `播放速度` 增加自定义挡位，日常调节更顺手；`统计信息` 从 debug 版引入正式版，并可手动选择是否开启。
+
+![NeoBV 分P与合集菜单](assets/下osd菜单-分p与合集.jpg)
+![NeoBV up主页菜单](assets/下osd菜单-up主页.jpg)
+![NeoBV 更多视频菜单](assets/下osd菜单-更多视频.jpg)
+
+- 下方 OSD 会优先承载更高频的选集合集、up 主页和更多视频操作；半透明浮窗，不干扰观影。
+
+![NeoBV 播放结束自动推荐视频页面](assets/播放结束-推荐视频.jpg)
+
+- 播放结束可自动推荐视频。
+
+### SponsorBlock 接入
 
 ![NeoBV SponsorBlock 局域网配置页](assets/sponsorblock-局域网配置页.jpeg)
 ![NeoBV SponsorBlock 进度条标记](assets/sponsorblock-进度条.jpg)
 
 - 支持使用 SponsorBlock 数据自动跳过片段。
-- 局域网配置页可以直接调整分类策略，更适合电视端配合手机或电脑做一次性设置。
-- 进度条标记，这样一眼就能看见哪里会跳、哪里是片头片尾，也更符合电视端“远距离一眼扫过去”的使用习惯。
+- 支持局域网网页配置分类策略，更适合电视端配合手机或电脑做一次性设置。
+- 片段不仅能触发跳过逻辑，还会直接标在播放器大进度条和常显迷你进度条上，颜色与配置页颜色共用同一套映射。
+
 
 ### 直播浏览与播放
 
@@ -101,13 +89,14 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 
 - 有的视频的 AI 英文字幕、日文字幕无法正常显示
 - 直播无法展示实时弹幕
+- 界面缩放数值变动异常
 
 ## 更新日志
 
 ### 当前分支新增（基于 Frost819/bv）
 
-- `feat:` 新增 SponsorBlock 插件与进度条标记、新版播放器 OSD、直播主链路、默认直播画质、实时弹幕、动态页新布局、DASH/MPD 补强、Cookies 导入导出和日志页能力。
-- `fix:` 修复视频 / 直播右侧菜单焦点问题、直播分区与房间网格焦点链、快速移动闪退、聊天室 / 竖屏 / 未开播直播间表现、搜索触发时机、直播 JSON 容错、历史弹幕解析、字幕 URL 与 codec 状态回写等问题。
+- `feat:` 更改导航布局，替换部分 icon，新增 SponsorBlock 、新版播放器 OSD和操作逻辑、直播、Cookies 导入导出文件和更多自定义设置项。
+- `fix:` 修复搜索与索引结果触发时机、字幕与编码选项丢失、索引选项无新年份、影视搜索结果无限重复、界面缩放数值变动异常等问题。
 
 <details>
   <summary><b>展开查看 Frost819/bv 历史更新日志</b></summary>
@@ -315,7 +304,7 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 
 - 上游项目：[aaa1115910/bv](https://github.com/aaa1115910/bv)
 - 分支基础与长期维护参考：[Frost819/bv](https://github.com/Frost819/bv)
-- 展示表达灵感参考：[Hyper-Beast/BiliTV](https://github.com/Hyper-Beast/BiliTV)
+- UX灵感参考：[Hyper-Beast/BiliTV](https://github.com/Hyper-Beast/BiliTV)
 - 部分直播接口与实现思路调研时参考了社区公开项目和文档
 
 ## License
