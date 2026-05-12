@@ -1,4 +1,5 @@
-![BV banner](app/src/main/res/drawable/ic_banner.webp)
+<div align="center">
+<img src="app/src/main/res/drawable/ic_banner.webp" alt="NeoBV banner" style="border-radius: 24px; margin-top: 32px;" />
 
 # NeoBV
 
@@ -10,6 +11,8 @@
 [![License](https://img.shields.io/github/license/b1ackmarket/NeoBV)](LICENSE)
 
 基于 `aaa1115910/bv` 与 `Frost819/bv` 继续演进，并吸收部分 `Hyper-Beast/BiliTV` 展示思路的 Android TV 第三方哔哩哔哩客户端。
+
+</div>
 
 ## 简介
 
@@ -40,7 +43,7 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 
 ## 界面预览
 
-### 首页与设置
+### 首页与导航栏
 
 ![NeoBV 主页](assets/主页.jpg)
 ![NeoBV 动态](assets/动态.jpg)
@@ -48,7 +51,7 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 - 左侧导航、卡片浏览和设置项布局都按电视遥控器操作重新整理过。
 - 动态页面创新布局，方便找到想看的up主。
 
-### 播放器 OSD 与快进体验
+### 播放器 OSD 与控制
 
 ![NeoBV 播放器速度设置](assets/右osd菜单-速度设置.jpg)
 ![NeoBV 播放器右侧统计信息菜单](assets/右osd菜单-统计信息.jpg)
@@ -71,7 +74,7 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 - 局域网配置页可以直接调整分类策略，更适合电视端配合手机或电脑做一次性设置。
 - 进度条标记，这样一眼就能看见哪里会跳、哪里是片头片尾，也更符合电视端“远距离一眼扫过去”的使用习惯。
 
-### 直播浏览与直播播放器
+### 直播浏览与播放
 
 ![NeoBV 直播浏览界面](assets/直播界面.jpg)
 ![NeoBV 直播下方 OSD](assets/直播-下osd菜单.jpg)
