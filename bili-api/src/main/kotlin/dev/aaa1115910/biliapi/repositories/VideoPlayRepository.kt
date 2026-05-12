@@ -334,18 +334,14 @@ class VideoPlayRepository(
         cid: Long,
         preferApiType: ApiType = ApiType.Web
     ): Int? {
-        return when (preferApiType) {
-            ApiType.Web -> runCatching {
-                BiliHttpApi.getVideoMoreInfo(
-                    avid = aid,
-                    cid = cid,
-                    sessData = authRepository.sessionData ?: "",
-                    buvid3 = authRepository.buvid3 ?: ""
-                ).getResponseData().onlineCount
-            }.getOrNull()
-
-            ApiType.App -> null
-        }
+        return runCatching {
+            BiliHttpApi.getVideoMoreInfo(
+                avid = aid,
+                cid = cid,
+                sessData = authRepository.sessionData ?: "",
+                buvid3 = authRepository.buvid3 ?: ""
+            ).getResponseData().onlineCount
+        }.getOrNull()
     }
 
     private suspend fun fetchWebSubtitleTracks(

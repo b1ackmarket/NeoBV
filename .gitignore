@@ -17,6 +17,9 @@ buildSrc/.kotlin/
 .superpowers/
 tmp/
 /scripts/render_bilitv_drawables.py
+/scripts/render_icon_candidates.py
+/scripts/icon_lab/
+/brand-assets/
 
 # Logs, diagnostics, and local previews
 *.log

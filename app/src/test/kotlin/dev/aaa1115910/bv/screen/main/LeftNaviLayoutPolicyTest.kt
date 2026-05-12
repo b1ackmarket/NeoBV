@@ -21,8 +21,8 @@ class LeftNaviLayoutPolicyTest {
     }
 
     @Test
-    fun `pgc icon uses adjusted visual size to match other nav icons`() {
-        assertEquals(22, LeftNaviLayoutPolicy.iconSizeDp(LeftNaviItem.PGC))
+    fun `nav icons use unified visual size from redesigned asset set`() {
+        assertEquals(24, LeftNaviLayoutPolicy.iconSizeDp(LeftNaviItem.PGC))
         assertEquals(24, LeftNaviLayoutPolicy.iconSizeDp(LeftNaviItem.Home))
         assertEquals(24, LeftNaviLayoutPolicy.iconSizeDp(LeftNaviItem.Live))
     }

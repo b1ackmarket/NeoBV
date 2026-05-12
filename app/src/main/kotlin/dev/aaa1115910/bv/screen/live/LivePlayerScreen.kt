@@ -343,7 +343,7 @@ fun LivePlayerScreen() {
         }
     }
 
-    val showTopOverlay = activeOverlay == LiveOverlayPanel.RightMenu || activeOverlay == LiveOverlayPanel.BottomMenu
+    val showTopOverlay = shouldShowLiveTopOverlay(activeOverlay)
     val liveAspectRatio = when {
         player.videoWidth > 0 && player.videoHeight > 0 -> {
             player.videoWidth / player.videoHeight.toFloat()

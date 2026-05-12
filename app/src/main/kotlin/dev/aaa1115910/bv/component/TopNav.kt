@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalContext
@@ -37,6 +38,7 @@ fun TopNav(
     modifier: Modifier = Modifier,
     items: List<TopNavItem>,
     isLargePadding: Boolean,
+    downFocusRequester: FocusRequester = FocusRequester.Default,
     onSelectedChanged: (TopNavItem) -> Unit = {},
     onClick: (TopNavItem) -> Unit = {}
 ) {
@@ -66,23 +68,47 @@ fun TopNav(
                     modifier = Modifier
                         .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
                     topNavItem = tab,
+                    downFocusRequester = downFocusRequester,
                     selected = index == selectedTabIndex,
                     onFocus = {
                         selectedNav = tab
                         selectedTabIndex = index
                         onSelectedChanged(tab)
                     },
-                    onClick = { onClick(tab) }
+                    onClick = {
+                        val clickResult = resolveTopNavClick(items = items, clicked = tab)
+                        selectedNav = clickResult.selectedItem
+                        selectedTabIndex = clickResult.selectedIndex
+                        onSelectedChanged(tab)
+                        onClick(tab)
+                    }
                 )
             }
         }
     }
 }
 
+internal data class TopNavClickResult<T : TopNavItem>(
+    val selectedItem: T,
+    val selectedIndex: Int
+)
+
+internal fun <T : TopNavItem> resolveTopNavClick(
+    items: List<T>,
+    clicked: T
+): TopNavClickResult<T> {
+    val index = items.indexOf(clicked).takeIf { it >= 0 } ?: 0
+    return TopNavClickResult(
+        selectedItem = items.getOrElse(index) { clicked },
+        selectedIndex = index
+    )
+}
+
 @Composable
 private fun TabRowScope.NavItemTab(
     modifier: Modifier = Modifier,
     topNavItem: TopNavItem,
+    downFocusRequester: FocusRequester,
     selected: Boolean,
     onClick: () -> Unit,
     onFocus: () -> Unit
@@ -90,7 +116,9 @@ private fun TabRowScope.NavItemTab(
     val context = LocalContext.current
 
     Tab(
-        modifier = modifier,
+        modifier = modifier.focusProperties {
+            down = downFocusRequester
+        },
         selected = selected,
         onFocus = onFocus,
         onClick = onClick

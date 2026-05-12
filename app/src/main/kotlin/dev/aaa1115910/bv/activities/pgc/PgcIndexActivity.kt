@@ -11,23 +11,31 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 
 class PgcIndexActivity : ComponentActivity() {
     companion object {
+        private const val ExtraPgcType = "pgcType"
+
         fun actionStart(
             context: Context,
             pgcType: PgcType
         ) {
             context.startActivity(
                 Intent(context, PgcIndexActivity::class.java).apply {
-                    putExtra("pgcType", pgcType.ordinal)
+                    putExtra(ExtraPgcType, pgcType.ordinal)
                 }
             )
         }
+
+        private fun resolvePgcType(intent: Intent): PgcType =
+            PgcType.entries.getOrElse(intent.getIntExtra(ExtraPgcType, PgcType.Anime.ordinal)) {
+                PgcType.Anime
+            }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val initialPgcType = resolvePgcType(intent)
         setContent {
             BVTheme {
-                PgcIndexScreen()
+                PgcIndexScreen(initialPgcType = initialPgcType)
             }
         }
     }

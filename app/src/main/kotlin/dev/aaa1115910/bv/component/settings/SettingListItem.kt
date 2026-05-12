@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun SettingListItem(
@@ -30,6 +31,7 @@ fun SettingListItem(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .padding(horizontal = 12.dp)
+            .touchClick(onClick)
             .onFocusChanged { hasFocus = it.hasFocus },
         headlineContent = { Text(text = title) },
         supportingContent = { Text(text = supportText) },

@@ -16,9 +16,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -40,10 +43,13 @@ import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.fInfo
+import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.compose.koinViewModel
+
+internal fun shouldRequestFollowingSeasonInitialFocus(itemCount: Int): Boolean = itemCount > 0
 
 @Composable
 fun FollowingSeasonScreen(
@@ -51,7 +57,9 @@ fun FollowingSeasonScreen(
     followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger { }
+    val firstCardFocusRequester = remember { FocusRequester() }
 
     var currentIndex by remember { mutableIntStateOf(0) }
     var showFilter by remember { mutableStateOf(false) }
@@ -75,6 +83,12 @@ fun FollowingSeasonScreen(
         logger.fInfo { "Start update search result because filter updated" }
         followingSeasonViewModel.clearData()
         followingSeasonViewModel.loadMore()
+    }
+
+    LaunchedEffect(followingSeasons.size) {
+        if (shouldRequestFollowingSeasonInitialFocus(followingSeasons.size)) {
+            firstCardFocusRequester.requestFocus(scope)
+        }
     }
 
     Column(
@@ -107,6 +121,11 @@ fun FollowingSeasonScreen(
             if (followingSeasons.isNotEmpty()) {
                 itemsIndexed(items = followingSeasons) { index, followingSeason ->
                     SeasonCard(
+                        modifier = if (index == 0) {
+                            Modifier.focusRequester(firstCardFocusRequester)
+                        } else {
+                            Modifier
+                        },
                         data = SeasonCardData(
                             seasonId = followingSeason.seasonId,
                             title = followingSeason.title,

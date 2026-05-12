@@ -10,12 +10,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ClearAll
-import androidx.compose.material.icons.outlined.ClosedCaption
-import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -35,7 +29,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -353,12 +346,12 @@ private fun MenuList(
 }
 
 
-enum class VideoPlayerMenuNavItem(private val strRes: Int, val icon: ImageVector) {
-    PlaySpeed(R.string.video_player_menu_picture_play_speed, Icons.Outlined.Speed),
-    Picture(R.string.video_player_menu_nav_picture, Icons.Outlined.Image),
-    Danmaku(R.string.video_player_menu_nav_danmaku, Icons.Outlined.ClearAll),
-    ClosedCaption(R.string.video_player_menu_nav_subtitle, Icons.Outlined.ClosedCaption),
-    Stats(R.string.video_player_menu_nav_stats, Icons.Outlined.Info);
+enum class VideoPlayerMenuNavItem(private val strRes: Int, val iconRes: Int) {
+    PlaySpeed(R.string.video_player_menu_picture_play_speed, R.drawable.osd_play_speed_32),
+    Picture(R.string.video_player_menu_nav_picture, R.drawable.osd_picture_32),
+    Danmaku(R.string.video_player_menu_nav_danmaku, R.drawable.osd_danmaku_32),
+    ClosedCaption(R.string.video_player_menu_nav_subtitle, R.drawable.osd_caption_32),
+    Stats(R.string.video_player_menu_nav_stats, R.drawable.osd_stats_32);
 
     fun getDisplayName(context: Context) = context.getString(strRes)
 }

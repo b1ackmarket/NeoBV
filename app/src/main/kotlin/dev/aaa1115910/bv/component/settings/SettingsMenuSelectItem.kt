@@ -17,6 +17,7 @@ import androidx.tv.material3.RadioButton
 import androidx.tv.material3.RadioButtonDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun SettingsMenuSelectItem(
@@ -29,7 +30,9 @@ fun SettingsMenuSelectItem(
     var hasFocus by remember { mutableStateOf(defaultHasFocus) }
 
     ListItem(
-        modifier = modifier.onFocusChanged { hasFocus = it.hasFocus },
+        modifier = modifier
+            .touchClick(onClick)
+            .onFocusChanged { hasFocus = it.hasFocus },
         headlineContent = { Text(text = text) },
         trailingContent = {
             RadioButton(

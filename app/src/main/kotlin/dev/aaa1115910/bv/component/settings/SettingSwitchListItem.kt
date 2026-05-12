@@ -21,6 +21,7 @@ import androidx.tv.material3.Switch
 import androidx.tv.material3.SwitchDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun SettingSwitchListItem(
@@ -33,6 +34,10 @@ fun SettingSwitchListItem(
 ) {
     var hasFocus by remember { mutableStateOf(defaultHasFocus) }
     var switchChecked by remember { mutableStateOf(checked) }
+    val toggleChecked = {
+        switchChecked = !switchChecked
+        onCheckedChange(switchChecked)
+    }
 
     LaunchedEffect(checked) {
         switchChecked = checked
@@ -41,6 +46,7 @@ fun SettingSwitchListItem(
     ListItem(
         modifier = modifier
             .padding(horizontal = 12.dp)
+            .touchClick(toggleChecked)
             .onFocusChanged { hasFocus = it.hasFocus },
         headlineContent = { Text(text = title) },
         supportingContent = { Text(text = supportText) },
@@ -64,10 +70,7 @@ fun SettingSwitchListItem(
                 )
             }
         },
-        onClick = {
-            switchChecked = !switchChecked
-            onCheckedChange(switchChecked)
-        },
+        onClick = toggleChecked,
         selected = hasFocus
     )
 }

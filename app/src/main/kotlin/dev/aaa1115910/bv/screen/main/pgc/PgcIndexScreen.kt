@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.screen.main.pgc
 
-import android.app.Activity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +23,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
+import dev.aaa1115910.biliapi.entity.pgc.index.IndexOrder
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
@@ -44,46 +46,54 @@ import dev.aaa1115910.bv.component.pgc.IndexFilter
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
-import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.getDisplayName
+import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.viewmodel.index.PgcIndexViewModel
-import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
+
+internal data class PgcIndexLaunchState(
+    val pgcType: PgcType,
+    val indexOrder: IndexOrder
+)
+
+internal fun resolvePgcIndexLaunchState(pgcType: PgcType): PgcIndexLaunchState =
+    PgcIndexLaunchState(
+        pgcType = pgcType,
+        indexOrder = IndexOrder.getList(pgcType).first()
+    )
 
 @Composable
 fun PgcIndexScreen(
     modifier: Modifier = Modifier,
+    initialPgcType: PgcType = PgcType.Anime,
     pgcIndexViewModel: PgcIndexViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val logger = KotlinLogging.logger { }
+    val launchState = remember(initialPgcType) { resolvePgcIndexLaunchState(initialPgcType) }
+    val firstCardFocusRequester = remember { FocusRequester() }
 
     var currentSeasonIndex by remember { mutableIntStateOf(0) }
+    var filterReloadsEnabled by remember(initialPgcType) { mutableStateOf(false) }
 
     val pgcItems = pgcIndexViewModel.indexResultItems
     val noMore = pgcIndexViewModel.noMore
     var showFilter by remember { mutableStateOf(false) }
 
-    val reloadData = {
-        scope.launch(Dispatchers.IO) {
-            pgcIndexViewModel.clearData()
-            pgcIndexViewModel.loadMore()
+    val reloadData: suspend () -> Unit = {
+        withContext(Dispatchers.IO) {
+            pgcIndexViewModel.reload()
         }
     }
 
-    LaunchedEffect(Unit) {
-        val intent = (context as Activity).intent
-        val pgcType = runCatching {
-            PgcType.entries[intent.getIntExtra("pgcType", 0)]
-        }.onFailure {
-            logger.warn { "get pgcType from intent failed: ${it.stackTraceToString()}" }
-        }.getOrDefault(PgcType.Anime)
-        logger.fInfo { "index pgcType: $pgcType" }
-        pgcIndexViewModel.changePgcType(pgcType)
+    LaunchedEffect(launchState) {
+        filterReloadsEnabled = false
+        pgcIndexViewModel.changePgcType(launchState.pgcType)
         reloadData()
+        filterReloadsEnabled = true
     }
 
     LaunchedEffect(
@@ -101,7 +111,12 @@ fun PgcIndexScreen(
         pgcIndexViewModel.releaseDate,
         pgcIndexViewModel.style,
     ) {
+        if (!filterReloadsEnabled) return@LaunchedEffect
         reloadData()
+    }
+
+    LaunchedEffect(pgcItems.isNotEmpty()) {
+        if (pgcItems.isNotEmpty()) firstCardFocusRequester.requestFocus(scope)
     }
 
     Scaffold(
@@ -124,7 +139,7 @@ fun PgcIndexScreen(
                 ) {
                     Text(
                         text = stringResource(id = R.string.title_activity_pgc_index) +
-                                " - " + pgcIndexViewModel.pgcType.getDisplayName(context),
+                                " - " + launchState.pgcType.getDisplayName(context),
                         fontSize = 24.sp,
                     )
                     Text(
@@ -144,6 +159,11 @@ fun PgcIndexScreen(
         ) {
             itemsIndexed(items = pgcItems) { index, pgcItem ->
                 SeasonCard(
+                    modifier = if (index == 0) {
+                        Modifier.focusRequester(firstCardFocusRequester)
+                    } else {
+                        Modifier
+                    },
                     data = SeasonCardData.fromPgcItem(pgcItem),
                     onFocus = {
                         currentSeasonIndex = index
@@ -185,7 +205,7 @@ fun PgcIndexScreen(
     }
 
     IndexFilter(
-        type = pgcIndexViewModel.pgcType,
+        type = launchState.pgcType,
         show = showFilter,
         onDismissRequest = { showFilter = false },
         order = pgcIndexViewModel.indexOrder,

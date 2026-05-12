@@ -26,10 +26,13 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 
+internal object GithubRepositoryConfig {
+    const val OWNER = "b1ackmarket"
+    const val REPO = "NeoBV"
+}
+
 object GithubApi {
     private var endPoint = "api.github.com"
-    private const val OWNER = "b1ackmarket"
-    private const val REPO = "bv"
     private lateinit var client: HttpClient
     private val json = Json {
         coerceInputValues = true
@@ -62,8 +65,8 @@ object GithubApi {
     }
 
     private suspend fun getReleases(
-        owner: String = OWNER,
-        repo: String = REPO,
+        owner: String = GithubRepositoryConfig.OWNER,
+        repo: String = GithubRepositoryConfig.REPO,
         pageSize: Int = 30,
         page: Int = 1
     ): List<Release> {
@@ -76,8 +79,8 @@ object GithubApi {
     }
 
     private suspend fun getLatestRelease(
-        owner: String = OWNER,
-        repo: String = REPO
+        owner: String = GithubRepositoryConfig.OWNER,
+        repo: String = GithubRepositoryConfig.REPO
     ): Release {
         val response = client.get("repos/$owner/$repo/releases/latest").bodyAsText()
         checkErrorMessage(response)

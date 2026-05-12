@@ -63,6 +63,8 @@
     </string-array>
     <string-array name="pgc_index_filter_release_date_name">
         <item>全部</item>
+        <item>2026</item>
+        <item>2025</item>
         <item>2024</item>
         <item>2023</item>
         <item>2022</item>
@@ -204,6 +206,8 @@
     </string-array>
     <string-array name="pgc_index_filter_year_name">
         <item>全部</item>
+        <item>2026</item>
+        <item>2025</item>
         <item>2024</item>
         <item>2023</item>
         <item>2022</item>

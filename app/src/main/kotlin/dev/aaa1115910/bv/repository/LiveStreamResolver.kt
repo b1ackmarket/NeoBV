@@ -3,6 +3,7 @@ package dev.aaa1115910.bv.repository
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -146,20 +147,64 @@ object LiveStreamResolver {
             val desc = obj["desc"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
             if (availableQns.isNotEmpty() && qn !in availableQns) return@mapNotNull null
             desc.takeIf { it.isNotBlank() && it != "默认" }?.let {
-                LiveQualityOption(qn = qn, desc = normalizeLiveQualityDesc(qn = qn, desc = it))
+                LiveQualityOption(
+                    qn = qn,
+                    desc = resolveLiveQualityDisplayName(qn = qn, quality = obj)
+                )
             }
         }
     }
 
     internal fun normalizeLiveQualityDesc(qn: Int, desc: String): String {
         return when (qn) {
+            30000 -> "杜比视界"
             25000 -> "1080P高码率"
+            20000 -> "4K原画"
+            15000 -> "2K原画"
             10000 -> "1080P原画"
             400 -> "1080P蓝光"
             250 -> "720P超清"
-            150 -> "高清"
-            80 -> "流畅"
-            else -> desc
+            150 -> "480P高清"
+            80 -> "360P流畅"
+            else -> desc.replace(" ", "")
+        }
+    }
+
+    private fun resolveLiveQualityDisplayName(qn: Int, quality: JsonObject): String {
+        val desc = quality["desc"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        val mediaDetailDesc = quality["media_base_desc"]
+            .asJsonObjectOrNull()
+            ?.get("detail_desc")
+            .asJsonObjectOrNull()
+            ?.get("desc")
+            ?.jsonPrimitive
+            ?.contentOrNull
+        val baseName = normalizeLiveQualityDesc(qn, mediaDetailDesc ?: desc)
+        val extras = buildList {
+            quality["hdr_desc"]
+                ?.jsonPrimitive
+                ?.contentOrNull
+                ?.takeIf { it.isNotBlank() }
+                ?.let { add(it) }
+            quality["attr_desc"]
+                ?.jsonPrimitiveOrNull()
+                ?.contentOrNull
+                ?.takeIf { it.isNotBlank() }
+                ?.let { add(it) }
+            quality["media_base_desc"]
+                .asJsonObjectOrNull()
+                ?.get("detail_desc")
+                .asJsonObjectOrNull()
+                ?.get("tag")
+                .asJsonArrayOrNull()
+                ?.mapNotNull { it.jsonPrimitive.contentOrNull?.takeIf(String::isNotBlank) }
+                ?.let { addAll(it) }
+        }.distinct()
+
+        return if (extras.isEmpty()) {
+            baseName
+        } else {
+            "$baseName（${extras.joinToString(separator = "")}）"
         }
     }
 
@@ -278,3 +323,5 @@ object LiveStreamResolver {
 private fun JsonElement?.asJsonObjectOrNull(): JsonObject? = this as? JsonObject
 
 private fun JsonElement?.asJsonArrayOrNull(): JsonArray? = this as? JsonArray
+
+private fun JsonElement?.jsonPrimitiveOrNull(): JsonPrimitive? = this as? JsonPrimitive

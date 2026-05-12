@@ -19,6 +19,10 @@ internal fun toggleLiveRightMenu(activeOverlay: LiveOverlayPanel): LiveOverlayPa
     }
 }
 
+internal fun shouldShowLiveTopOverlay(activeOverlay: LiveOverlayPanel): Boolean {
+    return activeOverlay == LiveOverlayPanel.BottomMenu
+}
+
 internal data class LiveBackPressResult(
     val activeOverlay: LiveOverlayPanel,
     val lastBackPressedAt: Long,

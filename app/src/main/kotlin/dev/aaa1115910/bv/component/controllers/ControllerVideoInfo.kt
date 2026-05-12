@@ -210,7 +210,8 @@ fun ControllerVideoInfoTop(
         if (
             authorName.isNotBlank() ||
             publishDateText.isNotBlank() ||
-            playCountText.isNotBlank()
+            playCountText.isNotBlank() ||
+            onlineCountText.isNotBlank()
         ) {
             Row(
                 modifier = Modifier.padding(top = 8.dp),
@@ -238,6 +239,15 @@ fun ControllerVideoInfoTop(
                 if (playCountText.isNotBlank()) {
                     Text(
                         text = playCountText,
+                        color = Color.White.copy(alpha = 0.64f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (onlineCountText.isNotBlank()) {
+                    Text(
+                        text = onlineCountText,
                         color = Color.White.copy(alpha = 0.64f),
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,

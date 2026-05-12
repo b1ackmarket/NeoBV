@@ -29,4 +29,10 @@ class LiveOverlayPanelStateTest {
     fun `down key opens bottom menu`() {
         assertEquals(LiveOverlayPanel.BottomMenu, openLiveBottomMenu())
     }
+
+    @Test
+    fun `top title overlay is hidden when live right menu is open`() {
+        assertEquals(false, shouldShowLiveTopOverlay(LiveOverlayPanel.RightMenu))
+        assertEquals(true, shouldShowLiveTopOverlay(LiveOverlayPanel.BottomMenu))
+    }
 }

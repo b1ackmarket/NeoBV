@@ -10,13 +10,13 @@ jobs:
   build-release:
     name: Build Release Apk
     runs-on: macos-latest
-    if: github.repository == 'aaa1115910/bv'
+    if: github.repository == 'b1ackmarket/NeoBV'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: master
+          ref: ${{ github.ref }}
           fetch-depth: 0
           submodules: 'true'
 

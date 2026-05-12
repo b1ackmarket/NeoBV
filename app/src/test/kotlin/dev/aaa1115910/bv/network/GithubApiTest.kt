@@ -1,16 +1,12 @@
 package dev.aaa1115910.bv.network
 
-import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class GithubApiTest {
     @Test
-    fun `get latest release build`() = runBlocking {
-        println(GithubApi.getLatestReleaseBuild())
-    }
-
-    @Test
-    fun `get latest pre-release build`() = runBlocking {
-        println(GithubApi.getLatestPreReleaseBuild())
+    fun `release repository points to NeoBV`() {
+        assertEquals("b1ackmarket", GithubRepositoryConfig.OWNER)
+        assertEquals("NeoBV", GithubRepositoryConfig.REPO)
     }
 }

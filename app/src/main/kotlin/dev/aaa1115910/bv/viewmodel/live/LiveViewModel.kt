@@ -9,7 +9,7 @@ import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.bv.entity.live.LiveCategory
 import dev.aaa1115910.bv.entity.live.LiveRoomCard
 import dev.aaa1115910.bv.repository.LiveRepository
-import dev.aaa1115910.bv.util.swapListWithMainContext
+import dev.aaa1115910.bv.util.swapList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -21,6 +21,10 @@ class LiveViewModel(
     private val liveRepository: LiveRepository,
     private val bvUserRepository: BvUserRepository
 ) : ViewModel() {
+    private companion object {
+        const val PageSize = 30
+    }
+
     val categories = mutableStateListOf<LiveCategory>()
     val rooms = mutableStateListOf<LiveRoomCard>()
 
@@ -29,6 +33,8 @@ class LiveViewModel(
         private set
     var loading by mutableStateOf(false)
         private set
+    private var nextPage = 1
+    private var canLoadMore = true
 
     init {
         if (isLogin) {
@@ -54,7 +60,7 @@ class LiveViewModel(
     fun selectCategory(index: Int) {
         if (index == selectedCategoryIndex) return
         selectedCategoryIndex = index
-        loadCategory(index)
+        loadCategory(index, append = false)
     }
 
     fun refresh() {
@@ -63,7 +69,19 @@ class LiveViewModel(
             ensureLoaded()
             return
         }
-        loadCategory(selectedCategoryIndex)
+        loadCategory(selectedCategoryIndex, append = false)
+    }
+
+    fun loadMoreIfNeeded(focusedIndex: Int) {
+        if (!isLogin || loading || !canLoadMore) return
+        if (!dev.aaa1115910.bv.screen.main.live.shouldLoadMoreLiveRooms(
+                focusedIndex = focusedIndex,
+                roomCount = rooms.size
+            )
+        ) {
+            return
+        }
+        loadCategory(selectedCategoryIndex, append = true)
     }
 
     private suspend fun loadCategories() {
@@ -72,12 +90,27 @@ class LiveViewModel(
         }
         try {
             val loaded = liveRepository.getCategories()
-            categories.swapListWithMainContext(loaded)
-            selectedCategoryIndex = 0
             if (loaded.isNotEmpty()) {
-                loadCategory(0)
+                val loadedRooms = liveRepository.getRooms(
+                    category = loaded[0],
+                    page = 1,
+                    pageSize = PageSize
+                )
+                withContext(Dispatchers.Main) {
+                    categories.swapList(loaded)
+                    selectedCategoryIndex = 0
+                    rooms.swapList(loadedRooms)
+                    nextPage = 2
+                    canLoadMore = loadedRooms.size >= PageSize
+                }
             } else {
-                rooms.swapListWithMainContext(emptyList())
+                withContext(Dispatchers.Main) {
+                    categories.swapList(loaded)
+                    selectedCategoryIndex = 0
+                    rooms.swapList(emptyList())
+                    nextPage = 1
+                    canLoadMore = false
+                }
             }
         } finally {
             withContext(Dispatchers.Main) {
@@ -86,16 +119,32 @@ class LiveViewModel(
         }
     }
 
-    private fun loadCategory(index: Int) {
+    private fun loadCategory(index: Int, append: Boolean) {
         if (!isLogin) return
         val category = categories.getOrNull(index) ?: return
+        val requestedPage = if (append) nextPage else 1
+        loading = true
         viewModelScope.launch(Dispatchers.IO) {
-            withContext(Dispatchers.Main) {
-                loading = true
-            }
             try {
-                val loadedRooms = liveRepository.getRooms(category)
-                rooms.swapListWithMainContext(loadedRooms)
+                val loadedRooms = liveRepository.getRooms(
+                    category = category,
+                    page = requestedPage,
+                    pageSize = PageSize
+                )
+                withContext(Dispatchers.Main) {
+                    if (categories.getOrNull(selectedCategoryIndex)?.key != category.key) {
+                        return@withContext
+                    }
+                    if (append) {
+                        val existingRoomIds = rooms.map { it.roomId }.toSet()
+                        rooms.addAll(loadedRooms.filterNot { it.roomId in existingRoomIds })
+                    } else {
+                        rooms.clear()
+                        rooms.addAll(loadedRooms)
+                    }
+                    nextPage = requestedPage + 1
+                    canLoadMore = loadedRooms.size >= PageSize
+                }
             } finally {
                 withContext(Dispatchers.Main) {
                     loading = false
@@ -109,5 +158,7 @@ class LiveViewModel(
         rooms.clear()
         selectedCategoryIndex = 0
         loading = false
+        nextPage = 1
+        canLoadMore = true
     }
 }

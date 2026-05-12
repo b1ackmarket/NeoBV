@@ -51,6 +51,7 @@ import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.resizedImageUrl
+import dev.aaa1115910.bv.util.touchClick
 
 
 @Composable
@@ -89,6 +90,7 @@ fun SmallVideoCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1.6f)
+                .touchClick { if (!showActions) onClick() }
                 .onFocusChanged { focusState ->
                     if (!focusState.hasFocus) showActions = false
                 },

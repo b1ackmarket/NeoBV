@@ -21,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -80,6 +81,7 @@ import org.koin.androidx.compose.koinViewModel
 
 internal data class SearchResultUpdateTrigger(
     val keyword: String,
+    val type: SearchType,
     val order: SearchFilterOrderType,
     val duration: SearchFilterDuration,
     val partitionTid: Int?,
@@ -87,6 +89,11 @@ internal data class SearchResultUpdateTrigger(
 ) {
     val isReady: Boolean get() = keyword.isNotBlank()
 }
+
+internal fun shouldRequestSearchResult(
+    requestedTriggers: Map<SearchType, SearchResultUpdateTrigger>,
+    nextTrigger: SearchResultUpdateTrigger
+): Boolean = nextTrigger.isReady && requestedTriggers[nextTrigger.type] != nextTrigger
 
 @Composable
 fun SearchResultScreen(
@@ -103,6 +110,7 @@ fun SearchResultScreen(
     var rowSize by remember { mutableIntStateOf(4) }
 
     var searchKeyword by remember { mutableStateOf("") }
+    val requestedSearchTriggers = remember { mutableStateMapOf<SearchType, SearchResultUpdateTrigger>() }
 
     val searchResult = when (searchResultViewModel.searchType) {
         SearchType.Video -> searchResultViewModel.videoSearchResult
@@ -110,7 +118,12 @@ fun SearchResultScreen(
         SearchType.MediaFt -> searchResultViewModel.mediaFtSearchResult
         SearchType.BiliUser -> searchResultViewModel.biliUserSearchResult
     }
-
+    val searchResultItems = when (searchResult.type) {
+        SearchType.Video -> searchResult.videos
+        SearchType.MediaBangumi -> searchResult.mediaBangumis
+        SearchType.MediaFt -> searchResult.mediaFts
+        SearchType.BiliUser -> searchResult.biliUsers
+    }
     var showFilter by remember { mutableStateOf(false) }
     var focusOnContent by remember { mutableStateOf(false) }
 
@@ -193,6 +206,7 @@ fun SearchResultScreen(
 
     val searchUpdateTrigger = SearchResultUpdateTrigger(
         keyword = searchResultViewModel.keyword,
+        type = searchResultViewModel.searchType,
         order = selectedOrder,
         duration = selectedDuration,
         partitionTid = selectedPartition?.tid,
@@ -200,9 +214,12 @@ fun SearchResultScreen(
     )
 
     LaunchedEffect(searchUpdateTrigger) {
-        if (!searchUpdateTrigger.isReady) return@LaunchedEffect
-        logger.fInfo { "Start update search result because keyword or filter updated" }
-        searchResultViewModel.update()
+        if (!shouldRequestSearchResult(requestedSearchTriggers, searchUpdateTrigger)) {
+            return@LaunchedEffect
+        }
+        requestedSearchTriggers[searchUpdateTrigger.type] = searchUpdateTrigger
+        logger.fInfo { "Start update search result because keyword, type or filter updated" }
+        searchResultViewModel.update(searchUpdateTrigger.type)
     }
 
 
@@ -293,13 +310,8 @@ fun SearchResultScreen(
                 horizontalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 itemsIndexed(
-                    items = when (searchResult.type) {
-                        SearchType.Video -> searchResult.videos
-                        SearchType.MediaBangumi -> searchResult.mediaBangumis
-                        SearchType.MediaFt -> searchResult.mediaFts
-                        SearchType.BiliUser -> searchResult.biliUsers
-                    }
-                ) { index, searchResultItem ->
+                    items = searchResultItems
+                ) { _, searchResultItem ->
                     SearchResultListItem(
                         searchResult = searchResultItem,
                         onClick = { onClickResult(searchResultItem) },

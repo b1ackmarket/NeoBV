@@ -102,7 +102,7 @@ object Prefs {
     var enableProxy by pref(PrefKeys.prefEnableProxyKey, false)
     var proxyHttpServer by pref(PrefKeys.prefProxyHttpServerKey, "")
     var proxyGRPCServer by pref(PrefKeys.prefProxyGRPCServerKey, "")
-    var preferOfficialCdn by pref(PrefKeys.prefPreferOfficialCdn, false)
+    var preferOfficialCdn by pref(PrefKeys.prefPreferOfficialCdn, PrefDefaultValues.preferOfficialCdn)
 
     // =========================================================================
     // 播放器 - 视频
@@ -110,19 +110,19 @@ object Prefs {
 
     var defaultQuality by pref(
         PrefKeys.prefDefaultQualityKey,
-        Resolution.R1080P,
+        PrefDefaultValues.defaultQuality,
         save = { it.code },
         restore = { Resolution.fromCode(it) }
     )
     var defaultLiveQuality by pref(
         PrefKeys.prefDefaultLiveQualityKey,
-        LiveDefaultQuality.Original,
+        PrefDefaultValues.defaultLiveQuality,
         save = { it.qn },
         restore = { LiveDefaultQuality.fromQn(it) }
     )
     var defaultVideoCodec by pref(
         PrefKeys.prefDefaultVideoCodecKey,
-        VideoCodec.AVC,
+        PrefDefaultValues.defaultVideoCodec,
         save = { it.ordinal },
         restore = { VideoCodec.fromCode(it) }
     )
@@ -146,11 +146,14 @@ object Prefs {
 
     var defaultAudio by pref(
         PrefKeys.prefDefaultAudioKey,
-        Audio.A192K,
+        PrefDefaultValues.defaultAudio,
         save = { it.code },
         restore = { Audio.fromCode(it) }
     )
-    var enableFfmpegAudioRenderer by pref(PrefKeys.prefEnableFfmpegAudioRenderer, false)
+    var enableFfmpegAudioRenderer by pref(
+        PrefKeys.prefEnableFfmpegAudioRenderer,
+        PrefDefaultValues.enableFfmpegAudioRenderer
+    )
 
     // =========================================================================
     // 播放器 - 弹幕
@@ -215,7 +218,7 @@ object Prefs {
         restore = { SeekStepOption.fromSeconds(it) }
     )
     var showFps by pref(PrefKeys.prefShowFpsKey, false)
-    var showVideoInfo by pref(PrefKeys.prefShowVideoInfoKey, true)
+    var showVideoInfo by pref(PrefKeys.prefShowVideoInfoKey, PrefDefaultValues.showVideoInfo)
     var showPersistentSeek by pref(PrefKeys.prefShowPersistentSeekKey, false)
     var showPlayerStats by pref(PrefKeys.prefShowPlayerStatsKey, false)
 
@@ -243,7 +246,7 @@ object Prefs {
     )
     var firstPersonalTopNavItem by pref(
         PrefKeys.prefFirstPersonalTopNavItemKey,
-        PersonalTopNavItem.ToView,
+        PrefDefaultValues.firstPersonalTopNavItem,
         save = { it.ordinal },
         restore = { PersonalTopNavItem.entries.getOrElse(it) { PersonalTopNavItem.ToView } }
     )
@@ -295,6 +298,17 @@ object Prefs {
             buvid3 = randomBuvid3
         }
     }
+}
+
+internal object PrefDefaultValues {
+    val defaultQuality = Resolution.R8K
+    val defaultLiveQuality = LiveDefaultQuality.Dolby
+    val defaultVideoCodec = VideoCodec.HEVC
+    val defaultAudio = Audio.AHiRes
+    const val enableFfmpegAudioRenderer = true
+    const val showVideoInfo = true
+    const val preferOfficialCdn = true
+    val firstPersonalTopNavItem = PersonalTopNavItem.History
 }
 
 /**

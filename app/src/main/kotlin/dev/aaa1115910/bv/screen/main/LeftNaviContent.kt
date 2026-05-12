@@ -8,15 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.LocalMovies
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Autorenew
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.LiveTv
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
+import androidx.annotation.DrawableRes
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.runtime.Composable
@@ -31,10 +23,10 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
@@ -42,6 +34,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import coil.compose.AsyncImage
+import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.isDpadRight
 import dev.aaa1115910.bv.util.isKeyDown
@@ -124,7 +117,7 @@ fun LeftNaviContent(
                     }
                 } else {
                     Icon(
-                        imageVector = Icons.Default.AccountCircle,
+                        painter = painterResource(id = R.drawable.nav_account_24),
                         contentDescription = null,
                         modifier = Modifier.size(24.dp)
                     )
@@ -169,7 +162,7 @@ fun LeftNaviContent(
             selected = settingsIsFocused,
             icon = {
                 Icon(
-                    imageVector = Icons.Default.Settings,
+                    painter = painterResource(id = R.drawable.nav_settings_24),
                     contentDescription = null,
                     modifier = Modifier.size(24.dp)
                 )
@@ -179,16 +172,16 @@ fun LeftNaviContent(
 }
 
 enum class LeftNaviItem(
-    val displayIcon: ImageVector,
+    @DrawableRes val displayIconRes: Int,
     val displayName: String,
     val displayIconSizeDp: Int = 24
 ) {
-    Search(displayIcon = Icons.Default.Search, displayName = "搜索"),
-    Personal(displayIcon = Icons.Default.Person, displayName = "个人"),
-    Home(displayIcon = Icons.Default.Home, displayName = "主页"),
-    Dynamic(displayIcon = Icons.Default.Autorenew, displayName = "动态"),
-    PGC(displayIcon = Icons.Default.LocalMovies, displayName = "影视", displayIconSizeDp = 22),
-    Live(displayIcon = Icons.Default.LiveTv, displayName = "直播"),
+    Search(displayIconRes = R.drawable.nav_search_24, displayName = "搜索"),
+    Personal(displayIconRes = R.drawable.nav_personal_24, displayName = "个人"),
+    Home(displayIconRes = R.drawable.nav_home_24, displayName = "主页"),
+    Dynamic(displayIconRes = R.drawable.nav_dynamic_24, displayName = "动态"),
+    PGC(displayIconRes = R.drawable.nav_pgc_24, displayName = "影视"),
+    Live(displayIconRes = R.drawable.nav_live_24, displayName = "直播"),
 }
 
 object LeftNaviLayoutPolicy {
@@ -228,7 +221,7 @@ private fun RailItem(
         selected = isFocused,
         icon = {
             Icon(
-                imageVector = item.displayIcon,
+                painter = painterResource(id = item.displayIconRes),
                 contentDescription = null,
                 modifier = Modifier.size(LeftNaviLayoutPolicy.iconSizeDp(item).dp)
             )

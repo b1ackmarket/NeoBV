@@ -28,7 +28,7 @@ class PrefsSponsorBlockConfigStore(
     }
 
     override suspend fun isEnabled(): Boolean {
-        return PluginStore.isEnabled(pluginId, defaultValue = false)
+        return PluginStore.isEnabled(pluginId, defaultValue = true)
     }
 
     override suspend fun setEnabled(enabled: Boolean) {

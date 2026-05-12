@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +35,11 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+internal object AboutSettingConfig {
+    const val repositoryUrl = "https://github.com/b1ackmarket/NeoBV"
+    const val repositoryBottomPaddingDp = 0
+}
+
 @Composable
 fun AboutSetting(
     modifier: Modifier = Modifier
@@ -57,7 +63,7 @@ fun AboutSetting(
     }
 
     Box(
-        modifier = modifier
+        modifier = modifier.fillMaxSize()
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -93,6 +99,13 @@ fun AboutSetting(
                 Text(text = stringResource(R.string.settings_version_check_update_button))
             }
         }
+
+        Text(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = AboutSettingConfig.repositoryBottomPaddingDp.dp),
+            text = AboutSettingConfig.repositoryUrl
+        )
     }
 
     UpdateDialog(

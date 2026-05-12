@@ -3,10 +3,6 @@ package dev.aaa1115910.bv.screen.main.pgc
 import android.content.Intent
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.List
-import androidx.compose.material.icons.rounded.Alarm
-import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -80,22 +76,22 @@ private fun AnimeFeatureButtons(
     val buttons = listOf(
         Triple(
             stringResource(R.string.anime_home_button_timeline),
-            Icons.Rounded.Alarm,
+            painterResource(R.drawable.pgc_timeline_24),
             onOpenTimeline
         ),
         Triple(
             stringResource(R.string.anime_home_button_following),
-            Icons.Rounded.Favorite,
+            painterResource(R.drawable.pgc_following_24),
             onOpenFollowing
         ),
         Triple(
             stringResource(R.string.anime_home_button_index),
-            Icons.AutoMirrored.Rounded.List,
+            painterResource(R.drawable.pgc_index_24),
             onOpenIndex
         ),
         Triple(
             stringResource(R.string.anime_home_button_gamer_ani),
-            painterResource(R.drawable.ic_gamer_ani),
+            painterResource(R.drawable.pgc_gamer_ani_24),
             onOpenGamerAni
         )
     )

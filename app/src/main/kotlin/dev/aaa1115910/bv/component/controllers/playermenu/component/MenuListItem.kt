@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,7 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -36,13 +35,15 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun MenuListItem(
     modifier: Modifier = Modifier,
     text: String,
-    icon: ImageVector? = null,
+    icon: Painter? = null,
     expanded: Boolean = true,
     selected: Boolean,
     textAlign: TextAlign = TextAlign.Center,
@@ -62,6 +63,7 @@ fun MenuListItem(
     DenseListItem(
         modifier = modifier
             .width(itemWidth)
+            .touchClick(onClick)
             .onFocusChanged {
                 hasFocus = it.hasFocus
                 if (it.hasFocus) onFocus()
@@ -123,7 +125,7 @@ fun MenuListItem(
                         } else {
                             Icon(
                                 modifier = Modifier.size(32.dp),
-                                imageVector = icon,
+                                painter = icon,
                                 contentDescription = null
                             )
                         }
@@ -144,7 +146,7 @@ fun MenuListItemPreview() {
     BVTheme {
         MenuListItem(
             text = "MenuListItemAAAAAAAAAAAAA",
-            icon = Icons.Default.Home,
+            icon = painterResource(id = R.drawable.osd_picture_32),
             expanded = expanded,
             selected = true,
             textAlign = TextAlign.Center,

@@ -157,7 +157,7 @@ class LiveStreamResolverTest {
 
         assertEquals("https://line2.example.com/a/index.m3u8?b=2", source?.playUrl)
         assertEquals(400, source?.currentQuality)
-        assertEquals(listOf("1080P蓝光", "高清"), source?.qualities?.map { it.desc })
+        assertEquals(listOf("1080P蓝光", "480P高清"), source?.qualities?.map { it.desc })
         assertEquals(1, source?.currentLineIndex)
     }
 
@@ -208,7 +208,7 @@ class LiveStreamResolverTest {
         assertEquals("https://line1.example.com/live-bvc/demo/index.m3u8?token=1", source?.playUrl)
         assertEquals(250, source?.currentQuality)
         assertEquals(
-            listOf("1080P原画", "1080P蓝光", "720P超清", "高清"),
+            listOf("1080P原画", "1080P蓝光", "720P超清", "480P高清"),
             source?.qualities?.map { it.desc }
         )
     }
@@ -258,7 +258,7 @@ class LiveStreamResolverTest {
 
         val source = LiveStreamResolver.resolvePlayableSource(playInfo)
 
-        assertEquals(listOf("1080P蓝光", "高清"), source?.qualities?.map { it.desc })
+        assertEquals(listOf("1080P蓝光", "480P高清"), source?.qualities?.map { it.desc })
         assertEquals(400, source?.currentQuality)
     }
 
@@ -435,6 +435,81 @@ class LiveStreamResolverTest {
         assertEquals("1080P原画", LiveStreamResolver.normalizeLiveQualityDesc(10000, "原画"))
         assertEquals("1080P蓝光", LiveStreamResolver.normalizeLiveQualityDesc(400, "蓝光"))
         assertEquals("720P超清", LiveStreamResolver.normalizeLiveQualityDesc(250, "超清"))
-        assertEquals("杜比", LiveStreamResolver.normalizeLiveQualityDesc(30000, "杜比"))
+        assertEquals("480P高清", LiveStreamResolver.normalizeLiveQualityDesc(150, "高清"))
+        assertEquals("360P流畅", LiveStreamResolver.normalizeLiveQualityDesc(80, "流畅"))
+        assertEquals("2K原画", LiveStreamResolver.normalizeLiveQualityDesc(15000, "2K"))
+        assertEquals("4K原画", LiveStreamResolver.normalizeLiveQualityDesc(20000, "4K"))
+        assertEquals("杜比视界", LiveStreamResolver.normalizeLiveQualityDesc(30000, "杜比"))
+    }
+
+    @Test
+    fun `live quality display names include hdr and high frame tags from media base desc`() {
+        val playInfo = Json.parseToJsonElement(
+            """
+            {
+              "playurl_info": {
+                "playurl": {
+                  "g_qn_desc": [
+                    {
+                      "qn": 10000,
+                      "desc": "原画",
+                      "hdr_desc": "HDR",
+                      "media_base_desc": {
+                        "detail_desc": {
+                          "desc": "1080P 原画",
+                          "tag": ["高帧率"]
+                        }
+                      }
+                    },
+                    {
+                      "qn": 150,
+                      "desc": "高清",
+                      "media_base_desc": {
+                        "detail_desc": {
+                          "desc": "480P 高清"
+                        }
+                      }
+                    }
+                  ],
+                  "stream": [
+                    {
+                      "protocol_name": "http_hls",
+                      "format": [
+                        {
+                          "format_name": "ts",
+                          "codec": [
+                            {
+                              "codec_name": "avc",
+                              "current_qn": 10000,
+                              "accept_qn": [10000, 150],
+                              "base_url": "/live/ts-avc.m3u8?",
+                              "url_info": [
+                                { "host": "https://line1.example.com", "extra": "token=1" }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+            """.trimIndent()
+        ).jsonObject
+
+        val source = LiveStreamResolver.resolvePlayableSource(playInfo)
+
+        assertEquals(
+            listOf("1080P原画（HDR高帧率）", "480P高清"),
+            source?.qualities?.map { it.desc }
+        )
+    }
+
+    @Test
+    fun `live quality names use original suffix for 2k and 4k and explicit 360p for smooth`() {
+        assertEquals("360P流畅", LiveStreamResolver.normalizeLiveQualityDesc(80, "流畅"))
+        assertEquals("2K原画", LiveStreamResolver.normalizeLiveQualityDesc(15000, "2K"))
+        assertEquals("4K原画", LiveStreamResolver.normalizeLiveQualityDesc(20000, "4K"))
     }
 }

@@ -42,6 +42,7 @@ import coil.compose.AsyncImage
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun SeasonCard(
@@ -56,7 +57,9 @@ fun SeasonCard(
     var coverRealWidth by remember { mutableStateOf(0.dp) }
 
     Surface(
-        modifier = modifier.onFocusChanged { if (it.hasFocus) onFocus() },
+        modifier = modifier
+            .touchClick(onClick)
+            .onFocusChanged { if (it.hasFocus) onFocus() },
         onClick = onClick,
         onLongClick = onLongClick,
         colors = ClickableSurfaceDefaults.colors(
@@ -172,4 +175,3 @@ private fun SeasonCardPreview() {
         }
     }
 }
-

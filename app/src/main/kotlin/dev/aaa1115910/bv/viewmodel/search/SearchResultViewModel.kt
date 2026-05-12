@@ -17,7 +17,9 @@ import dev.aaa1115910.bv.util.Partition
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.annotation.KoinViewModel
@@ -45,6 +47,8 @@ class SearchResultViewModel(
 
     private val loadingStates = SearchType.entries.associateWith { mutableStateOf(false) }
     private val hasMoreStates = SearchType.entries.associateWith { mutableStateOf(true) }
+    private val loadJobs = mutableMapOf<SearchType, Job>()
+    private val loadGenerations = SearchType.entries.associateWith { 0 }.toMutableMap()
     private val accumulators = SearchType.entries.associateWith { searchType ->
         when (searchType) {
             SearchType.Video -> SearchResultAccumulator<SearchTypeResult.Video, SearchTypePage>(
@@ -67,34 +71,47 @@ class SearchResultViewModel(
 
     var enableProxySearchResult = false
 
-    fun update() {
-        resetPages()
-        clearResults()
-        SearchType.entries.forEach { loadMore(it, true) }
+    fun update(searchType: SearchType = this.searchType) {
+        resetPage(searchType)
+        clearResult(searchType)
+        loadMore(searchType, true)
     }
 
-    private fun resetPages() {
-        SearchType.entries.forEach { searchType ->
-            loadingStates.getValue(searchType).value = false
-            hasMoreStates.getValue(searchType).value = true
-            when (searchType) {
-                SearchType.Video -> accumulators.getValue(searchType).video().clear(SearchTypePage())
-                SearchType.MediaBangumi -> accumulators.getValue(searchType).pgc().clear(SearchTypePage())
-                SearchType.MediaFt -> accumulators.getValue(searchType).pgc().clear(SearchTypePage())
-                SearchType.BiliUser -> accumulators.getValue(searchType).user().clear(SearchTypePage())
+    private fun resetPage(searchType: SearchType) {
+        loadJobs.remove(searchType)?.cancel()
+        loadGenerations[searchType] = loadGenerations.getValue(searchType) + 1
+        loadingStates.getValue(searchType).value = false
+        hasMoreStates.getValue(searchType).value = true
+        when (searchType) {
+            SearchType.Video -> {
+                accumulators.getValue(searchType).video().clear(SearchTypePage())
+                videoSearchResult = videoSearchResult.resetPage()
+            }
+
+            SearchType.MediaBangumi -> {
+                accumulators.getValue(searchType).pgc().clear(SearchTypePage())
+                mediaBangumiSearchResult = mediaBangumiSearchResult.resetPage()
+            }
+
+            SearchType.MediaFt -> {
+                accumulators.getValue(searchType).pgc().clear(SearchTypePage())
+                mediaFtSearchResult = mediaFtSearchResult.resetPage()
+            }
+
+            SearchType.BiliUser -> {
+                accumulators.getValue(searchType).user().clear(SearchTypePage())
+                biliUserSearchResult = biliUserSearchResult.resetPage()
             }
         }
-        videoSearchResult = videoSearchResult.resetPage()
-        mediaBangumiSearchResult = mediaBangumiSearchResult.resetPage()
-        mediaFtSearchResult = mediaFtSearchResult.resetPage()
-        biliUserSearchResult = biliUserSearchResult.resetPage()
     }
 
-    private fun clearResults() {
-        videoSearchResult = videoSearchResult.clear()
-        mediaBangumiSearchResult = mediaBangumiSearchResult.clear()
-        mediaFtSearchResult = mediaFtSearchResult.clear()
-        biliUserSearchResult = biliUserSearchResult.clear()
+    private fun clearResult(searchType: SearchType) {
+        when (searchType) {
+            SearchType.Video -> videoSearchResult = videoSearchResult.clear()
+            SearchType.MediaBangumi -> mediaBangumiSearchResult = mediaBangumiSearchResult.clear()
+            SearchType.MediaFt -> mediaFtSearchResult = mediaFtSearchResult.clear()
+            SearchType.BiliUser -> biliUserSearchResult = biliUserSearchResult.clear()
+        }
     }
 
     fun loadMore(
@@ -107,67 +124,84 @@ class SearchResultViewModel(
         if (isLoadingState.value && !ignoreUpdating) return
 
         isLoadingState.value = true
-        viewModelScope.launch(Dispatchers.IO) {
+        val generation = loadGenerations.getValue(searchType)
+        val requestKeyword = keyword
+        val requestTid = selectedChildPartition?.tid ?: selectedPartition?.tid
+        val requestOrder = selectedOrder
+        val requestDuration = selectedDuration
+        val requestApiType = Prefs.apiType
+        val requestEnableProxy = enableProxySearchResult
+        loadJobs[searchType] = viewModelScope.launch(Dispatchers.IO) {
             val page = when (searchType) {
                 SearchType.Video -> videoSearchResult.page
                 SearchType.MediaBangumi -> mediaBangumiSearchResult.page
                 SearchType.MediaFt -> mediaFtSearchResult.page
                 SearchType.BiliUser -> biliUserSearchResult.page
             }
-            logger.fInfo { "Load search result: [keyword=$keyword, type=$searchType, page=${page}]" }
-            runCatching {
-                val searchResultResponse = searchRepository.searchType(
-                    keyword = keyword,
-                    type = searchType,
-                    page = page,
-                    tid = selectedChildPartition?.tid ?: selectedPartition?.tid,
-                    order = selectedOrder,
-                    duration = selectedDuration,
-                    preferApiType = Prefs.apiType,
-                    enableProxy = enableProxySearchResult
-                )
-                withContext(Dispatchers.Main) {
-                    hasMoreState.value = searchResultResponse.page != page
-                    when (searchType) {
-                        SearchType.Video -> {
-                            val accumulator = accumulators.getValue(searchType).video()
-                            accumulator.append(searchResultResponse.page, searchResultResponse.videos)
-                            videoSearchResult = videoSearchResult.copy(
-                                videos = accumulator.items,
-                                page = accumulator.cursor
-                            )
-                        }
+            logger.fInfo { "Load search result: [keyword=$requestKeyword, type=$searchType, page=${page}]" }
+            try {
+                runCatching {
+                    val searchResultResponse = searchRepository.searchType(
+                        keyword = requestKeyword,
+                        type = searchType,
+                        page = page,
+                        tid = requestTid,
+                        order = requestOrder,
+                        duration = requestDuration,
+                        preferApiType = requestApiType,
+                        enableProxy = requestEnableProxy
+                    )
+                    withContext(Dispatchers.Main) {
+                        if (loadGenerations.getValue(searchType) != generation) return@withContext
+                        hasMoreState.value = searchResultResponse.page != page
+                        when (searchType) {
+                            SearchType.Video -> {
+                                val accumulator = accumulators.getValue(searchType).video()
+                                accumulator.append(searchResultResponse.page, searchResultResponse.videos)
+                                videoSearchResult = videoSearchResult.copy(
+                                    videos = accumulator.items,
+                                    page = accumulator.cursor
+                                )
+                            }
 
-                        SearchType.MediaBangumi -> {
-                            val accumulator = accumulators.getValue(searchType).pgc()
-                            accumulator.append(searchResultResponse.page, searchResultResponse.pgcs)
-                            mediaBangumiSearchResult = mediaBangumiSearchResult.copy(
-                                mediaBangumis = accumulator.items,
-                                page = accumulator.cursor
-                            )
-                        }
+                            SearchType.MediaBangumi -> {
+                                val accumulator = accumulators.getValue(searchType).pgc()
+                                accumulator.append(searchResultResponse.page, searchResultResponse.pgcs)
+                                mediaBangumiSearchResult = mediaBangumiSearchResult.copy(
+                                    mediaBangumis = accumulator.items,
+                                    page = accumulator.cursor
+                                )
+                            }
 
-                        SearchType.MediaFt -> {
-                            val accumulator = accumulators.getValue(searchType).pgc()
-                            accumulator.append(searchResultResponse.page, searchResultResponse.pgcs)
-                            mediaFtSearchResult = mediaFtSearchResult.copy(
-                                mediaFts = accumulator.items,
-                                page = accumulator.cursor
-                            )
-                        }
+                            SearchType.MediaFt -> {
+                                val accumulator = accumulators.getValue(searchType).pgc()
+                                accumulator.append(searchResultResponse.page, searchResultResponse.pgcs)
+                                mediaFtSearchResult = mediaFtSearchResult.copy(
+                                    mediaFts = accumulator.items,
+                                    page = accumulator.cursor
+                                )
+                            }
 
-                        SearchType.BiliUser -> {
-                            val accumulator = accumulators.getValue(searchType).user()
-                            accumulator.append(searchResultResponse.page, searchResultResponse.users)
-                            biliUserSearchResult = biliUserSearchResult.copy(
-                                biliUsers = accumulator.items,
-                                page = accumulator.cursor
-                            )
+                            SearchType.BiliUser -> {
+                                val accumulator = accumulators.getValue(searchType).user()
+                                accumulator.append(searchResultResponse.page, searchResultResponse.users)
+                                biliUserSearchResult = biliUserSearchResult.copy(
+                                    biliUsers = accumulator.items,
+                                    page = accumulator.cursor
+                                )
+                            }
                         }
+                    }
+                }.onFailure {
+                    if (it is CancellationException) throw it
+                }
+            } finally {
+                if (loadGenerations.getValue(searchType) == generation) {
+                    withContext(Dispatchers.Main) {
+                        isLoadingState.value = false
                     }
                 }
             }
-            isLoadingState.value = false
         }
     }
 

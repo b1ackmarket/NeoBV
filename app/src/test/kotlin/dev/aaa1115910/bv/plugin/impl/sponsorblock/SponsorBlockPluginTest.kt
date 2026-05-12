@@ -31,7 +31,7 @@ class SponsorBlockPluginTest {
     }
 
     @Test
-    fun `default config prompts for sponsor and intro segments`() = runBlocking {
+    fun `default config only prompts for sponsor segments`() = runBlocking {
         val plugin = SponsorBlockPlugin(
             api = FakeSponsorBlockApi(
                 listOf(
@@ -61,20 +61,18 @@ class SponsorBlockPluginTest {
             PluginPlaybackAction.PromptSkip("seg-sponsor", 10_000L, 20_000L, "显示提示：赞助/恰饭", "sponsor"),
             sponsorAction
         )
-        assertEquals(
-            PluginPlaybackAction.PromptSkip("seg-intro", 30_000L, 45_000L, "显示提示：片头", "intro"),
-            introAction
-        )
+        assertTrue(introAction is PluginPlaybackAction.None)
     }
 
     @Test
-    fun `default config prompts for sponsor categories and disables filler categories`() {
+    fun `default config prompts only for sponsor category and disables others`() {
         val config = SponsorBlockConfig.default()
 
         assertEquals(SkipPolicy.Prompt, config.categoryPolicy["sponsor"])
-        assertEquals(SkipPolicy.Prompt, config.categoryPolicy["selfpromo"])
-        assertEquals(SkipPolicy.Prompt, config.categoryPolicy["intro"])
-        assertEquals(SkipPolicy.Prompt, config.categoryPolicy["outro"])
+        assertEquals(SkipPolicy.Disabled, config.categoryPolicy["selfpromo"])
+        assertEquals(SkipPolicy.Disabled, config.categoryPolicy["exclusive_access"])
+        assertEquals(SkipPolicy.Disabled, config.categoryPolicy["intro"])
+        assertEquals(SkipPolicy.Disabled, config.categoryPolicy["outro"])
         assertEquals(SkipPolicy.Disabled, config.categoryPolicy["interaction"])
         assertEquals(SkipPolicy.Disabled, config.categoryPolicy["poi_highlight"])
         assertEquals(SkipPolicy.Disabled, config.categoryPolicy["preview"])
@@ -217,7 +215,10 @@ class SponsorBlockPluginTest {
             ),
             configStore = InMemorySponsorBlockConfigStore(
                 enabled = true,
-                config = SponsorBlockConfig.default()
+                config = SponsorBlockConfig.default().copy(
+                    categoryPolicy = SponsorBlockConfig.default().categoryPolicy +
+                        ("intro" to SkipPolicy.Prompt)
+                )
             )
         )
 

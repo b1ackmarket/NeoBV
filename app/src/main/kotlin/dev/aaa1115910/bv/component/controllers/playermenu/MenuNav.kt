@@ -13,6 +13,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.controllers.VideoPlayerMenuNavItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
@@ -59,7 +60,7 @@ fun MenuNavList(
                     .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
                     .focusRequester(itemRequesters[index]),
                 text = item.getDisplayName(context),
-                icon = item.icon,
+                icon = painterResource(id = item.iconRes),
                 expanded = isFocusing,
                 selected = if (isFocusing) focusedMenu == item else selectedMenu == item,
                 onClick = { onItemClick(item) },

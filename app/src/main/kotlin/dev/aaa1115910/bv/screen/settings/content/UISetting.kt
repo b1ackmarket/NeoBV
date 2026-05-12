@@ -190,6 +190,31 @@ fun UISetting(
     }
 }
 
+internal class UIDensityDialogState(initialDensity: Float) {
+    var displayDensity by mutableFloatStateOf(sanitizeDensity(initialDensity))
+        private set
+
+    fun reset(density: Float) {
+        displayDensity = sanitizeDensity(density)
+    }
+
+    fun step(direction: Int): Float {
+        displayDensity = sanitizeDensity(displayDensity + DENSITY_STEP * direction)
+        return displayDensity
+    }
+
+    private fun sanitizeDensity(density: Float): Float {
+        return (density * 10)
+            .roundToInt()
+            .div(10f)
+            .coerceIn(MIN_DENSITY, MAX_DENSITY)
+    }
+}
+
+private const val MIN_DENSITY = 0.5f
+private const val MAX_DENSITY = 5f
+private const val DENSITY_STEP = 0.1f
+
 @Composable
 private fun UIDensityDialog(
     modifier: Modifier = Modifier,
@@ -202,9 +227,13 @@ private fun UIDensityDialog(
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
     val defaultDensity by remember { mutableFloatStateOf(context.resources.displayMetrics.widthPixels / 960f) }
+    val densityState = remember { UIDensityDialogState(density) }
 
     LaunchedEffect(show) {
-        if (show) focusRequester.requestFocus(scope)
+        if (show) {
+            densityState.reset(density)
+            focusRequester.requestFocus(scope)
+        }
     }
 
     // 这里得采用固定的 Density，否则会导致更改 Density 时，对话框反复重新加载
@@ -228,20 +257,19 @@ private fun UIDensityDialog(
                             .onPreviewKeyEvent {
                                 if (it.key == Key.DirectionUp || it.key == Key.DirectionDown) {
                                     if (it.type == KeyEventType.KeyDown) {
-                                        var newDensity = if (it.key == Key.DirectionUp)
-                                            density + 0.1f else density - 0.1f
-                                        newDensity = (newDensity * 10).roundToInt() / 10f
-                                        if (newDensity < 0.5f) newDensity = 0.5f
-                                        if (newDensity > 5f) newDensity = 5f
+                                        val newDensity = densityState.step(
+                                            direction = if (it.key == Key.DirectionUp) 1 else -1
+                                        )
                                         onDensityChange(newDensity)
                                     }
+                                    return@onPreviewKeyEvent true
                                 }
                                 false
                             },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(imageVector = Icons.Rounded.ArrowDropUp, contentDescription = null)
-                        Text(text = "$density")
+                        Text(text = "${densityState.displayDensity}")
                         Icon(imageVector = Icons.Rounded.ArrowDropDown, contentDescription = null)
                     }
                 },

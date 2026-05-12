@@ -70,6 +70,13 @@ class PgcIndexViewModel(
         if (!updating) loadData()
     }
 
+    suspend fun reload() {
+        withContext(Dispatchers.Main) {
+            clearData()
+        }
+        loadMore()
+    }
+
     private suspend fun loadData() {
         updating = true
         if (!nextPage.hasNext) {
