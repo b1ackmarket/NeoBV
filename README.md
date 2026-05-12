@@ -1,7 +1,8 @@
-<div align="center">
-<img src="app/src/main/res/drawable/ic_banner.webp" alt="BV banner" />
+![BV banner](app/src/main/res/drawable/ic_banner.webp)
 
 # NeoBV
+
+~~NeoBee Video~~
 
 [![Android](https://img.shields.io/badge/Android-5.0%2B-informational?logo=android)](https://apilevels.com/#:~:text=Jetpack%20Compose%20requires%20a%20minSdk%20of%2021%20or%20higher)
 [![Stars](https://img.shields.io/github/stars/b1ackmarket/NeoBV?style=flat)](https://github.com/b1ackmarket/NeoBV/stargazers)
@@ -9,8 +10,6 @@
 [![License](https://img.shields.io/github/license/b1ackmarket/NeoBV)](LICENSE)
 
 基于 `aaa1115910/bv` 与 `Frost819/bv` 继续演进，并吸收部分 `Hyper-Beast/BiliTV` 展示思路的 Android TV 第三方哔哩哔哩客户端。
-
-</div>
 
 ## 简介
 
@@ -43,32 +42,21 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 
 ### 首页与设置
 
-<p align="center">
-  <img src="assets/主页.jpg" alt="NeoBV 主页" width="48%" />
-  <img src="assets/动态.jpg" alt="NeoBV 动态" width="48%" />
-</p>
+![NeoBV 主页](assets/主页.jpg)
+![NeoBV 动态](assets/动态.jpg)
 
 - 左侧导航、卡片浏览和设置项布局都按电视遥控器操作重新整理过。
 - 动态页面创新布局，方便找到想看的up主。
 
 ### 播放器 OSD 与快进体验
 
-<p align="center">
-  <img src="assets/右osd菜单-速度设置.jpg" alt="NeoBV 播放器速度设置" width="48%" />
-  <img src="assets/右osd菜单-统计信息.jpg" alt="NeoBV 播放器右侧统计信息菜单" width="48%" />
-</p>
-<p align="center">
-  <img src="assets/下osd菜单-分p与合集.jpg" alt="NeoBV 分P与合集菜单" width="48%" />
-  <img src="assets/下osd菜单-up主页.jpg" alt="NeoBV 播放器下方 OSD 菜单" width="48%" />
-  <img src="assets/下osd菜单-更多视频.jpg" alt="NeoBV 更多视频菜单" width="48%" />
-</p>
-<p align="center">
-  <img src="assets/快进预览-连续点击两次右键触发.jpg" alt="NeoBV 快进预览" width="48%" />
-</p>
-<p align="center">
-  <img src="assets/播放结束-推荐视频.jpg" alt="NeoBV 播放结束自动推荐视频页面" width="72%" />
-</p>
-
+![NeoBV 播放器速度设置](assets/右osd菜单-速度设置.jpg)
+![NeoBV 播放器右侧统计信息菜单](assets/右osd菜单-统计信息.jpg)
+![NeoBV 分P与合集菜单](assets/下osd菜单-分p与合集.jpg)
+![NeoBV 播放器下方 OSD 菜单](assets/下osd菜单-up主页.jpg)
+![NeoBV 更多视频菜单](assets/下osd菜单-更多视频.jpg)
+![NeoBV 快进预览](assets/快进预览-连续点击两次右键触发.jpg)
+![NeoBV 播放结束自动推荐视频页面](assets/播放结束-推荐视频.jpg)
 
 - 下方 OSD 会优先承载更高频的选集、合集和更多视频操作。
 - 播放设置会把常用项目尽量放到更直接的位置，例如默认画质、默认直播画质、播放速度和播放结束动作。
@@ -76,10 +64,8 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 
 ### SponsorBlock 与进度条标记
 
-<p align="center">
-  <img src="assets/sponsorblock-局域网配置页.jpeg" alt="NeoBV SponsorBlock 局域网配置页" width="48%" />
-  <img src="assets/sponsorblock-进度条.jpg" alt="NeoBV SponsorBlock 进度条标记" width="48%" />
-</p>
+![NeoBV SponsorBlock 局域网配置页](assets/sponsorblock-局域网配置页.jpeg)
+![NeoBV SponsorBlock 进度条标记](assets/sponsorblock-进度条.jpg)
 
 - 支持使用 SponsorBlock 数据自动跳过片段。
 - 局域网配置页可以直接调整分类策略，更适合电视端配合手机或电脑做一次性设置。
@@ -87,25 +73,17 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 
 ### 直播浏览与直播播放器
 
-<p align="center">
-  <img src="assets/直播界面.jpg" alt="NeoBV 直播浏览界面" width="48%" />
-  <img src="assets/直播-下osd菜单.jpg" alt="NeoBV 直播下方 OSD" width="48%" />
-</p>
-<p align="center">
-  <img src="assets/直播-右osd菜单.jpg" alt="NeoBV 直播右侧 OSD" width="72%" />
-</p>
+![NeoBV 直播浏览界面](assets/直播界面.jpg)
+![NeoBV 直播下方 OSD](assets/直播-下osd菜单.jpg)
+![NeoBV 直播右侧 OSD](assets/直播-右osd菜单.jpg)
 
 - 直播补齐了浏览、播放、右侧菜单、画质选择功能，并初步补齐弹幕链路。
 
 ### 更丰富的设置项
 
-<p align="center">
-  <img src="assets/设置-播放设置.jpg" alt="NeoBV 播放设置" width="48%" />
-  <img src="assets/设置-界面设置.jpg" alt="NeoBV 界面设置" width="48%" />
-</p>
-<p align="center">
-  <img src="assets/设置-导入导出cookies.jpg" alt="NeoBV Cookies 导入导出" width="72%" />
-</p>
+![NeoBV 播放设置](assets/设置-播放设置.jpg)
+![NeoBV 界面设置](assets/设置-界面设置.jpg)
+![NeoBV Cookies 导入导出](assets/设置-导入导出cookies.jpg)
 
 - 增加更多的自定义项，例如播放结束动作，左右键快进快退步长。
 - Cookies 导入导出调整为导入导出文件，适合迁移登录状态、备份和换设备恢复。

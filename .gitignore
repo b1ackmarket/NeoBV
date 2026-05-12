@@ -16,6 +16,7 @@
 buildSrc/.kotlin/
 .superpowers/
 tmp/
+/docs/
 /scripts/render_bilitv_drawables.py
 /scripts/render_icon_candidates.py
 /scripts/icon_lab/
