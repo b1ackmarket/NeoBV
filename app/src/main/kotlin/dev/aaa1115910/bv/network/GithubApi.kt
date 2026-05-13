@@ -101,7 +101,8 @@ object GithubApi {
 
     suspend fun getLatestReleaseBuild(): Release = getLatestRelease()
 
-    suspend fun getLatestBuild(): Release = getLatestReleaseBuild()
+    suspend fun getLatestBuild(): Release =
+        runCatching { getLatestReleaseBuild() }.getOrElse { getLatestPreReleaseBuild() }
 
     private fun checkErrorMessage(data: String) {
         val responseElement = json.parseToJsonElement(data)
@@ -115,9 +116,9 @@ object GithubApi {
         file: File,
         downloadListener: ProgressListener
     ) {
-        val downloadUrl =
-            if (isDebug) release.assets.firstOrNull { it.name.contains("release") }?.browserDownloadUrl
-            else release.assets.firstOrNull { it.name.contains("alpha") || it.name.contains("release") }?.browserDownloadUrl
+        val downloadUrl = release.assets.firstOrNull {
+            it.name == selectUpdateApkAssetName(release.assets.map { asset -> asset.name }, isDebug)
+        }?.browserDownloadUrl
         downloadUrl ?: throw IllegalStateException("Didn't find download url")
         client.prepareRequest {
             // 通过代理进行下载

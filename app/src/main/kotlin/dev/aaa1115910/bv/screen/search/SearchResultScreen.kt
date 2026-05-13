@@ -75,8 +75,11 @@ import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.search.SearchResultViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
 
 internal data class SearchResultUpdateTrigger(
@@ -91,9 +94,26 @@ internal data class SearchResultUpdateTrigger(
 }
 
 internal fun shouldRequestSearchResult(
-    requestedTriggers: Map<SearchType, SearchResultUpdateTrigger>,
+    requestedTriggers: Map<SearchType, SearchResultRequestState>,
     nextTrigger: SearchResultUpdateTrigger
-): Boolean = nextTrigger.isReady && requestedTriggers[nextTrigger.type] != nextTrigger
+): Boolean {
+    if (!nextTrigger.isReady) return false
+    return when (val state = requestedTriggers[nextTrigger.type]) {
+        is SearchResultRequestState.Loading,
+        is SearchResultRequestState.Loaded -> state.trigger != nextTrigger
+
+        is SearchResultRequestState.Failed,
+        null -> true
+    }
+}
+
+internal sealed interface SearchResultRequestState {
+    val trigger: SearchResultUpdateTrigger
+
+    data class Loading(override val trigger: SearchResultUpdateTrigger) : SearchResultRequestState
+    data class Loaded(override val trigger: SearchResultUpdateTrigger) : SearchResultRequestState
+    data class Failed(override val trigger: SearchResultUpdateTrigger) : SearchResultRequestState
+}
 
 @Composable
 fun SearchResultScreen(
@@ -110,7 +130,7 @@ fun SearchResultScreen(
     var rowSize by remember { mutableIntStateOf(4) }
 
     var searchKeyword by remember { mutableStateOf("") }
-    val requestedSearchTriggers = remember { mutableStateMapOf<SearchType, SearchResultUpdateTrigger>() }
+    val requestedSearchTriggers = remember { mutableStateMapOf<SearchType, SearchResultRequestState>() }
 
     val searchResult = when (searchResultViewModel.searchType) {
         SearchType.Video -> searchResultViewModel.videoSearchResult
@@ -217,9 +237,23 @@ fun SearchResultScreen(
         if (!shouldRequestSearchResult(requestedSearchTriggers, searchUpdateTrigger)) {
             return@LaunchedEffect
         }
-        requestedSearchTriggers[searchUpdateTrigger.type] = searchUpdateTrigger
+        requestedSearchTriggers[searchUpdateTrigger.type] = SearchResultRequestState.Loading(searchUpdateTrigger)
         logger.fInfo { "Start update search result because keyword, type or filter updated" }
-        searchResultViewModel.update(searchUpdateTrigger.type)
+        try {
+            val loaded = searchResultViewModel.update(searchUpdateTrigger.type)
+            requestedSearchTriggers[searchUpdateTrigger.type] = if (loaded) {
+                SearchResultRequestState.Loaded(searchUpdateTrigger)
+            } else {
+                SearchResultRequestState.Failed(searchUpdateTrigger)
+            }
+        } catch (e: CancellationException) {
+            withContext(NonCancellable) {
+                if (requestedSearchTriggers[searchUpdateTrigger.type] == SearchResultRequestState.Loading(searchUpdateTrigger)) {
+                    requestedSearchTriggers[searchUpdateTrigger.type] = SearchResultRequestState.Failed(searchUpdateTrigger)
+                }
+            }
+            throw e
+        }
     }
 
 

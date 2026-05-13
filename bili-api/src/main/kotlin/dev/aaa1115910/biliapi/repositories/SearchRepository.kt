@@ -248,7 +248,7 @@ data class SearchTypeResult(
 ) {
     companion object {
         fun fromSearchTypeResult(result: dev.aaa1115910.biliapi.http.entity.search.SearchResultData): SearchTypeResult {
-            return when (result.searchTypeResults.first()) {
+            return when (result.searchTypeResults.firstOrNull()) {
                 is dev.aaa1115910.biliapi.http.entity.search.SearchVideoResult -> {
                     SearchTypeResult(
                         videos = result.searchTypeResults.map { Video.fromSearchVideoResult(it as dev.aaa1115910.biliapi.http.entity.search.SearchVideoResult) },

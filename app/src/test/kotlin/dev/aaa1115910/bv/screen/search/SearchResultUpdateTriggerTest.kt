@@ -64,7 +64,7 @@ class SearchResultUpdateTriggerTest {
             partitionTid = null,
             childPartitionTid = null
         )
-        val requestedTriggers = mapOf(SearchType.Video to videoTrigger)
+        val requestedTriggers = mapOf(SearchType.Video to SearchResultRequestState.Loaded(videoTrigger))
 
         assertFalse(shouldRequestSearchResult(requestedTriggers, videoTrigger))
     }
@@ -80,8 +80,38 @@ class SearchResultUpdateTriggerTest {
             childPartitionTid = null
         )
         val mediaFtTrigger = videoTrigger.copy(type = SearchType.MediaFt)
-        val requestedTriggers = mapOf(SearchType.Video to videoTrigger)
+        val requestedTriggers = mapOf(SearchType.Video to SearchResultRequestState.Loaded(videoTrigger))
 
         assertTrue(shouldRequestSearchResult(requestedTriggers, mediaFtTrigger))
+    }
+
+    @Test
+    fun `search update request retries a trigger after previous load failed`() {
+        val videoTrigger = SearchResultUpdateTrigger(
+            keyword = "测试",
+            type = SearchType.Video,
+            order = SearchFilterOrderType.ComprehensiveSort,
+            duration = SearchFilterDuration.All,
+            partitionTid = null,
+            childPartitionTid = null
+        )
+        val requestedTriggers = mapOf(SearchType.Video to SearchResultRequestState.Failed(videoTrigger))
+
+        assertTrue(shouldRequestSearchResult(requestedTriggers, videoTrigger))
+    }
+
+    @Test
+    fun `search update request waits while same trigger is already loading`() {
+        val videoTrigger = SearchResultUpdateTrigger(
+            keyword = "测试",
+            type = SearchType.Video,
+            order = SearchFilterOrderType.ComprehensiveSort,
+            duration = SearchFilterDuration.All,
+            partitionTid = null,
+            childPartitionTid = null
+        )
+        val requestedTriggers = mapOf(SearchType.Video to SearchResultRequestState.Loading(videoTrigger))
+
+        assertFalse(shouldRequestSearchResult(requestedTriggers, videoTrigger))
     }
 }

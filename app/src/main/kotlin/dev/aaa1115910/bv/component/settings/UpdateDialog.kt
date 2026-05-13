@@ -31,6 +31,8 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.network.GithubApi
 import dev.aaa1115910.bv.network.entity.Release
+import dev.aaa1115910.bv.network.parseUpdateApkRevision
+import dev.aaa1115910.bv.network.selectUpdateApkAssetName
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.toMBString
@@ -78,9 +80,10 @@ fun UpdateDialog(
         scope.launch(Dispatchers.IO) {
             runCatching {
                 latestReleaseBuild = GithubApi.getLatestBuild()
-                val revision = latestReleaseBuild!!
-                    .assets.first { it.name.startsWith("BV") }
-                    .name.split("_")[1].toInt()
+                val assetName = selectUpdateApkAssetName(latestReleaseBuild!!.assets.map { it.name })
+                    ?: throw IllegalStateException("Didn't find update apk asset")
+                val revision = parseUpdateApkRevision(assetName)
+                    ?: throw IllegalStateException("Can't parse update apk revision from $assetName")
                 if (revision <= BuildConfig.VERSION_CODE) {
                     updateStatus = UpdateStatus.NoAvailableUpdate
                     return@launch
@@ -115,7 +118,8 @@ fun UpdateDialog(
     val startUpdate: () -> Unit = {
         updateStatus = UpdateStatus.Downloading
         downloadJob = scope.launch(Dispatchers.IO) {
-            val tempFilename = latestReleaseBuild!!.assets.first { it.name.startsWith("BV") }.name
+            val tempFilename = selectUpdateApkAssetName(latestReleaseBuild!!.assets.map { it.name })
+                ?: throw IllegalStateException("Didn't find update apk asset")
             val tempDir = File(context.cacheDir, "update_downloader")
             if (!tempDir.exists()) tempDir.mkdirs()
             val tempFile = File(tempDir, tempFilename)
