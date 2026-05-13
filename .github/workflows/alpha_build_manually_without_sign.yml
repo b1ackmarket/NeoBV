@@ -62,7 +62,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Default debug build artifact (universal)
-          path: app/build/outputs/apk/default/debug/BV_${{ env.alpha_debug_info_version_code }}_${{ env.alpha_debug_info_version_name }}_default_universal.apk
+          path: app/build/outputs/apk/default/debug/NeoBV_${{ env.alpha_debug_info_version_code }}_${{ env.alpha_debug_info_version_name }}_default_universal.apk
 
       # upload artifacts default-alpha
 
@@ -76,4 +76,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Default alpha build artifact (universal)
-          path: app/build/outputs/apk/default/alpha/BV_${{ env.alpha_info_version_code }}_${{ env.alpha_info_version_name }}_default_universal.apk
+          path: app/build/outputs/apk/default/alpha/NeoBV_${{ env.alpha_info_version_code }}_${{ env.alpha_info_version_name }}_default_universal.apk
