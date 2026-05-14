@@ -53,7 +53,7 @@ fun AboutSetting(
     LaunchedEffect(Unit) {
         launch(Dispatchers.IO) {
             runCatching {
-                latestVersionName = GithubApi.getLatestBuild().name
+                latestVersionName = GithubApi.getLatestReleaseBuild().name
                 logger.fInfo { "Find latest version $latestVersionName" }
             }.onFailure {
                 logger.fException(it) { "Failed to get latest version" }

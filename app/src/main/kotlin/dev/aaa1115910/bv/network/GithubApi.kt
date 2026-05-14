@@ -101,8 +101,7 @@ object GithubApi {
 
     suspend fun getLatestReleaseBuild(): Release = getLatestRelease()
 
-    suspend fun getLatestBuild(): Release =
-        runCatching { getLatestReleaseBuild() }.getOrElse { getLatestPreReleaseBuild() }
+    suspend fun getLatestBuild(): Release = getLatestReleaseBuild()
 
     private fun checkErrorMessage(data: String) {
         val responseElement = json.parseToJsonElement(data)

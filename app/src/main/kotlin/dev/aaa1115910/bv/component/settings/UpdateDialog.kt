@@ -79,7 +79,7 @@ fun UpdateDialog(
 
         scope.launch(Dispatchers.IO) {
             runCatching {
-                latestReleaseBuild = GithubApi.getLatestBuild()
+                latestReleaseBuild = GithubApi.getLatestReleaseBuild()
                 val assetName = selectUpdateApkAssetName(latestReleaseBuild!!.assets.map { it.name })
                     ?: throw IllegalStateException("Didn't find update apk asset")
                 val revision = parseUpdateApkRevision(assetName)
