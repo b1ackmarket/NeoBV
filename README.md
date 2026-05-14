@@ -10,7 +10,11 @@
 [![Fork](https://img.shields.io/badge/Fork-Frost819%2Fbv-6f42c1)](https://github.com/Frost819/bv)
 [![License](https://img.shields.io/github/license/b1ackmarket/NeoBV)](LICENSE)
 
-基于 `aaa1115910/bv` 与 `Frost819/bv` 继续演进，并借鉴 `Hyper-Beast/BiliTV` 部分 UX 的 Android TV 第三方哔哩哔哩客户端。
+基于 `aaa1115910/bv` 与 `Frost819/bv` 继续演进，并借鉴 `Hyper-Beast/BiliTV` 部分 UI/UX 的 Android TV 第三方哔哩哔哩客户端。
+
+都是随心乱写的代码，能跑就行。
+
+请尊重 bv 原作者意愿，勿在中国大陆公共社区进行传播。
 
 </div>
 
@@ -96,7 +100,7 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 ### 当前分支新增（基于 Frost819/bv）
 
 - `feat:` 更改导航布局，替换部分 icon，新增 SponsorBlock 、新版播放器 OSD和操作逻辑、直播、Cookies 导入导出文件和更多自定义设置项。
-- `fix:` 修复搜索与索引结果触发时机、字幕与编码选项丢失、索引选项无新年份、影视搜索结果无限重复、界面缩放数值变动异常等问题。
+- `fix:` 修复搜索与索引结果触发时机、字幕与编码选项丢失、索引选项无新年份、影视搜索结果无限重复等问题。
 
 <details>
   <summary><b>展开查看 Frost819/bv 历史更新日志</b></summary>
@@ -296,7 +300,7 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 
 ## 免责声明
 
-- 本项目仅供学习、交流与个人研究使用。
+- 本项目仅供学习、交流与个人研究使用。请于下载后24小时内删除。
 - 请自行评估所在地区、网络环境、账号状态和设备兼容性带来的影响。
 - 第三方接口、播放可用性、直播状态和画质能力可能随上游服务变化而变化。
 
@@ -304,7 +308,7 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 
 - 上游项目：[aaa1115910/bv](https://github.com/aaa1115910/bv)
 - 分支基础与长期维护参考：[Frost819/bv](https://github.com/Frost819/bv)
-- UX灵感参考：[Hyper-Beast/BiliTV](https://github.com/Hyper-Beast/BiliTV)
+- UI/UX灵感参考：[Hyper-Beast/BiliTV](https://github.com/Hyper-Beast/BiliTV)
 - 部分直播接口与实现思路调研时参考了社区公开项目和文档
 
 ## License
