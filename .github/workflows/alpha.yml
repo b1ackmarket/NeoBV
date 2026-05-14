@@ -36,7 +36,7 @@ jobs:
       - name: Write google-services.json
         env:
           DATA: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: echo $DATA > app/google-services.json
+        run: printf '%s' "$DATA" > app/google-services.json
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -45,14 +45,19 @@ jobs:
         env:
           SIGNING_PROPERTIES: ${{ secrets.SIGNING_PROPERTIES }}
         run: |
-          echo ${{ secrets.SIGNING_PROPERTIES }} > encoded_signing_properties
-          base64 -Dd -i encoded_signing_properties > signing.properties
+          printf '%s' "$SIGNING_PROPERTIES" | base64 -D > signing.properties
           perl -0pi -e 's#^releaseStoreFile=.*$#releaseStoreFile=key.jks#m; s#^debugStoreFile=.*$#debugStoreFile=key.jks#m' signing.properties
 
       - name: Add jks file
+        env:
+          SIGN_KEY: ${{ secrets.SIGN_KEY }}
         run: |
-          echo ${{ secrets.SIGN_KEY }} > ./encoded_key
-          base64 -Dd -i encoded_key > key.jks
+          printf '%s' "$SIGN_KEY" | base64 -D > key.jks
+
+      - name: Verify signing key
+        run: |
+          KEYSTORE_PASSWORD="$(sed -n 's/^releaseStorePassword=//p' signing.properties | head -n1)"
+          keytool -list -keystore key.jks -storepass "$KEYSTORE_PASSWORD" >/dev/null
 
       - name: Build apk
         run: ./gradlew assembleDefaultAlpha assembleDefaultDebug
