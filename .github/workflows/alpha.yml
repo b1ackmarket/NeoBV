@@ -47,6 +47,7 @@ jobs:
         run: |
           echo ${{ secrets.SIGNING_PROPERTIES }} > encoded_signing_properties
           base64 -Dd -i encoded_signing_properties > signing.properties
+          perl -0pi -e 's#^releaseStoreFile=.*$#releaseStoreFile=key.jks#m; s#^debugStoreFile=.*$#debugStoreFile=key.jks#m' signing.properties
 
       - name: Add jks file
         run: |
