@@ -31,6 +31,17 @@ internal object GithubRepositoryConfig {
     const val REPO = "NeoBV"
 }
 
+enum class UpdateReleaseType {
+    Release,
+    Alpha
+}
+
+data class UpdateBuildInfo(
+    val release: Release,
+    val type: UpdateReleaseType,
+    val revision: Int
+)
+
 object GithubApi {
     private var endPoint = "api.github.com"
     private lateinit var client: HttpClient
@@ -101,7 +112,21 @@ object GithubApi {
 
     suspend fun getLatestReleaseBuild(): Release = getLatestRelease()
 
-    suspend fun getLatestBuild(): Release = getLatestReleaseBuild()
+    suspend fun getPreferredBuild(includeAlpha: Boolean): UpdateBuildInfo {
+        val releaseBuild = runCatching { getLatestReleaseBuild() }.getOrNull()
+        val alphaBuild = if (includeAlpha) runCatching { getLatestPreReleaseBuild() }.getOrNull() else null
+
+        val releaseInfo = releaseBuild?.toUpdateBuildInfo(UpdateReleaseType.Release)
+        val alphaInfo = alphaBuild?.toUpdateBuildInfo(UpdateReleaseType.Alpha)
+
+        return when {
+            releaseInfo == null && alphaInfo == null -> throw IllegalStateException("No update build found")
+            releaseInfo == null -> alphaInfo!!
+            alphaInfo == null -> releaseInfo
+            alphaInfo.revision > releaseInfo.revision -> alphaInfo
+            else -> releaseInfo
+        }
+    }
 
     private fun checkErrorMessage(data: String) {
         val responseElement = json.parseToJsonElement(data)
@@ -132,4 +157,15 @@ object GithubApi {
         val prefix = "https://ghfast.top/"
         return prefix + originalUrl
     }
+}
+
+private fun Release.toUpdateBuildInfo(type: UpdateReleaseType): UpdateBuildInfo? {
+    val assetName = selectUpdateApkAssetName(assets.map { it.name }, isDebugBuild = BuildConfig.DEBUG)
+        ?: return null
+    val revision = parseUpdateApkRevision(assetName) ?: return null
+    return UpdateBuildInfo(
+        release = this,
+        type = type,
+        revision = revision
+    )
 }

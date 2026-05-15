@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
@@ -28,11 +29,13 @@ import androidx.core.content.FileProvider
 import androidx.tv.material3.Button
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.network.GithubApi
-import dev.aaa1115910.bv.network.entity.Release
-import dev.aaa1115910.bv.network.parseUpdateApkRevision
+import dev.aaa1115910.bv.network.UpdateBuildInfo
+import dev.aaa1115910.bv.network.UpdateReleaseType
 import dev.aaa1115910.bv.network.selectUpdateApkAssetName
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.toMBString
@@ -63,7 +66,7 @@ fun UpdateDialog(
         label = "update progress"
     )
     var downloadJob by remember { mutableStateOf<Job?>(null) }
-    var latestReleaseBuild by remember { mutableStateOf<Release?>(null) }
+    var latestBuildInfo by remember { mutableStateOf<UpdateBuildInfo?>(null) }
 
     DisposableEffect(show) {
         if(!show) {
@@ -79,12 +82,8 @@ fun UpdateDialog(
 
         scope.launch(Dispatchers.IO) {
             runCatching {
-                latestReleaseBuild = GithubApi.getLatestReleaseBuild()
-                val assetName = selectUpdateApkAssetName(latestReleaseBuild!!.assets.map { it.name })
-                    ?: throw IllegalStateException("Didn't find update apk asset")
-                val revision = parseUpdateApkRevision(assetName)
-                    ?: throw IllegalStateException("Can't parse update apk revision from $assetName")
-                if (revision <= BuildConfig.VERSION_CODE) {
+                latestBuildInfo = GithubApi.getPreferredBuild(Prefs.receiveAlphaUpdates)
+                if (latestBuildInfo!!.revision <= BuildConfig.VERSION_CODE) {
                     updateStatus = UpdateStatus.NoAvailableUpdate
                     return@launch
                 }
@@ -92,7 +91,7 @@ fun UpdateDialog(
                 logger.fException(it) { "Failed to get latest version" }
                 updateStatus = UpdateStatus.CheckError
             }.onSuccess {
-                logger.fInfo { "Find latest version ${latestReleaseBuild!!.name}" }
+                logger.fInfo { "Find latest version ${latestBuildInfo!!.release.name}" }
                 updateStatus = UpdateStatus.Ready
             }
         }
@@ -118,7 +117,8 @@ fun UpdateDialog(
     val startUpdate: () -> Unit = {
         updateStatus = UpdateStatus.Downloading
         downloadJob = scope.launch(Dispatchers.IO) {
-            val tempFilename = selectUpdateApkAssetName(latestReleaseBuild!!.assets.map { it.name })
+            val release = latestBuildInfo!!.release
+            val tempFilename = selectUpdateApkAssetName(release.assets.map { it.name })
                 ?: throw IllegalStateException("Didn't find update apk asset")
             val tempDir = File(context.cacheDir, "update_downloader")
             if (!tempDir.exists()) tempDir.mkdirs()
@@ -126,7 +126,7 @@ fun UpdateDialog(
             tempFile.createNewFile()
             runCatching {
                 GithubApi.downloadUpdate(
-                    latestReleaseBuild!!,
+                    release,
                     tempFile,
                     object : ProgressListener {
                         override suspend fun onProgress(downloaded: Long, total: Long?) {
@@ -166,7 +166,7 @@ fun UpdateDialog(
                 Text(
                     text = when (updateStatus) {
                         UpdateStatus.UpdatingInfo -> "获取更新信息中"
-                        UpdateStatus.Ready -> latestReleaseBuild!!.name
+                        UpdateStatus.Ready -> latestBuildInfo!!.release.name
                         UpdateStatus.Downloading -> "下载中"
                         UpdateStatus.Installing -> "安装中"
                         UpdateStatus.NoAvailableUpdate -> "无可用更新"
@@ -183,7 +183,17 @@ fun UpdateDialog(
                     }
 
                     UpdateStatus.Ready -> {
-                        Text(text = latestReleaseBuild?.body ?: "Empty content")
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = when (latestBuildInfo?.type) {
+                                    UpdateReleaseType.Alpha -> context.getString(R.string.settings_version_alpha_update_banner)
+                                    else -> context.getString(R.string.settings_version_release_update_banner)
+                                }
+                            )
+                            Text(text = latestBuildInfo?.release?.body ?: "Empty content")
+                        }
                     }
 
                     UpdateStatus.Downloading -> {

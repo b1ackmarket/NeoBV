@@ -3,6 +3,7 @@ package dev.aaa1115910.bv.screen.settings.content
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,10 +26,12 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.component.settings.UpdateDialog
 import dev.aaa1115910.bv.network.GithubApi
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -49,11 +52,12 @@ fun AboutSetting(
 
     var showUpdateDialog by remember { mutableStateOf(false) }
     var latestVersionName by remember { mutableStateOf("Loading...") }
+    var receiveAlphaUpdates by remember { mutableStateOf(Prefs.receiveAlphaUpdates) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(receiveAlphaUpdates) {
         launch(Dispatchers.IO) {
             runCatching {
-                latestVersionName = GithubApi.getLatestReleaseBuild().name
+                latestVersionName = GithubApi.getPreferredBuild(receiveAlphaUpdates).release.name
                 logger.fInfo { "Find latest version $latestVersionName" }
             }.onFailure {
                 logger.fException(it) { "Failed to get latest version" }
@@ -94,6 +98,16 @@ fun AboutSetting(
                         )
                     )
                 }
+                SettingSwitchListItem(
+                    modifier = Modifier.fillMaxWidth(),
+                    title = stringResource(R.string.settings_other_alpha_title),
+                    supportText = stringResource(R.string.settings_other_alpha_text),
+                    checked = receiveAlphaUpdates,
+                    onCheckedChange = {
+                        receiveAlphaUpdates = it
+                        Prefs.receiveAlphaUpdates = it
+                    }
+                )
             }
             Button(onClick = { showUpdateDialog = true }) {
                 Text(text = stringResource(R.string.settings_version_check_update_button))

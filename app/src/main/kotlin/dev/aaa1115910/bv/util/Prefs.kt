@@ -221,6 +221,7 @@ object Prefs {
     var showVideoInfo by pref(PrefKeys.prefShowVideoInfoKey, PrefDefaultValues.showVideoInfo)
     var showPersistentSeek by pref(PrefKeys.prefShowPersistentSeekKey, false)
     var showPlayerStats by pref(PrefKeys.prefShowPlayerStatsKey, false)
+    var receiveAlphaUpdates by pref(PrefKeys.prefReceiveAlphaUpdatesKey, false)
 
     // =========================================================================
     // 应用界面
@@ -405,6 +406,7 @@ private object PrefKeys {
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
     val prefShowPersistentSeekKey = booleanPreferencesKey("show_persistent_seek")
     val prefShowPlayerStatsKey = booleanPreferencesKey("show_player_stats")
+    val prefReceiveAlphaUpdatesKey = booleanPreferencesKey("receive_alpha_updates")
 
     // 应用界面
     val prefDensityKey = floatPreferencesKey("density")

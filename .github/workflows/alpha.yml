@@ -77,7 +77,7 @@ jobs:
 
       - name: Determine tag name
         id: tag_name
-        run: echo "tag_name=alpha-r${{ env.alpha_info_version_code }}" >> $GITHUB_ENV
+        run: echo "tag_name=alpha" >> $GITHUB_ENV
 
       - name: Get changelog
         id: changelog
@@ -115,10 +115,22 @@ jobs:
       - name: Zip mapping
         run: zip -rj mapping.zip app/build/outputs/mapping/defaultAlpha
 
+      - name: Remove previous alpha pre-releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+            --jq '.[] | select(.prerelease and (.tag_name == "alpha" or (.tag_name | startswith("alpha-r")))) | .tag_name' |
+          while IFS= read -r tag; do
+            if [ -n "$tag" ]; then
+              gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag
+            fi
+          done
+
       # upload to github release
 
       - name: Publish Pre-Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             app/build/outputs/apk/default/debug/NeoBV_${{ env.alpha_debug_info_version_code }}_${{ env.alpha_debug_info_version_name }}_default_universal.apk

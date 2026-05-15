@@ -39,7 +39,8 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 ![NeoBV 快进预览](assets/快进预览-连续点击两次右键触发.jpg)
 
 - 播放器 OSD 重新补强，标题区直接显示 `UP 主 / 发布时间 / 播放次数`。
-- 连续快进时会直接给出预览反馈，减少“按了但心里没底”的感觉。
+- 视频播放界面，点击一次左右键，立即快进快退 5 秒或 10 秒；连按两次，触发预览，预览时快进快退为 10 秒，点击 ok 键才跳转播放。
+- 长按 ok 键触发 2 倍速，松手释放
 
 ![NeoBV 播放器速度设置](assets/右osd菜单-速度设置.jpg) 
 ![NeoBV 播放器右侧统计信息菜单](assets/右osd菜单-统计信息.jpg)
@@ -91,9 +92,11 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 
 ## 已知 Bug
 
+- 偶尔搜索会不返回结果，但难以稳定复现，解决方法是过一会儿再用，或者换个好点的网试试
 - 有的视频的 AI 英文字幕、日文字幕无法正常显示
 - 直播无法展示实时弹幕
 - 界面缩放数值变动异常
+
 
 ## 更新日志
 
@@ -310,6 +313,9 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 - 分支基础与长期维护参考：[Frost819/bv](https://github.com/Frost819/bv)
 - UI/UX灵感参考：[Hyper-Beast/BiliTV](https://github.com/Hyper-Beast/BiliTV)
 - 部分直播接口与实现思路调研时参考了社区公开项目和文档
+- 感谢 v2ex linux.do nodeseek 提供的平台供分享项目
+
+# 请记得 bbll 的前车之鉴，不要在国内社区传播哈。
 
 ## License
 
