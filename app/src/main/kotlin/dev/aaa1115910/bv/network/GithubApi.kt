@@ -39,7 +39,8 @@ enum class UpdateReleaseType {
 data class UpdateBuildInfo(
     val release: Release,
     val type: UpdateReleaseType,
-    val revision: Int
+    val revision: Int,
+    val assetName: String
 )
 
 object GithubApi {
@@ -50,8 +51,6 @@ object GithubApi {
         ignoreUnknownKeys = true
         prettyPrint = true
     }
-    private val isDebug get() = BuildConfig.DEBUG
-
     init {
         createClient()
     }
@@ -81,7 +80,7 @@ object GithubApi {
         pageSize: Int = 30,
         page: Int = 1
     ): List<Release> {
-        val response = client.get("repos/$owner/$repo/releases") {
+        val response = client.get(toGhProxyUrl("$GithubApiBase/repos/$owner/$repo/releases")) {
             parameter("per_page", pageSize)
             parameter("page", page)
         }.bodyAsText()
@@ -89,43 +88,74 @@ object GithubApi {
         return json.decodeFromString<List<Release>>(response)
     }
 
-    private suspend fun getLatestRelease(
+    private suspend fun getLatestReleaseFromApi(
         owner: String = GithubRepositoryConfig.OWNER,
         repo: String = GithubRepositoryConfig.REPO
     ): Release {
-        val response = client.get("repos/$owner/$repo/releases/latest").bodyAsText()
+        val response = client.get(toGhProxyUrl("$GithubApiBase/repos/$owner/$repo/releases/latest")).bodyAsText()
         checkErrorMessage(response)
         return json.decodeFromString<Release>(response)
     }
 
-    suspend fun getLatestPreReleaseBuild(): Release {
-        var release: Release? = null
-        var page = 1
-        while (release == null) {
-            val releases = getReleases(page = page)
-            if (releases.isEmpty()) break
-            release = releases.firstOrNull { it.isPreRelease }
-            page++
-        }
-        return release ?: throw IllegalStateException("No pre-release found")
+    private suspend fun getLatestReleaseFromGithubPages(
+        owner: String = GithubRepositoryConfig.OWNER,
+        repo: String = GithubRepositoryConfig.REPO
+    ): Release {
+        val releasePageUrl = "$GithubWebBase/$owner/$repo/releases/latest"
+        val releasePage = client.get(toGhProxyUrl(releasePageUrl)).bodyAsText()
+        val tagName = parseGithubReleaseTagName(releasePage)
+            ?: throw IllegalStateException("Release tag not found")
+        return getReleaseFromGithubPages(
+            owner = owner,
+            repo = repo,
+            tagName = tagName,
+            releasePage = releasePage
+        )
     }
 
-    suspend fun getLatestReleaseBuild(): Release = getLatestRelease()
+    private suspend fun getReleaseFromGithubPages(
+        owner: String = GithubRepositoryConfig.OWNER,
+        repo: String = GithubRepositoryConfig.REPO,
+        tagName: String,
+        releasePage: String? = null,
+        prerelease: Boolean = false
+    ): Release {
+        val resolvedReleasePage = releasePage
+            ?: client.get(toGhProxyUrl("$GithubWebBase/$owner/$repo/releases/tag/$tagName")).bodyAsText()
+        val assetsPageUrl = "$GithubWebBase/$owner/$repo/releases/expanded_assets/$tagName"
+        val assetsPage = client.get(toGhProxyUrl(assetsPageUrl)).bodyAsText()
+        return buildGithubReleaseFromPages(
+            owner = owner,
+            repo = repo,
+            tagName = tagName,
+            releasePage = resolvedReleasePage,
+            assetsPage = assetsPage,
+            prerelease = prerelease
+        )
+    }
+
+    suspend fun getLatestPreReleaseBuild(): Release =
+        getReleaseFromGithubPages(tagName = GithubAlphaTag, prerelease = true)
+
+    suspend fun getLatestReleaseBuild(): Release = getLatestReleaseFromGithubPages()
 
     suspend fun getPreferredBuild(includeAlpha: Boolean): UpdateBuildInfo {
-        val releaseBuild = runCatching { getLatestReleaseBuild() }.getOrNull()
-        val alphaBuild = if (includeAlpha) runCatching { getLatestPreReleaseBuild() }.getOrNull() else null
-
-        val releaseInfo = releaseBuild?.toUpdateBuildInfo(UpdateReleaseType.Release)
-        val alphaInfo = alphaBuild?.toUpdateBuildInfo(UpdateReleaseType.Alpha)
-
-        return when {
-            releaseInfo == null && alphaInfo == null -> throw IllegalStateException("No update build found")
-            releaseInfo == null -> alphaInfo!!
-            alphaInfo == null -> releaseInfo
-            alphaInfo.revision > releaseInfo.revision -> alphaInfo
-            else -> releaseInfo
+        val releaseInfo = if (includeAlpha) {
+            null
+        } else {
+            runCatching { getLatestReleaseBuild().toUpdateBuildInfo(UpdateReleaseType.Release) }.getOrNull()
         }
+        val alphaInfo = if (includeAlpha) {
+            runCatching { getLatestPreReleaseBuild().toUpdateBuildInfo(UpdateReleaseType.Alpha) }.getOrNull()
+        } else {
+            null
+        }
+
+        return selectPreferredUpdateBuild(
+            releaseInfo = releaseInfo,
+            alphaInfo = alphaInfo,
+            includeAlpha = includeAlpha
+        )
     }
 
     private fun checkErrorMessage(data: String) {
@@ -136,12 +166,12 @@ object GithubApi {
     }
 
     suspend fun downloadUpdate(
-        release: Release,
+        buildInfo: UpdateBuildInfo,
         file: File,
         downloadListener: ProgressListener
     ) {
-        val downloadUrl = release.assets.firstOrNull {
-            it.name == selectUpdateApkAssetName(release.assets.map { asset -> asset.name }, isDebug)
+        val downloadUrl = buildInfo.release.assets.firstOrNull {
+            it.name == buildInfo.assetName
         }?.browserDownloadUrl
         downloadUrl ?: throw IllegalStateException("Didn't find download url")
         client.prepareRequest {
@@ -152,20 +182,153 @@ object GithubApi {
             response.bodyAsChannel().copyAndClose(file.writeChannel())
         }
     }
+}
 
-    private fun toGhProxyUrl(originalUrl: String): String {
-        val prefix = "https://ghfast.top/"
-        return prefix + originalUrl
-    }
+internal fun selectPreferredUpdateBuild(
+    releaseInfo: UpdateBuildInfo?,
+    alphaInfo: UpdateBuildInfo?,
+    includeAlpha: Boolean
+): UpdateBuildInfo {
+    val selectedBuildInfo = if (includeAlpha) alphaInfo else releaseInfo
+    return selectedBuildInfo
+        ?: throw IllegalStateException(if (includeAlpha) "No alpha update build found" else "No release update build found")
 }
 
 private fun Release.toUpdateBuildInfo(type: UpdateReleaseType): UpdateBuildInfo? {
-    val assetName = selectUpdateApkAssetName(assets.map { it.name }, isDebugBuild = BuildConfig.DEBUG)
+    val assetName = selectUpdateApkAssetName(
+        assetNames = assets.map { it.name },
+        isDebugBuild = BuildConfig.DEBUG,
+        type = type
+    )
         ?: return null
     val revision = parseUpdateApkRevision(assetName) ?: return null
     return UpdateBuildInfo(
         release = this,
         type = type,
-        revision = revision
+        revision = revision,
+        assetName = assetName
     )
+}
+
+private const val GhFastPrefix = "https://ghfast.top/"
+private const val GithubApiBase = "https://api.github.com"
+private const val GithubWebBase = "https://github.com"
+private const val GithubAlphaTag = "alpha"
+
+internal fun toGhProxyUrl(originalUrl: String): String {
+    return if (originalUrl.startsWith(GhFastPrefix)) originalUrl else GhFastPrefix + originalUrl
+}
+
+internal fun parseGithubReleaseTagName(releasePage: String): String? {
+    val ogUrlPattern = Regex("""<meta property="og:url" content="[^"]*/releases/tag/([^"]+)"""")
+    val tagPattern = Regex("""/releases/tag/([^"?#<\s]+)""")
+    return ogUrlPattern.find(releasePage)?.groupValues?.get(1)
+        ?: tagPattern.find(releasePage)?.groupValues?.get(1)
+}
+
+internal fun parseGithubReleaseName(releasePage: String): String? {
+    return Regex("""<title>\s*Release\s+(.+?)\s+·""", RegexOption.DOT_MATCHES_ALL)
+        .find(releasePage)
+        ?.groupValues
+        ?.get(1)
+        ?.htmlUnescape()
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+}
+
+internal fun parseGithubReleaseAssets(
+    owner: String,
+    repo: String,
+    assetsPage: String
+): List<Release.Asset> {
+    val hrefPrefix = "/$owner/$repo/releases/download/"
+    val pattern = Regex("""href="$hrefPrefix([^"/]+)/([^"]+)"""")
+    return pattern.findAll(assetsPage)
+        .map { match ->
+            val tagName = match.groupValues[1]
+            val assetName = match.groupValues[2].htmlUnescape()
+            Release.Asset(
+                browserDownloadUrl = "$GithubWebBase/$owner/$repo/releases/download/$tagName/$assetName",
+                contentType = when {
+                    assetName.endsWith(".apk", ignoreCase = true) -> "application/vnd.android.package-archive"
+                    assetName.endsWith(".zip", ignoreCase = true) -> "application/zip"
+                    else -> "application/octet-stream"
+                },
+                createdAt = "",
+                downloadCount = 0,
+                id = 0,
+                label = "",
+                name = assetName,
+                nodeId = "",
+                size = 0,
+                state = "uploaded",
+                updatedAt = "",
+                uploader = emptyGithubUser(),
+                url = ""
+            )
+        }
+        .toList()
+}
+
+internal fun buildGithubReleaseFromPages(
+    owner: String,
+    repo: String,
+    tagName: String,
+    releasePage: String,
+    assetsPage: String,
+    prerelease: Boolean = false
+): Release {
+    val htmlUrl = "$GithubWebBase/$owner/$repo/releases/tag/$tagName"
+    return Release(
+        assets = parseGithubReleaseAssets(owner, repo, assetsPage),
+        assetsUrl = "",
+        author = emptyGithubUser(),
+        body = "通过 GitHub 发布页查看更新内容：$htmlUrl",
+        createdAt = "",
+        draft = false,
+        htmlUrl = htmlUrl,
+        id = 0,
+        name = parseGithubReleaseName(releasePage) ?: tagName,
+        nodeId = "",
+        prerelease = prerelease,
+        publishedAt = "",
+        reactions = null,
+        tagName = tagName,
+        tarballUrl = "",
+        targetCommitish = "",
+        uploadUrl = "",
+        url = htmlUrl,
+        zipballUrl = ""
+    )
+}
+
+private fun emptyGithubUser(): Release.User {
+    return Release.User(
+        avatarUrl = "",
+        eventsUrl = "",
+        followersUrl = "",
+        followingUrl = "",
+        gistsUrl = "",
+        gravatarId = "",
+        htmlUrl = "",
+        id = 0,
+        login = "",
+        nodeId = "",
+        organizationsUrl = "",
+        receivedEventsUrl = "",
+        reposUrl = "",
+        siteAdmin = false,
+        starredUrl = "",
+        subscriptionsUrl = "",
+        type = "",
+        url = ""
+    )
+}
+
+private fun String.htmlUnescape(): String {
+    return replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
 }

@@ -57,7 +57,7 @@ fun AboutSetting(
     LaunchedEffect(receiveAlphaUpdates) {
         launch(Dispatchers.IO) {
             runCatching {
-                latestVersionName = GithubApi.getPreferredBuild(receiveAlphaUpdates).release.name
+                latestVersionName = GithubApi.getPreferredBuild(receiveAlphaUpdates).assetName
                 logger.fInfo { "Find latest version $latestVersionName" }
             }.onFailure {
                 logger.fException(it) { "Failed to get latest version" }

@@ -34,7 +34,6 @@ import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.network.GithubApi
 import dev.aaa1115910.bv.network.UpdateBuildInfo
 import dev.aaa1115910.bv.network.UpdateReleaseType
-import dev.aaa1115910.bv.network.selectUpdateApkAssetName
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
@@ -91,7 +90,7 @@ fun UpdateDialog(
                 logger.fException(it) { "Failed to get latest version" }
                 updateStatus = UpdateStatus.CheckError
             }.onSuccess {
-                logger.fInfo { "Find latest version ${latestBuildInfo!!.release.name}" }
+                logger.fInfo { "Find latest version ${latestBuildInfo!!.assetName}" }
                 updateStatus = UpdateStatus.Ready
             }
         }
@@ -117,16 +116,14 @@ fun UpdateDialog(
     val startUpdate: () -> Unit = {
         updateStatus = UpdateStatus.Downloading
         downloadJob = scope.launch(Dispatchers.IO) {
-            val release = latestBuildInfo!!.release
-            val tempFilename = selectUpdateApkAssetName(release.assets.map { it.name })
-                ?: throw IllegalStateException("Didn't find update apk asset")
+            val tempFilename = latestBuildInfo!!.assetName
             val tempDir = File(context.cacheDir, "update_downloader")
             if (!tempDir.exists()) tempDir.mkdirs()
             val tempFile = File(tempDir, tempFilename)
             tempFile.createNewFile()
             runCatching {
                 GithubApi.downloadUpdate(
-                    release,
+                    latestBuildInfo!!,
                     tempFile,
                     object : ProgressListener {
                         override suspend fun onProgress(downloaded: Long, total: Long?) {
@@ -166,7 +163,7 @@ fun UpdateDialog(
                 Text(
                     text = when (updateStatus) {
                         UpdateStatus.UpdatingInfo -> "获取更新信息中"
-                        UpdateStatus.Ready -> latestBuildInfo!!.release.name
+                        UpdateStatus.Ready -> latestBuildInfo!!.assetName
                         UpdateStatus.Downloading -> "下载中"
                         UpdateStatus.Installing -> "安装中"
                         UpdateStatus.NoAvailableUpdate -> "无可用更新"
