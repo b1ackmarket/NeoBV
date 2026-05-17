@@ -1385,6 +1385,7 @@ object BiliHttpApi {
         keyword: String,
         type: String,
         page: Int = 1,
+        pageSize: Int = 20,
         tid: Int? = null,
         order: String? = null,
         duration: Int? = null,
@@ -1393,6 +1394,7 @@ object BiliHttpApi {
         parameter("keyword", keyword)
         parameter("search_type", type)
         parameter("page", page)
+        parameter("pagesize", pageSize)
         tid?.let { parameter("tids", it) }
         order?.let { parameter("order", it) }
         duration?.let { parameter("duration", it) }

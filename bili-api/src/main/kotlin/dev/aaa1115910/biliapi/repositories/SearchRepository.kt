@@ -119,54 +119,58 @@ class SearchRepository(
         preferApiType: ApiType = ApiType.App,
         enableProxy: Boolean = false
     ): SearchTypeResult {
-        return when (preferApiType) {
-            ApiType.Web -> {
-                val response = if (enableProxy) {
-                    BiliHttpProxyApi.searchType(
-                        keyword = keyword,
-                        type = type.httpTypeParam,
-                        page = page.nextPageForWeb,
-                        tid = tid,
-                        order = order.httpOrderParam,
-                        duration = duration.httpDurationParam,
-                        buvid3 = authRepository.buvid3!!,
-                    )
-                } else {
-                    BiliHttpApi.searchType(
-                        keyword = keyword,
-                        type = type.httpTypeParam,
-                        page = page.nextPageForWeb,
-                        tid = tid,
-                        order = order.httpOrderParam,
-                        duration = duration.httpDurationParam,
-                        buvid3 = authRepository.buvid3!!,
-                    )
-                }.getResponseData()
-                SearchTypeResult.fromSearchTypeResult(response)
-            }
+        suspend fun searchByWeb(): SearchTypeResult {
+            val response = if (enableProxy) {
+                BiliHttpProxyApi.searchType(
+                    keyword = keyword,
+                    type = type.httpTypeParam,
+                    page = page.nextPageForWeb,
+                    tid = tid,
+                    order = order.httpOrderParam,
+                    duration = duration.httpDurationParam,
+                    buvid3 = authRepository.buvid3 ?: "",
+                )
+            } else {
+                BiliHttpApi.searchType(
+                    keyword = keyword,
+                    type = type.httpTypeParam,
+                    page = page.nextPageForWeb,
+                    tid = tid,
+                    order = order.httpOrderParam,
+                    duration = duration.httpDurationParam,
+                    buvid3 = authRepository.buvid3 ?: "",
+                )
+            }.getResponseData()
+            return SearchTypeResult.fromSearchTypeResult(response)
+        }
 
-            ApiType.App -> {
-                val searchTypeReply = runCatching {
-                    val searchTypeRequest = searchByTypeRequest {
-                        this.keyword = keyword
-                        this.type = type.grpcTypeParam
-                        categorySort = order.grpcOrderParam
-                        userType = SearchByTypeRequest.UserType.ALL
-                        userSort = SearchByTypeRequest.UserSort.USER_SORT_DEFAULT
-                        pagination = pagination {
-                            next = page.nextPageForApp
-                        }
+        suspend fun searchByApp(): SearchTypeResult {
+            val searchTypeReply = runCatching {
+                val searchTypeRequest = searchByTypeRequest {
+                    this.keyword = keyword
+                    this.type = type.grpcTypeParam
+                    categorySort = order.grpcOrderParam
+                    userType = SearchByTypeRequest.UserType.ALL
+                    userSort = SearchByTypeRequest.UserSort.USER_SORT_DEFAULT
+                    pagination = pagination {
+                        next = page.nextPageForApp
                     }
-                    if (enableProxy) {
-                        proxySearchResultStub?.searchByType(searchTypeRequest)
-                            ?: throw IllegalStateException("Proxy search result stub is not initialized")
-                    } else {
-                        searchResultStub?.searchByType(searchTypeRequest)
-                            ?: throw IllegalStateException("Search result stub is not initialized")
-                    }
-                }.onFailure { handleGrpcException(it) }.getOrThrow()
-                SearchTypeResult.fromSearchTypeResult(searchTypeReply)
-            }
+                }
+                if (enableProxy) {
+                    proxySearchResultStub?.searchByType(searchTypeRequest)
+                        ?: throw IllegalStateException("Proxy search result stub is not initialized")
+                } else {
+                    searchResultStub?.searchByType(searchTypeRequest)
+                        ?: throw IllegalStateException("Search result stub is not initialized")
+                }
+            }.onFailure { handleGrpcException(it) }.getOrThrow()
+            return SearchTypeResult.fromSearchTypeResult(searchTypeReply)
+        }
+
+        return when {
+            preferApiType == ApiType.Web -> searchByWeb()
+            type == SearchType.Video -> searchByWeb()
+            else -> searchByApp()
         }
     }
 }
@@ -193,7 +197,7 @@ enum class SearchFilterOrderType(
     val grpcOrderParam: SearchByTypeRequest.CategorySort
 ) {
     ComprehensiveSort(
-        httpOrderParam = null,
+        httpOrderParam = "totalrank",
         grpcOrderParam = SearchByTypeRequest.CategorySort.CATEGORY_SORT_DEFAULT
     ),
     MostClicks(
