@@ -10,6 +10,7 @@ enum class Resolution(val code: Int, private val strResLong: Int, private val st
     R720P(64, R.string.resolution_720p, R.string.resolution_720p_short),
     R720P60(74, R.string.resolution__720p_60, R.string.resolution_720p_60_short),
     R1080P(80, R.string.resolution_1080p, R.string.resolution_1080p_short),
+    RAiRepair(100, R.string.resolution_ai_repair, R.string.resolution_ai_repair_short),
     R1080PPlus(112, R.string.resolution_1080p_plus, R.string.resolution_1080p_plus_short),
     R1080P60(116, R.string.resolution_1080p_60, R.string.resolution_1080p_60_short),
     R4K(120, R.string.resolution_4k, R.string.resolution_4k_short),

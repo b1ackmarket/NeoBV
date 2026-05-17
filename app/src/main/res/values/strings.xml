@@ -162,6 +162,8 @@
     <string name="resolution_1080p_plus">1080P+ 高码率</string>
     <string name="resolution_1080p_plus_short">1080P+</string>
     <string name="resolution_1080p_short">1080P</string>
+    <string name="resolution_ai_repair">智能修复</string>
+    <string name="resolution_ai_repair_short">智能修复</string>
     <string name="resolution_240p">240P 极速</string>
     <string name="resolution_240p_short">240P</string>
     <string name="resolution_360p">360P 流畅</string>

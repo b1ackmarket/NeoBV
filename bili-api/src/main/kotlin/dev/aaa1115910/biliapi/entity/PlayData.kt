@@ -8,6 +8,7 @@ import bilibili.playershared.dashVideoOrNull
 import bilibili.playershared.dolbyOrNull
 import bilibili.playershared.lossLessItemOrNull
 import bilibili.playershared.segmentVideoOrNull
+import dev.aaa1115910.biliapi.http.entity.video.SupportFormat
 
 data class PlayData(
     val dashVideos: List<DashVideo>,
@@ -15,9 +16,19 @@ data class PlayData(
     val dolby: DashAudio? = null,
     val flac: DashAudio? = null,
     val codec: Map<Int, List<String>> = emptyMap(),
+    val qualityDescriptions: Map<Int, String> = emptyMap(),
     val needPay: Boolean = false,
 ) {
     companion object {
+        private fun List<SupportFormat>.toQualityDescriptions(): Map<Int, String> {
+            return associate { format ->
+                val description = format.displayDesc
+                    .ifBlank { format.newDescription }
+                    .ifBlank { format.description.orEmpty() }
+                format.quality to description
+            }.filterValues { it.isNotBlank() }
+        }
+
         fun fromPlayViewUniteReply(playViewUniteReply: PlayViewUniteReply): PlayData {
             val vodInfo = playViewUniteReply.vodInfo
 
@@ -293,6 +304,7 @@ data class PlayData(
                 dolby = dolby,
                 flac = flac,
                 codec = codec,
+                qualityDescriptions = playUrlData.supportFormats.toQualityDescriptions(),
                 needPay = isPreview
             )
         }
@@ -356,6 +368,7 @@ data class PlayData(
                 dolby = dolby,
                 flac = flac,
                 codec = codec,
+                qualityDescriptions = playUrlData.supportFormats.toQualityDescriptions(),
                 needPay = needPay
             )
         }
@@ -419,6 +432,7 @@ data class PlayData(
                 dolby = dolby,
                 flac = flac,
                 codec = codec,
+                qualityDescriptions = playUrlData.supportFormats.toQualityDescriptions(),
                 needPay = needPay
             )
         }
@@ -443,6 +457,7 @@ data class PlayData(
                     .distinct()
                     .filter { it != "none" }
             }.toMap(),
+            qualityDescriptions = qualityDescriptions + other.qualityDescriptions,
             needPay = needPay || other.needPay
         )
     }

@@ -50,6 +50,11 @@ class VideoPlayRepository(
     private val authRepository: AuthRepository,
     private val channelRepository: ChannelRepository
 ) {
+    private companion object {
+        const val DefaultVideoFnval = 4048
+        const val PgcVideoFnvalWithAiRepair = 12240
+    }
+
     private val playerStub
         get() = runCatching {
             PlayerGrpcKt.PlayerCoroutineStub(channelRepository.defaultChannel!!)
@@ -79,7 +84,7 @@ class VideoPlayRepository(
                 val playUrlData = BiliHttpApi.getVideoPlayUrl(
                     av = aid,
                     cid = cid,
-                    fnval = 4048,
+                    fnval = DefaultVideoFnval,
                     qn = 127,
                     fnver = 0,
                     fourk = 1,
@@ -103,7 +108,7 @@ class VideoPlayRepository(
                                     vod = videoVod {
                                         this.aid = aid
                                         this.cid = cid
-                                        fnval = 4048
+                                        fnval = DefaultVideoFnval
                                         qn = 127
                                         fnver = 0
                                         fourk = true
@@ -150,7 +155,7 @@ class VideoPlayRepository(
                         av = aid,
                         cid = cid,
                         epid = epid,
-                        fnval = 4048,
+                        fnval = PgcVideoFnvalWithAiRepair,
                         qn = 127,
                         fnver = 0,
                         fourk = 1,
@@ -161,7 +166,7 @@ class VideoPlayRepository(
                         av = aid,
                         cid = cid,
                         epid = epid,
-                        fnval = 4048,
+                        fnval = PgcVideoFnvalWithAiRepair,
                         qn = 127,
                         fnver = 0,
                         fourk = 1,
@@ -185,7 +190,7 @@ class VideoPlayRepository(
                             cid?.let { this.cid = it }
                             qn = 127
                             fnver = 0
-                            fnval = 4048
+                            fnval = PgcVideoFnvalWithAiRepair
                             fourk = true
                             forceHost = 0
                             download = 0

@@ -1003,8 +1003,8 @@ class VideoPlayerV3ViewModel(
 
             // 2. 解析并去重可用的清晰度 (使用 associate 替代 forEach + mutableMap)
             val resolutionMap = playData.dashVideos.associate { video ->
-                video.quality to Resolution.fromCode(video.quality)
-                    .getShortDisplayName(BVApp.context)
+                video.quality to (playData.qualityDescriptions[video.quality]
+                    ?: Resolution.fromCode(video.quality).getShortDisplayName(BVApp.context))
             }
             logger.fInfo { "Video available resolution: $resolutionMap" }
 

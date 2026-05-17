@@ -272,7 +272,7 @@ private fun MenuList(
 
             VideoPlayerMenuNavItem.Picture -> {
                 PictureMenuList(
-                    availableQualityIds = uiState.availableQuality.keys.toList(),
+                    availableQuality = uiState.availableQuality,
                     availableAudio = uiState.availableAudio,
                     availableVideoCodec = uiState.availableVideoCodec,
                     currentResolution = uiState.mediaProfileState.qualityId,

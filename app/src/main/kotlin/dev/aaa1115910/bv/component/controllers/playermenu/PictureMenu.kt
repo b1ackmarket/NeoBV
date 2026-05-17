@@ -42,7 +42,7 @@ import dev.aaa1115910.bv.entity.VideoCodec
 @Composable
 fun PictureMenuList(
     modifier: Modifier = Modifier,
-    availableQualityIds: List<Int>,
+    availableQuality: Map<Int, String>,
     availableAudio: List<Audio>,
     availableVideoCodec: List<VideoCodec>,
     currentResolution: Int?,
@@ -66,8 +66,8 @@ fun PictureMenuList(
             addAll(VideoPlayerPictureMenuItem.entries.map { FocusRequester() })
         }
     }
-    val qualityIdList = remember(availableQualityIds) {
-        availableQualityIds
+    val qualityIdList = remember(availableQuality) {
+        availableQuality.keys
             .sortedByDescending {it}
     }
     val audioList = remember(availableAudio) {
@@ -97,10 +97,11 @@ fun PictureMenuList(
                 VideoPlayerPictureMenuItem.Resolution -> RadioMenuList(
                     modifier = menuItemsModifier,
                     items = qualityIdList.map { resolutionCode ->
-                        runCatching {
-                            Resolution.entries.find { it.code == resolutionCode }!!
-                                .getShortDisplayName(context)
-                        }.getOrDefault("unknown: $resolutionCode")
+                        availableQuality[resolutionCode]
+                            ?: runCatching {
+                                Resolution.entries.find { it.code == resolutionCode }!!
+                                    .getShortDisplayName(context)
+                            }.getOrDefault("unknown: $resolutionCode")
                     },
                     selected = qualityIdList.indexOf(currentResolution),
                     requestFocusWhen = shouldFocusItems,
