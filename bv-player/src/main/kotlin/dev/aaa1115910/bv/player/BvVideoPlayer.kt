@@ -16,6 +16,7 @@ fun BvVideoPlayer(
     modifier: Modifier = Modifier,
     videoPlayer: AbstractVideoPlayer?,
     resizeMode: Int = AspectRatioFrameLayout.RESIZE_MODE_FILL,
+    keepScreenAwake: Boolean = false,
 ) {
     if (videoPlayer is ExoMediaPlayer) {
         AndroidView(
@@ -25,14 +26,21 @@ fun BvVideoPlayer(
                     player = videoPlayer.mPlayer
                     this.resizeMode = resizeMode
                     useController = false
+                    if (keepScreenAwake) {
+                        keepScreenOn = true
+                    }
                 }
             },
             update = { playerView ->
                 playerView.player = videoPlayer.mPlayer
                 playerView.resizeMode = resizeMode
+                if (keepScreenAwake) {
+                    playerView.keepScreenOn = true
+                }
             },
             onRelease = { playerView ->
                 playerView.player = null
+                playerView.keepScreenOn = false
             }
         )
     }

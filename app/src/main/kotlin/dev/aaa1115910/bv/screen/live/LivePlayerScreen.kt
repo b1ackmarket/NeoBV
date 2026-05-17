@@ -419,7 +419,8 @@ fun LivePlayerScreen() {
                     .fillMaxHeight()
                     .aspectRatio(liveAspectRatio),
                 videoPlayer = player,
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                keepScreenAwake = true
             )
             if (roomContext?.isChatRoom == true) {
                 LiveChatRoomStage(
