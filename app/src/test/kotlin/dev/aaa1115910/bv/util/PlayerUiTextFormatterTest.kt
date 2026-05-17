@@ -6,7 +6,8 @@ import kotlin.test.assertEquals
 class PlayerUiTextFormatterTest {
     @Test
     fun `online count uses raw people watching copy`() {
-        assertEquals("256 人正在看", PlayerUiTextFormatter.onlineCount(256))
+        assertEquals("256 人一起看", PlayerUiTextFormatter.onlineCount(256))
+        assertEquals("1.2万 人一起看", PlayerUiTextFormatter.onlineCount("1.2万"))
     }
 
     @Test

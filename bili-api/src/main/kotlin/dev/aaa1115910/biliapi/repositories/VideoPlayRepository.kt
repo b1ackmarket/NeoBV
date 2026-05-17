@@ -23,6 +23,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import org.koin.core.annotation.Single
 import bilibili.pgc.gateway.player.v2.PlayURLGrpcKt as PgcPlayURLGrpcKt
 
@@ -341,6 +343,24 @@ class VideoPlayRepository(
                 sessData = authRepository.sessionData ?: "",
                 buvid3 = authRepository.buvid3 ?: ""
             ).getResponseData().onlineCount
+        }.getOrNull()
+    }
+
+    suspend fun getOnlineCountText(
+        aid: Long,
+        cid: Long
+    ): String? {
+        if (aid <= 0L || cid <= 0L) return null
+        return runCatching {
+            val data = BiliHttpApi.getPlayerOnlineTotal(
+                avid = aid,
+                cid = cid,
+                sessData = authRepository.sessionData ?: ""
+            ).getResponseData()
+            data["total"]?.jsonPrimitive?.contentOrNull
+                ?.takeIf { it.isNotBlank() }
+                ?: data["count"]?.jsonPrimitive?.contentOrNull
+                    ?.takeIf { it.isNotBlank() }
         }.getOrNull()
     }
 

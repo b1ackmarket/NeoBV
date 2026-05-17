@@ -47,7 +47,6 @@ fun SkipTips(
     pluginTipMessage: String? = null,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
-        // Column 自动管理堆叠，出现/消失时其他 tip 平滑移动
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -58,11 +57,6 @@ fun SkipTips(
                 show = showPreviewTip,
                 text = "视频需付费，当前为试看片段",
                 icon = Icons.Outlined.Info,
-            )
-            PlayerTip(
-                show = showOnlineCount && !onlineCountText.isNullOrBlank(),
-                text = onlineCountText.orEmpty(),
-                icon = Icons.Outlined.People,
             )
             PlayerTip(
                 show = !pluginTipMessage.isNullOrBlank(),
@@ -80,6 +74,19 @@ fun SkipTips(
                 icon = Icons.Outlined.Replay,
             )
         }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 80.dp)
+        ) {
+            PlayerTip(
+                show = showOnlineCount && !onlineCountText.isNullOrBlank(),
+                text = onlineCountText.orEmpty(),
+                icon = Icons.Outlined.People,
+                anchoredEnd = true,
+            )
+        }
     }
 }
 
@@ -88,6 +95,7 @@ fun PlayerTip(
     show: Boolean,
     text: String,
     icon: ImageVector,
+    anchoredEnd: Boolean = false,
 ) {
     AnimatedVisibility(
         visible = show,
@@ -106,7 +114,13 @@ fun PlayerTip(
         Row(
             modifier = Modifier
                 .height(IntrinsicSize.Min)
-                .clip(RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp))
+                .clip(
+                    if (anchoredEnd) {
+                        RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp)
+                    } else {
+                        RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp)
+                    }
+                )
                 .background(Color.Black.copy(alpha = 0.6f)),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -137,7 +151,7 @@ private fun SkipTipsPreview() {
         showSkipToNextEp = true,
         showPreviewTip = true,
         showOnlineCount = true,
-        onlineCountText = "256 人正在看",
+        onlineCountText = "256 人一起看",
         pluginTipMessage = "跳过片头"
     )
 }

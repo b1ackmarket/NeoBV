@@ -234,7 +234,7 @@ data class PlayData(
                         quality = it.id,
                         baseUrl = it.baseUrl,
                         bandwidth = it.bandwidth,
-                        codecId = it.id,
+                        codecId = it.codecId,
                         width = it.width,
                         height = it.height,
                         frameRate = it.frameRate,
@@ -264,7 +264,8 @@ data class PlayData(
                     baseUrl = it.baseUrl,
                     bandwidth = it.bandwidth,
                     codecId = it.id,
-                    backUrl = it.backupUrl
+                    backUrl = it.backupUrl,
+                    codecs = it.codecs
                 )
             } ?: emptyList()
             val dolby = dolbyItem?.let {
@@ -272,7 +273,8 @@ data class PlayData(
                     baseUrl = it.baseUrl,
                     bandwidth = it.bandwidth,
                     codecId = it.id,
-                    backUrl = it.backupUrl
+                    backUrl = it.backupUrl,
+                    codecs = it.codecs
                 )
             }
             val flac = flacItem?.let {
@@ -280,7 +282,8 @@ data class PlayData(
                     baseUrl = it.baseUrl,
                     bandwidth = it.bandwidth,
                     codecId = it.id,
-                    backUrl = it.backupUrl
+                    backUrl = it.backupUrl,
+                    codecs = it.codecs
                 )
             }
 
@@ -309,7 +312,7 @@ data class PlayData(
                     quality = it.id,
                     baseUrl = it.baseUrl,
                     bandwidth = it.bandwidth,
-                    codecId = it.id,
+                    codecId = it.codecId,
                     width = it.width,
                     height = it.height,
                     frameRate = it.frameRate,
@@ -324,7 +327,8 @@ data class PlayData(
                     baseUrl = it.baseUrl,
                     bandwidth = it.bandwidth,
                     codecId = it.id,
-                    backUrl = it.backupUrl
+                    backUrl = it.backupUrl,
+                    codecs = it.codecs
                 )
             } ?: emptyList()
             val dolby = dolbyItem?.let {
@@ -332,7 +336,8 @@ data class PlayData(
                     baseUrl = it.baseUrl,
                     bandwidth = it.bandwidth,
                     codecId = it.id,
-                    backUrl = it.backupUrl
+                    backUrl = it.backupUrl,
+                    codecs = it.codecs
                 )
             }
             val flac = flacItem?.let {
@@ -340,7 +345,8 @@ data class PlayData(
                     baseUrl = it.baseUrl,
                     bandwidth = it.bandwidth,
                     codecId = it.id,
-                    backUrl = it.backupUrl
+                    backUrl = it.backupUrl,
+                    codecs = it.codecs
                 )
             }
 
@@ -369,7 +375,7 @@ data class PlayData(
                     quality = it.id,
                     baseUrl = it.baseUrl,
                     bandwidth = it.bandwidth,
-                    codecId = it.id,
+                    codecId = it.codecId,
                     width = it.width,
                     height = it.height,
                     frameRate = it.frameRate,
@@ -384,7 +390,8 @@ data class PlayData(
                     baseUrl = it.baseUrl,
                     bandwidth = it.bandwidth,
                     codecId = it.id,
-                    backUrl = it.backupUrl
+                    backUrl = it.backupUrl,
+                    codecs = it.codecs
                 )
             } ?: emptyList()
             val dolby = dolbyItem?.let {
@@ -392,7 +399,8 @@ data class PlayData(
                     baseUrl = it.baseUrl,
                     bandwidth = it.bandwidth,
                     codecId = it.id,
-                    backUrl = it.backupUrl
+                    backUrl = it.backupUrl,
+                    codecs = it.codecs
                 )
             }
             val flac = flacItem?.let {
@@ -400,7 +408,8 @@ data class PlayData(
                     baseUrl = it.baseUrl,
                     bandwidth = it.bandwidth,
                     codecId = it.id,
-                    backUrl = it.backupUrl
+                    backUrl = it.backupUrl,
+                    codecs = it.codecs
                 )
             }
 
@@ -469,10 +478,12 @@ data class DashVideo(
  * @param bandwidth 码率
  * @param codecId 编码ID
  * @param backUrl 备用流
+ * @param codecs 编码格式 仅部分接口有该值
  */
 data class DashAudio(
     val baseUrl: String,
     val bandwidth: Int,
     val codecId: Int,
-    val backUrl: List<String>
+    val backUrl: List<String>,
+    val codecs: String? = null
 )

@@ -9,16 +9,21 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.repository.JumpModeRepository
+import dev.aaa1115910.bv.repository.JumpModeSource
+import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
@@ -35,6 +40,7 @@ fun HistoryScreen(
 ) {
     val gridState = rememberLazyGridState()
     val context = LocalContext.current
+    val jumpModeRepository = remember { BVApp.koinApplication.koin.get<JumpModeRepository>() }
 
     // 监听可见区最后一个 item 的 index，距离尾部 20 个就翻页
     LaunchedEffect(gridState) {
@@ -74,6 +80,11 @@ fun HistoryScreen(
                     SmallVideoCard(
                         data = history,
                         onClick = {
+                            jumpModeRepository.setPendingQueue(
+                                source = JumpModeSource.Personal,
+                                selectedAid = history.avid,
+                                items = historyViewModel.histories.toJumpModeItems()
+                            )
                             VideoInfoActivity.actionStart(
                                 context = context,
                                 aid = history.avid,
@@ -85,6 +96,11 @@ fun HistoryScreen(
                             toViewViewModel.addToView(history.avid)
                         },
                         onGoToDetailPage = {
+                            jumpModeRepository.setPendingQueue(
+                                source = JumpModeSource.Personal,
+                                selectedAid = history.avid,
+                                items = historyViewModel.histories.toJumpModeItems()
+                            )
                             VideoInfoActivity.actionStart(
                                 context = context,
                                 fromController = true,

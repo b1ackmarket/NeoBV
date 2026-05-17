@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -39,8 +39,7 @@ fun PlayStateTips(
         if (!isPlaying && !isBuffering && !isError) {
             PauseIcon(
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(24.dp)
+                    .align(Alignment.Center)
             )
         }
         if (isBuffering && !isError) {
@@ -63,20 +62,15 @@ fun PlayStateTips(
 fun PauseIcon(
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier,
-        colors = SurfaceDefaults.colors(
-            containerColor = Color.Black.copy(0.5f)
-        ),
-        shape = MaterialTheme.shapes.medium
+    Box(
+        modifier = modifier.size(112.dp),
+        contentAlignment = Alignment.Center
     ) {
         Icon(
-            modifier = Modifier
-                .padding(12.dp, 4.dp)
-                .size(50.dp),
-            imageVector = Icons.Rounded.Pause,
+            modifier = Modifier.size(96.dp),
+            imageVector = Icons.Rounded.PlayArrow,
             contentDescription = null,
-            tint = Color.White
+            tint = Color.White.copy(alpha = 0.88f)
         )
     }
 }

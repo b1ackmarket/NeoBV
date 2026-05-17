@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,11 +25,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.repository.JumpModeRepository
+import dev.aaa1115910.bv.repository.JumpModeSource
+import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
@@ -45,6 +50,7 @@ fun UpSpaceScreen(
 ) {
     val gridState = rememberLazyGridState()
     val context = LocalContext.current
+    val jumpModeRepository = remember { BVApp.koinApplication.koin.get<JumpModeRepository>() }
 
     LaunchedEffect(Unit) {
         val intent = (context as Activity).intent
@@ -135,6 +141,11 @@ fun UpSpaceScreen(
                         SmallVideoCard(
                             data = video,
                             onClick = {
+                                jumpModeRepository.setPendingQueue(
+                                    source = JumpModeSource.Personal,
+                                    selectedAid = video.avid,
+                                    items = upInfoViewModel.spaceVideos.toJumpModeItems()
+                                )
                                 VideoInfoActivity.actionStart(
                                     context = context,
                                     aid = video.avid,
@@ -145,6 +156,11 @@ fun UpSpaceScreen(
                                 toViewViewModel.addToView(video.avid)
                             },
                             onGoToDetailPage = {
+                                jumpModeRepository.setPendingQueue(
+                                    source = JumpModeSource.Personal,
+                                    selectedAid = video.avid,
+                                    items = upInfoViewModel.spaceVideos.toJumpModeItems()
+                                )
                                 VideoInfoActivity.actionStart(
                                     context = context,
                                     fromController = true,

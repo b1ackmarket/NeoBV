@@ -17,6 +17,9 @@ import com.kuaishou.akdanmaku.ecs.component.filter.TypeFilter
 import com.kuaishou.akdanmaku.render.SimpleRenderer
 import com.kuaishou.akdanmaku.ui.DanmakuPlayer
 import dev.aaa1115910.biliapi.entity.ApiType
+import dev.aaa1115910.biliapi.entity.CodeType
+import dev.aaa1115910.biliapi.entity.DashAudio
+import dev.aaa1115910.biliapi.entity.DashVideo
 import dev.aaa1115910.biliapi.entity.PlayData
 import dev.aaa1115910.biliapi.util.AvBvConverter
 import dev.aaa1115910.biliapi.entity.video.HeartbeatVideoType
@@ -48,10 +51,14 @@ import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.player.VideoPlayerListener
 import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.impl.exo.ExoPlayerFactory
+import dev.aaa1115910.bv.repository.JumpModeQueue
+import dev.aaa1115910.bv.repository.JumpModeQueueItem
+import dev.aaa1115910.bv.repository.JumpModeRepository
 import dev.aaa1115910.bv.repository.VideoInfoRepository
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
 import dev.aaa1115910.bv.ui.state.DanmakuState
+import dev.aaa1115910.bv.ui.state.JumpModeState
 import dev.aaa1115910.bv.ui.state.MediaProfileState
 import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
@@ -89,6 +96,7 @@ import kotlinx.coroutines.withTimeout
 import org.koin.android.annotation.KoinViewModel
 import java.net.URI
 import java.util.Calendar
+import java.util.Locale
 import kotlin.coroutines.cancellation.CancellationException
 
 internal fun normalizeAvailableVideoCodecs(
@@ -120,7 +128,8 @@ internal fun shouldApplyUpPanelLoadResult(
 class VideoPlayerV3ViewModel(
     private val videoInfoRepository: VideoInfoRepository,
     private val videoPlayRepository: VideoPlayRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val jumpModeRepository: JumpModeRepository
 ) : ViewModel() {
     private val logger = KotlinLogging.logger { }
 
@@ -257,6 +266,13 @@ class VideoPlayerV3ViewModel(
         authorName: String,
         authorFace: String = ""
     ) {
+        val jumpModeQueue = if (fromSeason) {
+            jumpModeRepository.clearPendingQueue()
+            null
+        } else {
+            jumpModeRepository.consumeQueueFor(aid)
+        }
+
         _uiState.update {
             it.copy(
                 aid = aid,
@@ -291,7 +307,8 @@ class VideoPlayerV3ViewModel(
                     opacity = Prefs.defaultSubtitleBackgroundOpacity,
                     bottomPadding = Prefs.defaultSubtitleBottomPadding
                 ),
-                showPlayerStats = Prefs.showPlayerStats
+                showPlayerStats = Prefs.showPlayerStats,
+                jumpModeState = jumpModeQueue?.toJumpModeState() ?: JumpModeState()
             )
         }
 
@@ -430,6 +447,50 @@ class VideoPlayerV3ViewModel(
         _uiState.update { it.copy(showPlayerStats = show) }
     }
 
+    fun toggleJumpMode() {
+        val jumpModeState = _uiState.value.jumpModeState
+        if (!jumpModeState.available) {
+            showToast("当前列表不支持跳动模式")
+            return
+        }
+
+        val nextEnabled = !jumpModeState.enabled
+        _uiState.update {
+            it.copy(jumpModeState = it.jumpModeState.copy(enabled = nextEnabled))
+        }
+        showToast(if (nextEnabled) "进入跳动模式，按上下键切换视频" else "已退出跳动模式")
+    }
+
+    fun playJumpModeAdjacent(offset: Int, showBoundaryToast: Boolean = true): Boolean {
+        val jumpModeState = _uiState.value.jumpModeState
+        if (!jumpModeState.enabled) return false
+
+        val targetIndex = jumpModeState.currentIndex + offset
+        val targetItem = jumpModeState.items.getOrNull(targetIndex)
+        if (targetItem == null) {
+            if (showBoundaryToast) {
+                showToast(if (offset < 0) "已经是第一条视频了" else "已经是最后一条视频了")
+            }
+            return false
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                targetItem.resolveVideoListItem()
+            }.onSuccess { resolvedVideo ->
+                withContext(Dispatchers.Main) {
+                    playNewVideo(resolvedVideo)
+                }
+            }.onFailure { error ->
+                logger.fWarn {
+                    "Resolve jump mode video failed. aid=${targetItem.aid} title=${targetItem.title} error=${error.message}"
+                }
+                showToast("跳动失败，没取到这个视频")
+            }
+        }
+        return true
+    }
+
     fun updateVideoAspectRatio(aspectRatio: VideoAspectRatio) {
         _uiState.update {
             it.copy(aspectRatio = aspectRatio)
@@ -532,6 +593,8 @@ class VideoPlayerV3ViewModel(
      * 触发播放结束后的检查逻辑
      */
     fun checkAndPlayNext() {
+        if (playJumpModeAdjacent(offset = 1, showBoundaryToast = false)) return
+
         when (Prefs.actionAfterPlay) {
             ActionAfterPlayItems.Pause -> return
             ActionAfterPlayItems.Exit -> {
@@ -825,6 +888,29 @@ class VideoPlayerV3ViewModel(
         }
     }
 
+    private suspend fun JumpModeQueueItem.resolveVideoListItem(): VideoListItem {
+        val resolvedCid = cid?.takeIf { it > 0 }
+        return if (resolvedCid != null) {
+            VideoListItem(
+                aid = aid,
+                cid = resolvedCid,
+                title = title
+            )
+        } else {
+            videoInfoRepository.resolveDefaultVideoListItem(
+                aid = aid,
+                fallbackTitle = title,
+                preferApiType = Prefs.apiType
+            )
+        }
+    }
+
+    private fun showToast(message: String) {
+        viewModelScope.launch {
+            _uiEffect.emit(PlayerUiEffect.ShowToast(message))
+        }
+    }
+
     fun trySendHeartbeat() {
         syncProgress(scope = viewModelScope, updateLocal = false)
     }
@@ -854,6 +940,7 @@ class VideoPlayerV3ViewModel(
                 launch { updateDanmakuMask() }
                 launch { updateVideoShot() }
                 launch { updateVideoPages() }
+                launch { refreshOnlineCount() }
             } catch (e: CancellationException) {
                 throw e // 让结构化并发正常取消，不作为播放错误处理
             } catch (e: Exception) {
@@ -1153,7 +1240,11 @@ class VideoPlayerV3ViewModel(
                 ),
                 mediaProfileState = mediaProfileState,
                 videoHeight = actualVideoItem.height,
-                videoWidth = actualVideoItem.width
+                videoWidth = actualVideoItem.width,
+                mediaStatsInfo = buildBiliMediaStatsInfo(
+                    video = actualVideoItem,
+                    audio = audioItem
+                )
             )
         }
 
@@ -1588,7 +1679,10 @@ class VideoPlayerV3ViewModel(
                 totalDuration = duration,
                 currentTime = currentPos,
                 bufferedPercentage = player.bufferedPercentage,
-                debugInfo = player.debugInfo
+                debugInfo = listOf(
+                    _uiState.value.mediaStatsInfo,
+                    player.debugInfo
+                ).filter { info -> info.isNotBlank() }.joinToString("\n")
             )
         }
     }
@@ -1607,14 +1701,31 @@ class VideoPlayerV3ViewModel(
         if (onlineCountJob?.isActive == true) return
         onlineCountJob = viewModelScope.launch(Dispatchers.IO) {
             while (isActive) {
-                val state = _uiState.value
-                val onlineCount = videoPlayRepository.getOnlineCount(
-                    aid = state.aid,
-                    cid = state.cid,
-                    preferApiType = Prefs.apiType
-                )
-                _uiState.update { it.copy(onlineCount = onlineCount) }
+                refreshOnlineCount()
                 delay(60_000)
+            }
+        }
+    }
+
+    private suspend fun refreshOnlineCount() {
+        val state = _uiState.value
+        val aid = state.aid
+        val cid = state.cid
+        val onlineCountText = videoPlayRepository.getOnlineCountText(
+            aid = aid,
+            cid = cid
+        )
+
+        if (onlineCountText == null) {
+            logger.fWarn { "Update online count failed or empty. aid=$aid cid=$cid" }
+            return
+        }
+
+        _uiState.update { currentState ->
+            if (currentState.aid == aid && currentState.cid == cid) {
+                currentState.copy(onlineCountText = onlineCountText)
+            } else {
+                currentState
             }
         }
     }
@@ -1796,6 +1907,8 @@ internal fun PlayerUiState.copyForVideoSwitch(
         title = newVideo.title,
         isBuffering = true,
         videoShot = null,
+        onlineCountText = null,
+        mediaStatsInfo = "",
         publishDateText = if (clearDetailMetadata) "" else publishDateText,
         playCountText = if (clearDetailMetadata) "" else playCountText,
         danmakuMask = null,
@@ -1804,7 +1917,81 @@ internal fun PlayerUiState.copyForVideoSwitch(
         subtitleData = emptyList(),
         relatedVideos = emptyList(),
         isFollowingUp = false,
+        jumpModeState = jumpModeState.copyForVideoSwitch(newVideo.aid)
     )
+}
+
+internal fun JumpModeQueue.toJumpModeState(): JumpModeState {
+    return JumpModeState(
+        available = isUsable,
+        enabled = false,
+        source = source,
+        currentIndex = selectedIndex,
+        items = items
+    )
+}
+
+internal fun JumpModeState.copyForVideoSwitch(aid: Long): JumpModeState {
+    if (items.size <= 1) return JumpModeState()
+
+    val nextIndex = items.indexOfFirst { it.aid == aid }
+    return if (nextIndex == -1) {
+        JumpModeState()
+    } else {
+        copy(
+            available = true,
+            currentIndex = nextIndex
+        )
+    }
+}
+
+internal fun buildBiliMediaStatsInfo(video: DashVideo, audio: DashAudio?): String {
+    return buildList {
+        if (video.width > 0 && video.height > 0) {
+            add("resolution: ${video.width} x ${video.height}")
+        }
+        video.frameRate.takeIf { it.isNotBlank() }?.let {
+            add("video FPS: $it")
+        }
+        formatBiliBitrate(video.bandwidth)?.let {
+            add("stream bitrate: $it")
+        }
+        video.formatVideoCodec()?.let {
+            add("video codec: $it")
+        }
+        audio?.formatAudioCodec()?.let {
+            add("audio codec: $it")
+        }
+        audio?.bandwidth?.let(::formatBiliBitrate)?.let {
+            add("audio bitrate: $it")
+        }
+    }.joinToString("\n")
+}
+
+private fun DashVideo.formatVideoCodec(): String? {
+    return codecs.takeMeaningfulCodec()
+        ?: CodeType.fromCodecId(codecId).str.takeMeaningfulCodec()
+        ?: codecId.takeIf { it > 0 }?.let { "id $it" }
+}
+
+private fun DashAudio.formatAudioCodec(): String? {
+    return codecs.takeMeaningfulCodec()
+        ?: codecId.takeIf { it > 0 }?.let { "id $it" }
+}
+
+private fun String?.takeMeaningfulCodec(): String? {
+    return this
+        ?.takeIf { it.isNotBlank() }
+        ?.takeUnless { it.lowercase(Locale.US) == "none" || it.lowercase(Locale.US) == "unknown" }
+}
+
+private fun formatBiliBitrate(bitrate: Int): String? {
+    if (bitrate <= 0) return null
+    return if (bitrate >= 1_000_000) {
+        String.format(Locale.US, "%.2f Mbps", bitrate / 1_000_000f)
+    } else {
+        "${bitrate / 1000} kbps"
+    }
 }
 
 sealed interface DanmakuSettingAction {

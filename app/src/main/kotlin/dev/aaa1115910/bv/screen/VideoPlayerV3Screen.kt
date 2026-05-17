@@ -37,6 +37,7 @@ import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.calculateMaskDelay
 import dev.aaa1115910.bv.util.danmakuMask
+import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.player.VideoPlayerV3ViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
@@ -121,6 +122,10 @@ fun VideoPlayerV3Screen(
 
                 PlayerUiEffect.ShowRecommendedVideos -> {
                     showEndedRelatedVideosToken += 1
+                }
+
+                is PlayerUiEffect.ShowToast -> {
+                    effect.message.toast(context)
                 }
             }
         }
@@ -211,6 +216,15 @@ fun VideoPlayerV3Screen(
         },
         onToggleLoop = {
             isLooping = !isLooping
+        },
+        onToggleJumpMode = {
+            playerViewModel.toggleJumpMode()
+        },
+        onJumpToPreviousVideo = {
+            playerViewModel.playJumpModeAdjacent(-1)
+        },
+        onJumpToNextVideo = {
+            playerViewModel.playJumpModeAdjacent(1)
         },
         upPanelUiState = PlayerUpPanelUiState(
             upName = uiState.authorName,

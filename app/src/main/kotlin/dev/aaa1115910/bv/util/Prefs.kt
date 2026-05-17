@@ -217,7 +217,6 @@ object Prefs {
         save = { it.seconds },
         restore = { SeekStepOption.fromSeconds(it) }
     )
-    var showFps by pref(PrefKeys.prefShowFpsKey, false)
     var showVideoInfo by pref(PrefKeys.prefShowVideoInfoKey, PrefDefaultValues.showVideoInfo)
     var showPersistentSeek by pref(PrefKeys.prefShowPersistentSeekKey, false)
     var showPlayerStats by pref(PrefKeys.prefShowPlayerStatsKey, false)
@@ -402,7 +401,6 @@ private object PrefKeys {
     // 播放器 - 界面
     val prefDefaultPlaySpeedKey = intPreferencesKey("dps")
     val prefSeekStepSecondsKey = intPreferencesKey("seek_step_seconds")
-    val prefShowFpsKey = booleanPreferencesKey("sf")
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
     val prefShowPersistentSeekKey = booleanPreferencesKey("show_persistent_seek")
     val prefShowPlayerStatsKey = booleanPreferencesKey("show_player_stats")

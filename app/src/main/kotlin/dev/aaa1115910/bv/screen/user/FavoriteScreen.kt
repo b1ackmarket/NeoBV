@@ -37,11 +37,15 @@ import androidx.tv.material3.Tab
 import androidx.tv.material3.TabRow
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
+import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
+import dev.aaa1115910.bv.repository.JumpModeRepository
+import dev.aaa1115910.bv.repository.JumpModeSource
+import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
@@ -64,6 +68,7 @@ fun FavoriteScreen(
     val defaultFocusRequester = remember { FocusRequester() }
     var focusOnTabs by remember { mutableStateOf(true) }
     val lazyGridState = rememberLazyGridState()
+    val jumpModeRepository = remember { BVApp.koinApplication.koin.get<JumpModeRepository>() }
 
     val currentTabIndex by remember {
         derivedStateOf {
@@ -164,6 +169,11 @@ fun FavoriteScreen(
                         SmallVideoCard(
                             data = favorite,
                             onClick = {
+                                jumpModeRepository.setPendingQueue(
+                                    source = JumpModeSource.Personal,
+                                    selectedAid = favorite.avid,
+                                    items = favoriteViewModel.favorites.toJumpModeItems()
+                                )
                                 VideoInfoActivity.actionStart(
                                     context = context,
                                     aid = favorite.avid,
@@ -174,6 +184,11 @@ fun FavoriteScreen(
                                 toViewViewModel.addToView(favorite.avid)
                             },
                             onGoToDetailPage = {
+                                jumpModeRepository.setPendingQueue(
+                                    source = JumpModeSource.Personal,
+                                    selectedAid = favorite.avid,
+                                    items = favoriteViewModel.favorites.toJumpModeItems()
+                                )
                                 VideoInfoActivity.actionStart(
                                     context = context,
                                     fromController = true,

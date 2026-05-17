@@ -10,9 +10,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -25,7 +22,6 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Typography
 import androidx.tv.material3.darkColorScheme
-import dev.aaa1115910.bv.component.FpsMonitor
 import dev.aaa1115910.bv.util.Prefs
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,8 +58,6 @@ fun BVTheme(
     else
         Prefs.densityFlow.collectAsState(context.resources.displayMetrics.widthPixels / 960f).value
 
-    val showFps by remember { mutableStateOf(if (!view.isInEditMode) Prefs.showFps else false) }
-
     MaterialTheme(
         colorScheme = colorSchemeTv,
         typography = typographyTv
@@ -80,13 +74,7 @@ fun BVTheme(
                     Surface(
                         shape = RoundedCornerShape(0.dp),
                     ) {
-                        if (showFps) {
-                            FpsMonitor {
-                                content()
-                            }
-                        } else {
-                            content()
-                        }
+                        content()
                     }
                 }
             }

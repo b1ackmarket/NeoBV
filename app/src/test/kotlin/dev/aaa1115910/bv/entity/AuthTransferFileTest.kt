@@ -29,7 +29,7 @@ class AuthTransferFileTest {
 
     @Test
     fun `online count text uses exact count without plus suffix`() {
-        assertEquals("321 人正在看", PlayerUiTextFormatter.onlineCount(321))
+        assertEquals("321 人一起看", PlayerUiTextFormatter.onlineCount(321))
     }
 
     private fun sampleAuthData(uid: Long) = AuthData(

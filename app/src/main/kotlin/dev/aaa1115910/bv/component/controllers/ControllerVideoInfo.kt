@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
@@ -57,6 +58,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.entity.ProgressSegmentMark
+import dev.aaa1115910.bv.ui.state.JumpModeState
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.VideoShotImageCache
@@ -75,13 +77,13 @@ fun ControllerVideoInfo(
     publishDateText: String,
     playCountText: String,
     videoListButtonLabel: String,
-    onlineCountText: String,
     sponsorBlockProgressMarks: List<ProgressSegmentMark> = emptyList(),
     clock: Pair<Int, Int>,
     videoShot: VideoShot?,
     videoShotCache: VideoShotImageCache,
     fromSeason: Boolean,
     danmakuEnabled: Boolean,
+    jumpModeState: JumpModeState,
     isLooping: Boolean,
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
@@ -90,6 +92,7 @@ fun ControllerVideoInfo(
     onShowVideoList: () -> Unit,
     onDanmakuSwitchChange: () -> Unit,
     onShowSettings: () -> Unit,
+    onToggleJumpMode: () -> Unit,
     onShowRelatedVideos: () -> Unit,
     onGoToVideoInfo: () -> Unit,
     onToggleLoop: () -> Unit,
@@ -111,7 +114,6 @@ fun ControllerVideoInfo(
                 authorName = authorName,
                 publishDateText = publishDateText,
                 playCountText = playCountText,
-                onlineCountText = onlineCountText,
                 clock = clock
             )
         }
@@ -133,9 +135,9 @@ fun ControllerVideoInfo(
                 videoShotCache = videoShotCache,
                 fromSeason = fromSeason,
                 danmakuEnabled = danmakuEnabled,
+                jumpModeState = jumpModeState,
                 isLooping = isLooping,
                 videoListButtonLabel = videoListButtonLabel,
-                onlineCountText = onlineCountText,
                 sponsorBlockProgressMarks = sponsorBlockProgressMarks,
                 onDirectionLeft = onDirectionLeft,
                 onDirectionRight = onDirectionRight,
@@ -144,6 +146,7 @@ fun ControllerVideoInfo(
                 onShowVideoList = onShowVideoList,
                 onDanmakuSwitchChange = onDanmakuSwitchChange,
                 onShowSettings = onShowSettings,
+                onToggleJumpMode = onToggleJumpMode,
                 onShowRelatedVideos = onShowRelatedVideos,
                 onGoToVideoInfo = onGoToVideoInfo,
                 onToggleLoop = onToggleLoop,
@@ -160,7 +163,6 @@ fun ControllerVideoInfoTop(
     authorName: String,
     publishDateText: String,
     playCountText: String,
-    onlineCountText: String,
     clock: Pair<Int, Int>
 ) {
     Column(
@@ -210,8 +212,7 @@ fun ControllerVideoInfoTop(
         if (
             authorName.isNotBlank() ||
             publishDateText.isNotBlank() ||
-            playCountText.isNotBlank() ||
-            onlineCountText.isNotBlank()
+            playCountText.isNotBlank()
         ) {
             Row(
                 modifier = Modifier.padding(top = 8.dp),
@@ -245,15 +246,6 @@ fun ControllerVideoInfoTop(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                if (onlineCountText.isNotBlank()) {
-                    Text(
-                        text = onlineCountText,
-                        color = Color.White.copy(alpha = 0.64f),
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
             }
         }
     }
@@ -270,9 +262,9 @@ fun ControllerVideoInfoBottom(
     videoShotCache: VideoShotImageCache,
     fromSeason: Boolean,
     danmakuEnabled: Boolean,
+    jumpModeState: JumpModeState,
     isLooping: Boolean,
     videoListButtonLabel: String,
-    onlineCountText: String,
     sponsorBlockProgressMarks: List<ProgressSegmentMark> = emptyList(),
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
@@ -281,6 +273,7 @@ fun ControllerVideoInfoBottom(
     onShowVideoList: () -> Unit,
     onDanmakuSwitchChange: () -> Unit,
     onShowSettings: () -> Unit,
+    onToggleJumpMode: () -> Unit,
     onShowRelatedVideos: () -> Unit,
     onGoToVideoInfo: () -> Unit,
     onToggleLoop: () -> Unit,
@@ -406,7 +399,7 @@ fun ControllerVideoInfoBottom(
                 .onKeyEvent {
                     when (it.key) {
                         Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
-                            if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
+                            if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
                             if (isSeeking) {
                                 onSeekGoTime()
                             } else {
@@ -452,13 +445,46 @@ fun ControllerVideoInfoBottom(
         }
 
         val icons = listOfNotNull(
-            (R.drawable.related_videos_24px to videoListButtonLabel) to onShowVideoList,
-            ((if (danmakuEnabled) (R.drawable.danmaku_on_24px) else (R.drawable.danmaku_off_24px)) to "弹幕开关") to onDanmakuSwitchChange,
-            (R.drawable.settings_24px to "打开设置") to onShowSettings,
-            if (!fromSeason) (R.drawable.info_24px to "视频信息") to onGoToVideoInfo else null,
-            if (!fromSeason) (R.drawable.contact_page_24px to "up主页") to onGoToUpPage else null,
-            if (!fromSeason) (R.drawable.related_videos_24px to "相关视频") to onShowRelatedVideos else null,
-            ((if (isLooping) (R.drawable.repeat_one_on_24px) else (R.drawable.repeat_one_24px)) to "循环播放") to onToggleLoop,
+            ControllerInfoButton(
+                iconRes = R.drawable.related_videos_24px,
+                contentDescription = videoListButtonLabel,
+                onClick = onShowVideoList
+            ),
+            ControllerInfoButton(
+                iconRes = if (danmakuEnabled) R.drawable.danmaku_on_24px else R.drawable.danmaku_off_24px,
+                contentDescription = "弹幕开关",
+                onClick = onDanmakuSwitchChange
+            ),
+            ControllerInfoButton(
+                iconRes = if (jumpModeState.enabled) R.drawable.jump_mode_on_24px else R.drawable.jump_mode_off_24px,
+                contentDescription = when {
+                    !jumpModeState.available -> "跳动模式不可用"
+                    jumpModeState.enabled -> "关闭跳动模式"
+                    else -> "开启跳动模式"
+                },
+                enabled = jumpModeState.available,
+                onClick = onToggleJumpMode
+            ),
+            if (!fromSeason) ControllerInfoButton(
+                iconRes = R.drawable.info_24px,
+                contentDescription = "视频信息",
+                onClick = onGoToVideoInfo
+            ) else null,
+            if (!fromSeason) ControllerInfoButton(
+                iconRes = R.drawable.contact_page_24px,
+                contentDescription = "up主页",
+                onClick = onGoToUpPage
+            ) else null,
+            if (!fromSeason) ControllerInfoButton(
+                iconRes = R.drawable.related_videos_24px,
+                contentDescription = "相关视频",
+                onClick = onShowRelatedVideos
+            ) else null,
+            ControllerInfoButton(
+                iconRes = if (isLooping) R.drawable.repeat_one_on_24px else R.drawable.repeat_one_24px,
+                contentDescription = "循环播放",
+                onClick = onToggleLoop
+            ),
         )
 
         Row(
@@ -477,31 +503,32 @@ fun ControllerVideoInfoBottom(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
         ) {
-            icons.forEach { (icon, function) ->
+            icons.forEach { button ->
                 Surface(
-                    onClick = function,
+                    onClick = button.onClick,
                     shape = ClickableSurfaceDefaults.shape(
                         shape = MaterialTheme.shapes.small,
                     ),
+                    colors = ClickableSurfaceDefaults.colors(),
                 ) {
                     Icon(
-                        painter = painterResource(id = icon.first),
-                        contentDescription = icon.second,
-                        modifier = Modifier.padding(5.dp)
+                        painter = painterResource(id = button.iconRes),
+                        contentDescription = button.contentDescription,
+                        modifier = Modifier.padding(5.dp),
+                        tint = LocalContentColor.current.copy(alpha = if (button.enabled) 1f else 0.32f)
                     )
                 }
-            }
-            if (onlineCountText.isNotBlank()) {
-                Box(modifier = Modifier.weight(1f))
-                Text(
-                    text = onlineCountText,
-                    color = Color.White.copy(alpha = 0.76f),
-                    style = MaterialTheme.typography.bodyMedium
-                )
             }
         }
     }
 }
+
+private data class ControllerInfoButton(
+    val iconRes: Int,
+    val contentDescription: String,
+    val enabled: Boolean = true,
+    val onClick: () -> Unit
+)
 
 @Composable
 private fun Clock(
@@ -565,12 +592,12 @@ private fun ControllerVideoInfoPreview() {
             publishDateText = "5月8日",
             playCountText = "12.3万播放",
             videoListButtonLabel = "选集",
-            onlineCountText = "256 人正在看",
             clock = Pair(12, 30),
             videoShot = null,
             videoShotCache = VideoShotImageCache(),
             fromSeason = false,
             danmakuEnabled = false,
+            jumpModeState = JumpModeState(),
             isLooping = false,
             onDirectionRight = {},
             onDirectionLeft = {},
@@ -579,6 +606,7 @@ private fun ControllerVideoInfoPreview() {
             onShowVideoList = {},
             onDanmakuSwitchChange = {},
             onShowSettings = {},
+            onToggleJumpMode = {},
             onShowRelatedVideos = {},
             onGoToVideoInfo = {},
             onToggleLoop = {},

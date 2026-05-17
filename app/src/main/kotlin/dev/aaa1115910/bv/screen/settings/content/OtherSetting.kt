@@ -27,7 +27,6 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.LogsActivity
 import dev.aaa1115910.bv.component.settings.CookiesDialog
 import dev.aaa1115910.bv.component.settings.SettingListItem
-import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
 import dev.aaa1115910.bv.util.Prefs
 
@@ -41,7 +40,6 @@ fun OtherSetting(
     var showCookiesDialog by remember { mutableStateOf(false) }
     var showPreferedApiDialog by remember { mutableStateOf(false) }
 
-    var showFps by remember { mutableStateOf(Prefs.showFps) }
     var selectedApi by remember { mutableStateOf(Prefs.apiType) }
 
     Column(
@@ -78,16 +76,6 @@ fun OtherSetting(
             title = stringResource(R.string.settings_other_cookies_title),
             supportText = stringResource(R.string.settings_other_cookies_text),
             onClick = { showCookiesDialog = true }
-        )
-
-        SettingSwitchListItem(
-            title = stringResource(R.string.settings_other_fps_title),
-            supportText = stringResource(R.string.settings_other_fps_text),
-            checked = showFps,
-            onCheckedChange = {
-                showFps = it
-                Prefs.showFps = it
-            }
         )
 
         SettingListItem(

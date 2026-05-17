@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -45,11 +44,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.repositories.SearchFilterDuration
 import dev.aaa1115910.biliapi.repositories.SearchFilterOrderType
 import dev.aaa1115910.biliapi.repositories.SearchType
 import dev.aaa1115910.biliapi.repositories.SearchTypeResult
+import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
@@ -62,9 +61,11 @@ import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.repository.JumpModeQueueItem
+import dev.aaa1115910.bv.repository.JumpModeRepository
+import dev.aaa1115910.bv.repository.JumpModeSource
 import dev.aaa1115910.bv.screen.user.UpCard
 import dev.aaa1115910.bv.ui.effect.UiEffect
-import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.focusedScale
 import dev.aaa1115910.bv.util.formatHourMinSec
@@ -91,6 +92,16 @@ internal data class SearchResultUpdateTrigger(
     val childPartitionTid: Int?
 ) {
     val isReady: Boolean get() = keyword.isNotBlank()
+}
+
+private fun List<SearchTypeResult.Video>.toJumpModeItems(): List<JumpModeQueueItem> {
+    return filter { it.aid > 0 }
+        .map { item ->
+            JumpModeQueueItem(
+                aid = item.aid,
+                title = item.title.removeHtmlTags()
+            )
+        }
 }
 
 internal fun shouldRequestSearchResult(
@@ -126,6 +137,7 @@ fun SearchResultScreen(
     val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger { }
     val tabRowFocusRequester = remember { FocusRequester() }
+    val jumpModeRepository = remember { BVApp.koinApplication.koin.get<JumpModeRepository>() }
 
     var rowSize by remember { mutableIntStateOf(4) }
 
@@ -147,12 +159,7 @@ fun SearchResultScreen(
     var showFilter by remember { mutableStateOf(false) }
     var focusOnContent by remember { mutableStateOf(false) }
 
-    val isVideoSearchViaWebApi by remember {
-        derivedStateOf {
-            searchResultViewModel.searchType == SearchType.Video &&
-                    Prefs.apiType == ApiType.Web
-        }
-    }
+    val isVideoSearchViaWebApi = searchResultViewModel.searchType == SearchType.Video
 
     val selectedOrder = searchResultViewModel.selectedOrder
     val selectedDuration = searchResultViewModel.selectedDuration
@@ -162,6 +169,11 @@ fun SearchResultScreen(
     val onClickResult: (SearchTypeResult.SearchTypeResultItem) -> Unit = { resultItem ->
         when (resultItem) {
             is SearchTypeResult.Video -> {
+                jumpModeRepository.setPendingQueue(
+                    source = JumpModeSource.Search,
+                    selectedAid = resultItem.aid,
+                    items = searchResult.videos.toJumpModeItems()
+                )
                 VideoInfoActivity.actionStart(
                     context = context,
                     aid = resultItem.aid,
@@ -353,6 +365,11 @@ fun SearchResultScreen(
                             toViewViewModel.addToView(aid)
                         },
                         onGoToDetailPage = { aid ->
+                            jumpModeRepository.setPendingQueue(
+                                source = JumpModeSource.Search,
+                                selectedAid = aid,
+                                items = searchResult.videos.toJumpModeItems()
+                            )
                             VideoInfoActivity.actionStart(
                                 context = context,
                                 fromController = true,

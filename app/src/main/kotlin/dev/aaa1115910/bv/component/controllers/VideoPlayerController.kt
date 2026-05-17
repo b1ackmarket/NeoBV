@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
@@ -103,6 +102,9 @@ fun VideoPlayerController(
     onCancelSkipToNextEp: () -> Unit,
     onPlayNewVideo: (VideoListItem) -> Unit,
     onToggleLoop: () -> Unit,
+    onToggleJumpMode: () -> Unit,
+    onJumpToPreviousVideo: () -> Unit,
+    onJumpToNextVideo: () -> Unit,
     upPanelUiState: PlayerUpPanelUiState,
     onOpenUpPanel: () -> Unit,
     onUpVideoClicked: (VideoCardData) -> Unit,
@@ -133,25 +135,25 @@ fun VideoPlayerController(
     var showInfoSeekController by remember { mutableStateOf(false) }
     var showRelatedVideosController by remember { mutableStateOf(false) }
     var overlayState by remember { mutableStateOf(PlayerOverlayState()) }
-    val hasSecondaryOverlayOpen by remember {
-        derivedStateOf {
-            showRelatedVideosController || hasSecondaryControllerOverlay(
-                showListController = showListController,
-                showMenuController = showMenuController,
-                activePanel = overlayState.activePanel
-            )
-        }
-    }
-    val showClickableControllers by remember {
-        derivedStateOf {
-            showRelatedVideosController || hasClickableControllerOverlay(
-                showListController = showListController,
-                showMenuController = showMenuController,
-                showInfoSeekController = showInfoSeekController,
-                activePanel = overlayState.activePanel
-            )
-        }
-    }
+    val hasSecondaryOverlayOpen = showRelatedVideosController || hasSecondaryControllerOverlay(
+        showListController = showListController,
+        showMenuController = showMenuController,
+        activePanel = overlayState.activePanel
+    )
+    val showJumpModePausedInfoController =
+        uiState.jumpModeState.enabled &&
+            !isPlaying &&
+            !uiState.isBuffering &&
+            uiState.playerState !is PlayerState.Error &&
+            uiState.playerState != PlayerState.Ended &&
+            !hasSecondaryOverlayOpen
+    val showClickableControllers = showRelatedVideosController || hasClickableControllerOverlay(
+        showListController = showListController,
+        showMenuController = showMenuController,
+        showInfoSeekController = showInfoSeekController,
+        activePanel = overlayState.activePanel
+    )
+    val showPrimaryInfoController = showInfoSeekController || showJumpModePausedInfoController
 
     var lastPressBack by remember { mutableLongStateOf(0L) }
     var goTime by remember { mutableLongStateOf(0L) }
@@ -165,14 +167,19 @@ fun VideoPlayerController(
 
     var seekCountdown: Job? by remember { mutableStateOf(null) }
     var hideInfoSeekControllerCountdown: Job? by remember { mutableStateOf(null) }
-    val videoListPanelState by remember(uiState.availableVideoList, uiState.cid) {
-        derivedStateOf {
-            resolveVideoListPanelState(
-                currentCid = uiState.cid,
-                videoList = uiState.availableVideoList
-            )
-        }
+    var jumpModeDownHoldJob: Job? by remember { mutableStateOf(null) }
+    var jumpModeDownHoldConsumed by remember { mutableStateOf(false) }
+    var showInitialOnlineCountTip by remember { mutableStateOf(false) }
+    var onlineCountTipVideoKey: Pair<Long, Long>? by remember { mutableStateOf(null) }
+    val videoListPanelState = remember(uiState.availableVideoList, uiState.cid) {
+        resolveVideoListPanelState(
+            currentCid = uiState.cid,
+            videoList = uiState.availableVideoList
+        )
     }
+    val onlineCountVideoKey = uiState.aid to uiState.cid
+    val canShowInitialOnlineCountTip =
+        !uiState.onlineCountText.isNullOrBlank() && uiState.playerState == PlayerState.Playing
 
     fun calCoefficient(): Int {
         return if (System.currentTimeMillis() - lastSeekChangeTime < 200) {
@@ -269,6 +276,33 @@ fun VideoPlayerController(
         seekTapState.clearPreview()
     }
 
+    fun triggerJumpModeDownHold(): Boolean {
+        if (jumpModeDownHoldConsumed) return true
+        jumpModeDownHoldConsumed = true
+        jumpModeDownHoldJob?.cancel()
+        jumpModeDownHoldJob = null
+        onToggleJumpMode()
+        return true
+    }
+
+    fun startJumpModeDownHold() {
+        if (jumpModeDownHoldJob?.isActive == true) return
+        jumpModeDownHoldConsumed = false
+        jumpModeDownHoldJob = scope.launch {
+            delay(3_000L)
+            triggerJumpModeDownHold()
+            jumpModeDownHoldJob = null
+        }
+    }
+
+    fun cancelJumpModeDownHold(): Boolean {
+        val consumed = jumpModeDownHoldConsumed
+        jumpModeDownHoldJob?.cancel()
+        jumpModeDownHoldJob = null
+        jumpModeDownHoldConsumed = false
+        return consumed
+    }
+
     fun onPlayPause() {
         if (isPlaying) onPause() else onPlay()
     }
@@ -287,6 +321,56 @@ fun VideoPlayerController(
             return true
         }
 
+        if (
+            event.key == Key.DirectionUp &&
+            uiState.jumpModeState.enabled &&
+            !showJumpModePausedInfoController &&
+            !hasSecondaryOverlayOpen
+        ) {
+            when (event.type) {
+                KeyEventType.KeyDown -> return true
+                KeyEventType.KeyUp -> {
+                    onJumpToPreviousVideo()
+                    return true
+                }
+            }
+        }
+
+        if (
+            event.key == Key.DirectionDown &&
+            !showJumpModePausedInfoController &&
+            !hasSecondaryOverlayOpen
+        ) {
+            when (event.type) {
+                KeyEventType.KeyDown -> {
+                    if (event.nativeKeyEvent.repeatCount == 0) {
+                        startJumpModeDownHold()
+                    }
+                    val heldMs = event.nativeKeyEvent.eventTime - event.nativeKeyEvent.downTime
+                    if (event.nativeKeyEvent.repeatCount > 0 && heldMs >= 3_000L) {
+                        return triggerJumpModeDownHold()
+                    }
+                    if (uiState.jumpModeState.enabled) return true
+                    if (showClickableControllers) return false
+                    return true
+                }
+
+                KeyEventType.KeyUp -> {
+                    val wasConsumedByLongPress = cancelJumpModeDownHold()
+                    if (wasConsumedByLongPress) return true
+                    if (uiState.jumpModeState.enabled) {
+                        onJumpToNextVideo()
+                        return true
+                    }
+                    if (!showClickableControllers) {
+                        showInfoSeekController = true
+                        return true
+                    }
+                    return false
+                }
+            }
+        }
+
         if (event.type == KeyEventType.KeyUp && !isConfirmKey) {
             return true
         }
@@ -299,7 +383,7 @@ fun VideoPlayerController(
                     dismissPendingPluginAction()
                     return true
                 }
-                if (showClickableControllers) {
+                if (showClickableControllers && (hasSecondaryOverlayOpen || isSeeking || showInfoSeekController)) {
                     if (hasSecondaryOverlayOpen) {
                         showMenuController = false
                         showListController = false
@@ -350,7 +434,7 @@ fun VideoPlayerController(
             }
         }
 
-        if (showClickableControllers) {
+        if (showClickableControllers || showJumpModePausedInfoController) {
             return false
         } else {
             when (event.key) {
@@ -377,6 +461,11 @@ fun VideoPlayerController(
                 }
 
                 Key.DirectionUp -> {
+                    if (uiState.jumpModeState.enabled) {
+                        if (event.nativeKeyEvent.repeatCount > 0) return true
+                        onJumpToPreviousVideo()
+                        return true
+                    }
                     showListController = true
                     return true
                 }
@@ -430,6 +519,24 @@ fun VideoPlayerController(
                 showRelatedVideosController = true
             }
         }
+        LaunchedEffect(onlineCountVideoKey) {
+            onlineCountTipVideoKey = null
+            showInitialOnlineCountTip = false
+        }
+        LaunchedEffect(onlineCountVideoKey, canShowInitialOnlineCountTip) {
+            if (!canShowInitialOnlineCountTip) {
+                showInitialOnlineCountTip = false
+                return@LaunchedEffect
+            }
+            if (onlineCountTipVideoKey == onlineCountVideoKey) return@LaunchedEffect
+
+            onlineCountTipVideoKey = onlineCountVideoKey
+            showInitialOnlineCountTip = true
+            delay(3_000L)
+            if (onlineCountTipVideoKey == onlineCountVideoKey) {
+                showInitialOnlineCountTip = false
+            }
+        }
         content()
         if (BuildConfig.DEBUG || uiState.showPlayerStats) {
             Box(
@@ -461,8 +568,9 @@ fun VideoPlayerController(
             showBackToStart = uiState.showBackToStart,
             showSkipToNextEp = uiState.showSkipToNextEp,
             showPreviewTip = uiState.showPreviewTip,
-            showOnlineCount = uiState.onlineCount != null,
-            onlineCountText = uiState.onlineCount?.let { PlayerUiTextFormatter.onlineCount(it) },
+            showOnlineCount = !uiState.onlineCountText.isNullOrBlank() &&
+                (showInitialOnlineCountTip || showPrimaryInfoController),
+            onlineCountText = uiState.onlineCountText?.let { PlayerUiTextFormatter.onlineCount(it) },
             pluginTipMessage = uiState.pluginTipMessage,
         )
 
@@ -484,7 +592,7 @@ fun VideoPlayerController(
 
         ControllerVideoInfo(
             modifier = Modifier.focusable(),
-            show = showInfoSeekController,
+            show = showPrimaryInfoController,
             isSeeking = isSeeking,
             goTime = goTime,
             seekerState = seekerState.value,
@@ -493,13 +601,13 @@ fun VideoPlayerController(
             publishDateText = uiState.publishDateText,
             playCountText = uiState.playCountText,
             videoListButtonLabel = videoListPanelState.buttonLabel,
-            onlineCountText = uiState.onlineCount?.let { PlayerUiTextFormatter.onlineCount(it) }.orEmpty(),
             sponsorBlockProgressMarks = uiState.sponsorBlockProgressMarks,
             clock = uiState.clock,
             videoShot = uiState.videoShot,
             videoShotCache = videoShotCache,
             fromSeason = fromSeason,
             danmakuEnabled = uiState.danmakuState.enabledTypes.isNotEmpty(),
+            jumpModeState = uiState.jumpModeState,
             isLooping = isLooping,
             onDirectionLeft = { onDirectionLeft() },
             onDirectionRight = { onDirectionRight() },
@@ -520,6 +628,7 @@ fun VideoPlayerController(
                 showInfoSeekController = false
                 showMenuController = true
             },
+            onToggleJumpMode = onToggleJumpMode,
             onShowRelatedVideos = {
                 showInfoSeekController = false
                 showMenuController = false

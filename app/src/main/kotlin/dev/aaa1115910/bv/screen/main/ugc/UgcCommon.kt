@@ -22,11 +22,15 @@ import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
 import dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2
 import dev.aaa1115910.biliapi.entity.ugc.region.UgcFeedPage
+import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.repository.JumpModeRepository
+import dev.aaa1115910.bv.repository.JumpModeSource
+import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toWanString
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -43,6 +47,7 @@ fun UgcRegionScaffold(
 ) {
     val gridState = state.lazyGridState
     val context = LocalContext.current
+    val jumpModeRepository = remember { BVApp.koinApplication.koin.get<JumpModeRepository>() }
 
 
     LaunchedEffect(gridState) {
@@ -79,9 +84,23 @@ fun UgcRegionScaffold(
                         pubTime = item.pubTime
                     )
                 },
-                onClick = { VideoInfoActivity.actionStart(context, item.aid) },
+                onClick = {
+                    jumpModeRepository.setPendingQueue(
+                        source = JumpModeSource.Home,
+                        selectedAid = item.aid,
+                        items = state.ugcItems.toJumpModeItems()
+                    )
+                    VideoInfoActivity.actionStart(context, item.aid)
+                },
                 onAddWatchLater = { onAddWatchLater(item.aid) },
-                onGoToDetailPage = { onGoToDetailPage(item.aid) },
+                onGoToDetailPage = {
+                    jumpModeRepository.setPendingQueue(
+                        source = JumpModeSource.Home,
+                        selectedAid = item.aid,
+                        items = state.ugcItems.toJumpModeItems()
+                    )
+                    onGoToDetailPage(item.aid)
+                },
                 onGoToUpPage = item.authorMid?.let {
                     { onGoToUpPage(it, item.author) }
                 }

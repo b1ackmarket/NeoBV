@@ -1,42 +1,79 @@
 package dev.aaa1115910.bv.player.impl.exo
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.annotation.OptIn
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.Renderer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.dash.DashMediaSource
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.player.OkHttpUtil
 import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.formatMinSec
+import java.util.ArrayDeque
+import java.util.Locale
 
 @OptIn(UnstableApi::class)
 class ExoMediaPlayer(
     private val context: Context,
     private val options: VideoPlayerOptions
-) : AbstractVideoPlayer(), Player.Listener {
+) : AbstractVideoPlayer(), Player.Listener, AnalyticsListener {
     var mPlayer: ExoPlayer? = null
     protected var mMediaSource: MediaSource? = null
+    private var droppedVideoFrames = 0
+    private val bandwidthMeter = DefaultBandwidthMeter.Builder(context).build()
+    private val realtimeSpeedSamples = ArrayDeque<TransferSample>()
+    private val realtimeSpeedLock = Any()
+    private var latestRealtimeSpeed = 0L
+    private val transferListener = object : TransferListener {
+        override fun onTransferInitializing(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {
+            bandwidthMeter.onTransferInitializing(source, dataSpec, isNetwork)
+        }
+
+        override fun onTransferStart(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {
+            bandwidthMeter.onTransferStart(source, dataSpec, isNetwork)
+        }
+
+        override fun onBytesTransferred(
+            source: DataSource,
+            dataSpec: DataSpec,
+            isNetwork: Boolean,
+            bytesTransferred: Int
+        ) {
+            bandwidthMeter.onBytesTransferred(source, dataSpec, isNetwork, bytesTransferred)
+            if (isNetwork && bytesTransferred > 0) {
+                recordRealtimeSpeedSample(bytesTransferred)
+            }
+        }
+
+        override fun onTransferEnd(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {
+            bandwidthMeter.onTransferEnd(source, dataSpec, isNetwork)
+        }
+    }
 
     @OptIn(UnstableApi::class)
     private val dataSourceFactory =
         OkHttpDataSource.Factory(OkHttpUtil.generateCustomSslOkHttpClient(context)).apply {
             options.userAgent?.let { setUserAgent(it) }
             options.referer?.let { setDefaultRequestProperties(mapOf("referer" to it)) }
+            setTransferListener(transferListener)
         }
 
     init {
@@ -75,6 +112,7 @@ class ExoMediaPlayer(
         mPlayer = ExoPlayer
             .Builder(context)
             .setRenderersFactory(renderersFactory)
+            .setBandwidthMeter(bandwidthMeter)
             .setSeekForwardIncrementMs(1000 * 10)
             .setSeekBackIncrementMs(1000 * 5)
             .build()
@@ -84,6 +122,7 @@ class ExoMediaPlayer(
 
     private fun initListener() {
         mPlayer?.addListener(this)
+        mPlayer?.addAnalyticsListener(this)
     }
 
     @OptIn(UnstableApi::class)
@@ -172,7 +211,7 @@ class ExoMediaPlayer(
             mPlayer?.setPlaybackSpeed(value)
         }
     override val tcpSpeed: Long
-        get() = 0L
+        get() = getRealtimeNetworkSpeed()
 
     override fun onPlaybackStateChanged(playbackState: Int) {
         when (playbackState) {
@@ -201,27 +240,17 @@ class ExoMediaPlayer(
 
     override val debugInfo: String
         get() {
-            return """
-                player: ${androidx.media3.common.MediaLibraryInfo.VERSION_SLASHY}
-                time: ${currentPosition.formatMinSec()} / ${duration.formatMinSec()}
-                buffered: $bufferedPercentage%
-                resolution: ${mPlayer?.videoSize?.width} x ${mPlayer?.videoSize?.height}
-                audio: ${mPlayer?.audioFormat?.bitrate ?: 0} kbps
-                video codec: ${mPlayer?.videoFormat?.sampleMimeType ?: "null"}
-                audio codec: ${mPlayer?.audioFormat?.sampleMimeType ?: "null"} (${getAudioRendererName()})
-            """.trimIndent()
-        }
-
-    private fun getAudioRendererName(): String {
-        val rendererCount = mPlayer?.rendererCount ?: return "UnknownRenderer"
-        for (i in 0 until rendererCount) {
-            val renderer = mPlayer!!.getRenderer(i)
-            if (renderer.trackType == C.TRACK_TYPE_AUDIO && renderer.state == Renderer.STATE_STARTED) {
-                return renderer.name
+            val player = mPlayer
+            return buildString {
+                appendLine("player: ${androidx.media3.common.MediaLibraryInfo.VERSION_SLASHY}")
+                appendLine("time: ${currentPosition.formatMinSec()} / ${duration.formatMinSec()}")
+                appendLine("buffered: $bufferedPercentage%")
+                appendLine("speed: ${formatSpeed(speed)}")
+                appendLine("network speed: ${formatBitrate(tcpSpeed)}")
+                appendLine("dropped frames: $droppedVideoFrames")
+                append("track groups: ${player?.currentTracks?.groups?.size ?: 0}")
             }
         }
-        return "UnknownRenderer"
-    }
 
     override val videoWidth: Int
         get() = mPlayer?.videoSize?.width ?: 0
@@ -230,5 +259,68 @@ class ExoMediaPlayer(
 
     override fun onPlayerError(error: PlaybackException) {
         mPlayerEventListener?.onError(error)
+    }
+
+    override fun onDroppedVideoFrames(
+        eventTime: AnalyticsListener.EventTime,
+        droppedFrames: Int,
+        elapsedMs: Long
+    ) {
+        droppedVideoFrames += droppedFrames
+    }
+
+    private fun recordRealtimeSpeedSample(bytesTransferred: Int) {
+        val now = SystemClock.elapsedRealtime()
+        synchronized(realtimeSpeedLock) {
+            realtimeSpeedSamples.addLast(TransferSample(now, bytesTransferred.toLong()))
+            latestRealtimeSpeed = calculateRealtimeNetworkSpeedLocked(now)
+        }
+    }
+
+    private fun getRealtimeNetworkSpeed(): Long {
+        val now = SystemClock.elapsedRealtime()
+        return synchronized(realtimeSpeedLock) {
+            latestRealtimeSpeed = calculateRealtimeNetworkSpeedLocked(now)
+            latestRealtimeSpeed
+        }
+    }
+
+    private fun calculateRealtimeNetworkSpeedLocked(now: Long): Long {
+        while (realtimeSpeedSamples.isNotEmpty()) {
+            val firstSample = realtimeSpeedSamples.peekFirst() ?: break
+            if (now - firstSample.timeMs <= RealtimeSpeedWindowMs) break
+            realtimeSpeedSamples.removeFirst()
+        }
+        val lastSample = realtimeSpeedSamples.peekLast()
+        if (lastSample == null || now - lastSample.timeMs > RealtimeSpeedIdleTimeoutMs) {
+            realtimeSpeedSamples.clear()
+            return 0L
+        }
+
+        val bytesInWindow = realtimeSpeedSamples.sumOf { it.bytes }
+        return bytesInWindow * 8_000L / RealtimeSpeedWindowMs
+    }
+
+    private fun formatSpeed(speed: Float): String {
+        return String.format(Locale.US, "%.2fx", speed)
+    }
+
+    private fun formatBitrate(bitrate: Long): String {
+        if (bitrate <= 0L) return "0 kbps"
+        return if (bitrate >= 1_000_000) {
+            String.format(Locale.US, "%.2f Mbps", bitrate / 1_000_000f)
+        } else {
+            "${bitrate / 1000} kbps"
+        }
+    }
+
+    private data class TransferSample(
+        val timeMs: Long,
+        val bytes: Long
+    )
+
+    private companion object {
+        const val RealtimeSpeedWindowMs = 1_000L
+        const val RealtimeSpeedIdleTimeoutMs = 1_200L
     }
 }

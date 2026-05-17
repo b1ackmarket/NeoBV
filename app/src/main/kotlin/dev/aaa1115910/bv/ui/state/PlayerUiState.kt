@@ -17,6 +17,8 @@ import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.plugin.api.PluginPlaybackAction
+import dev.aaa1115910.bv.repository.JumpModeQueueItem
+import dev.aaa1115910.bv.repository.JumpModeSource
 
 // 1. 核心 UI 状态 (低频更新)
 data class PlayerUiState(
@@ -53,9 +55,11 @@ data class PlayerUiState(
     val showPreviewTip: Boolean = false,
     val pendingPluginAction: PluginPlaybackAction.PromptSkip? = null,
     val pluginTipMessage: String? = null,
-    val onlineCount: Int? = null,
+    val onlineCountText: String? = null,
     val showPlayerStats: Boolean = false,
+    val mediaStatsInfo: String = "",
     val sponsorBlockProgressMarks: List<ProgressSegmentMark> = emptyList(),
+    val jumpModeState: JumpModeState = JumpModeState(),
 
     // 播放器配置与资源
     val availableQuality: Map<Int, String> = emptyMap(),
@@ -94,6 +98,20 @@ data class SeekerState(
     val bufferedPercentage: Int = 0,
     val debugInfo: String = ""
 )
+
+data class JumpModeState(
+    val available: Boolean = false,
+    val enabled: Boolean = false,
+    val source: JumpModeSource? = null,
+    val currentIndex: Int = -1,
+    val items: List<JumpModeQueueItem> = emptyList()
+) {
+    val hasPrevious: Boolean
+        get() = available && currentIndex > 0
+
+    val hasNext: Boolean
+        get() = available && currentIndex in 0 until items.lastIndex
+}
 
 data class DanmakuState(
     val scale: Float = 0f,

@@ -9,17 +9,22 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.repository.JumpModeRepository
+import dev.aaa1115910.bv.repository.JumpModeSource
+import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
@@ -32,9 +37,11 @@ fun ToViewScreen(
     toViewViewModel: ToViewViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
+    val jumpModeRepository = remember { BVApp.koinApplication.koin.get<JumpModeRepository>() }
 
     // 按 playString 分组
     val (unwatched, watched) = toViewViewModel.histories.partition { it.timeString != "已看完" }
+    val allItems = unwatched + watched
 
     LaunchedEffect(Unit) {
         toViewViewModel.uiEvent.collect { event ->
@@ -69,6 +76,11 @@ fun ToViewScreen(
                         data = item,
                         delToView = true,
                         onClick = {
+                            jumpModeRepository.setPendingQueue(
+                                source = JumpModeSource.Personal,
+                                selectedAid = item.avid,
+                                items = allItems.toJumpModeItems()
+                            )
                             VideoInfoActivity.actionStart(
                                 context = context,
                                 aid = item.avid,
@@ -80,6 +92,11 @@ fun ToViewScreen(
                             toViewViewModel.delToView(item.avid)
                         },
                         onGoToDetailPage = {
+                            jumpModeRepository.setPendingQueue(
+                                source = JumpModeSource.Personal,
+                                selectedAid = item.avid,
+                                items = allItems.toJumpModeItems()
+                            )
                             VideoInfoActivity.actionStart(
                                 context = context,
                                 fromController = true,
@@ -115,6 +132,11 @@ fun ToViewScreen(
                         data = item,
                         delToView = true,
                         onClick = {
+                            jumpModeRepository.setPendingQueue(
+                                source = JumpModeSource.Personal,
+                                selectedAid = item.avid,
+                                items = allItems.toJumpModeItems()
+                            )
                             VideoInfoActivity.actionStart(
                                 context = context,
                                 aid = item.avid,
@@ -126,6 +148,11 @@ fun ToViewScreen(
                             toViewViewModel.delToView(item.avid)
                         },
                         onGoToDetailPage = {
+                            jumpModeRepository.setPendingQueue(
+                                source = JumpModeSource.Personal,
+                                selectedAid = item.avid,
+                                items = allItems.toJumpModeItems()
+                            )
                             VideoInfoActivity.actionStart(
                                 context = context,
                                 fromController = true,
@@ -146,4 +173,3 @@ fun ToViewScreen(
         }
     }
 }
-

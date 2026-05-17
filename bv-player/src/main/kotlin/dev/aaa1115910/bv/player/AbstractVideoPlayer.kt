@@ -58,7 +58,7 @@ abstract class AbstractVideoPlayer {
     /** 播放速度 */
     abstract var speed: Float
 
-    /** 当前缓冲的网速 */
+    /** 当前实时网络传输速度，单位 bits/second */
     abstract val tcpSpeed: Long
 
     /** 调试信息 */

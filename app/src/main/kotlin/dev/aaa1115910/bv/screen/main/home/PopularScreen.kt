@@ -21,12 +21,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
+import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.repository.JumpModeRepository
+import dev.aaa1115910.bv.repository.JumpModeSource
+import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toWanString
@@ -48,8 +52,14 @@ fun PopularScreen(
     val gridState = rememberLazyGridState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val jumpModeRepository = remember { BVApp.koinApplication.koin.get<JumpModeRepository>() }
 
     val onClickVideo: (UgcItem) -> Unit = { ugcItem ->
+        jumpModeRepository.setPendingQueue(
+            source = JumpModeSource.Home,
+            selectedAid = ugcItem.aid,
+            items = popularViewModel.popularVideoList.toJumpModeItems()
+        )
         VideoInfoActivity.actionStart(context, ugcItem.aid)
     }
 
@@ -107,6 +117,11 @@ fun PopularScreen(
                     toViewViewModel.addToView(item.aid)
                 },
                 onGoToDetailPage = {
+                    jumpModeRepository.setPendingQueue(
+                        source = JumpModeSource.Home,
+                        selectedAid = item.aid,
+                        items = popularViewModel.popularVideoList.toJumpModeItems()
+                    )
                     VideoInfoActivity.actionStart(
                         context = context,
                         fromController = true,

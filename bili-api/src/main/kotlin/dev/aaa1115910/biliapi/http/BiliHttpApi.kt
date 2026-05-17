@@ -95,6 +95,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import org.jsoup.nodes.Document
 import java.io.InputStream
@@ -756,6 +757,21 @@ object BiliHttpApi {
         parameter("aid", avid)
         parameter("cid", cid)
         header("Cookie", "buvid3=$buvid3; SESSDATA=$sessData;")
+    }.body()
+
+    /**
+     * 获取当前视频同看人数展示值
+     */
+    suspend fun getPlayerOnlineTotal(
+        avid: Long,
+        cid: Long,
+        sessData: String
+    ): BiliResponse<JsonObject> = client.get("/x/player/online/total") {
+        parameter("aid", avid)
+        parameter("cid", cid)
+        if (sessData.isNotBlank()) {
+            header("Cookie", "SESSDATA=$sessData;")
+        }
     }.body()
 
     /**
