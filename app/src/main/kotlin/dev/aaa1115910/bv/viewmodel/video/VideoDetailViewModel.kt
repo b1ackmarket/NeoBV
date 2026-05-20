@@ -144,12 +144,12 @@ class VideoDetailViewModel(
             val result = if (follow) {
                 userRepository.followUser(
                     mid = userMid,
-                    preferApiType = Prefs.apiType
+                    preferApiType = Prefs.playbackApiType
                 )
             } else {
                 userRepository.unfollowUser(
                     mid = userMid,
-                    preferApiType = Prefs.apiType
+                    preferApiType = Prefs.playbackApiType
                 )
             }
 
@@ -196,7 +196,7 @@ class VideoDetailViewModel(
             }
 
             runCatching {
-                videoInfoRepository.loadVideoDetail(aid, Prefs.apiType)
+                videoInfoRepository.loadVideoDetail(aid, Prefs.playbackApiType)
             }.onFailure { e ->
                 handleLoadFailure(e, aid)
             }
@@ -304,7 +304,7 @@ class VideoDetailViewModel(
         val errorMessage = e.localizedMessage ?: "未知错误"
         logger.fInfo { "Get video info failed: ${e.stackTraceToString()}" }
 
-        val isVideoNotFound = when (Prefs.apiType) {
+        val isVideoNotFound = when (Prefs.playbackApiType) {
             ApiType.Web -> errorMessage == "啥都木有"
             ApiType.App -> errorMessage == "访问权限不足"
             else -> false
@@ -360,7 +360,7 @@ class VideoDetailViewModel(
                 favoriteRepository.getAllFavoriteFolderMetadataList(
                     mid = Prefs.uid,
                     rid = avid,
-                    preferApiType = Prefs.apiType
+                    preferApiType = Prefs.playbackApiType
                 )
             }.onSuccess { result ->
                 _uiState.update { it.copy(favoriteFolders = result) }
@@ -384,7 +384,7 @@ class VideoDetailViewModel(
             logger.fInfo { "Checking is following user $userMid" }
             val isFollowing = userRepository.checkIsFollowing(
                 mid = userMid,
-                preferApiType = Prefs.apiType
+                preferApiType = Prefs.playbackApiType
             )
             logger.fInfo { "Following user result: $isFollowing" }
             _uiState.update { it.copy(isFollowingUp = isFollowing ?: false) }

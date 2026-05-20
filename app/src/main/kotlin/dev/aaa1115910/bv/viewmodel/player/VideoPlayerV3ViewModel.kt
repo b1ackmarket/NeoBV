@@ -355,16 +355,17 @@ class VideoPlayerV3ViewModel(
         logger.info { "Init video player: ${Prefs.playerType.name}" }
 
         val options = VideoPlayerOptions(
-            userAgent = when (Prefs.apiType) {
+            userAgent = when (Prefs.playbackApiType) {
                 ApiType.Web -> context.getString(R.string.video_player_user_agent_http)
                 ApiType.App -> context.getString(R.string.video_player_user_agent_client)
             },
-            referer = when (Prefs.apiType) {
+            referer = when (Prefs.playbackApiType) {
                 ApiType.Web -> context.getString(R.string.video_player_referer)
                 ApiType.App -> null
             },
             enableFfmpegAudioRenderer = Prefs.enableFfmpegAudioRenderer,
-            enableSoftwareVideoDecoder = Prefs.enableSoftwareVideoDecoder
+            enableSoftwareVideoDecoder = Prefs.enableSoftwareVideoDecoder,
+            enableVolumeNormalization = Prefs.enableVolumeNormalization
         )
 
         val newVideoPlayer = when (Prefs.playerType) {
@@ -744,7 +745,7 @@ class VideoPlayerV3ViewModel(
                 val data = userRepository.getSpaceVideos(
                     mid = authorMid,
                     order = requestedOrder,
-                    preferApiType = Prefs.apiType
+                    preferApiType = Prefs.playbackApiType
                 )
                 if (!shouldApplyUpPanelLoadResult(
                         requestedAuthorMid = authorMid,
@@ -804,12 +805,12 @@ class VideoPlayerV3ViewModel(
             val success = if (targetFollowState) {
                 userRepository.followUser(
                     mid = authorMid,
-                    preferApiType = Prefs.apiType
+                    preferApiType = Prefs.playbackApiType
                 )
             } else {
                 userRepository.unfollowUser(
                     mid = authorMid,
-                    preferApiType = Prefs.apiType
+                    preferApiType = Prefs.playbackApiType
                 )
             }
 
@@ -840,7 +841,7 @@ class VideoPlayerV3ViewModel(
         // 切换视频时更新detail
         if (shouldUpdateVideoDetail) {
             viewModelScope.launch(Dispatchers.IO) {
-                videoInfoRepository.loadVideoDetail(newVideo.aid, Prefs.apiType)
+                videoInfoRepository.loadVideoDetail(newVideo.aid, Prefs.playbackApiType)
             }
         }
 
@@ -874,7 +875,7 @@ class VideoPlayerV3ViewModel(
                 videoInfoRepository.resolveDefaultVideoListItem(
                     aid = aid,
                     fallbackTitle = fallbackTitle,
-                    preferApiType = Prefs.apiType
+                    preferApiType = Prefs.playbackApiType
                 )
             }.onSuccess { resolvedVideo ->
                 withContext(Dispatchers.Main) {
@@ -900,7 +901,7 @@ class VideoPlayerV3ViewModel(
             videoInfoRepository.resolveDefaultVideoListItem(
                 aid = aid,
                 fallbackTitle = title,
-                preferApiType = Prefs.apiType
+                preferApiType = Prefs.playbackApiType
             )
         }
     }
@@ -974,7 +975,7 @@ class VideoPlayerV3ViewModel(
     private suspend fun fetchMediaUrls(avid: Long, cid: Long, epid: Int): MediaUrls {
         val config = loadPlaybackConfig(
             avid, cid, epid,
-            Prefs.apiType,
+            Prefs.playbackApiType,
             _uiState.value.proxyArea
         )
 
@@ -989,7 +990,7 @@ class VideoPlayerV3ViewModel(
         avid: Long,
         cid: Long,
         epid: Int = 0,
-        preferApi: ApiType = Prefs.apiType,
+        preferApi: ApiType = Prefs.playbackApiType,
         proxyArea: ProxyArea = ProxyArea.MainLand
     ): PlaybackConfig {
         logger.fInfo { "Load play url: [av=$avid, cid=$cid, preferApi=$preferApi, proxyArea=$proxyArea]" }
@@ -1101,7 +1102,7 @@ class VideoPlayerV3ViewModel(
         val state = _uiState.value
         val playData = playData ?: return null
 
-        if (Prefs.apiType == ApiType.App && playData.codec.isEmpty()) {
+        if (Prefs.playbackApiType == ApiType.App && playData.codec.isEmpty()) {
             val videoItem = playData.dashVideos
                 .find { it.quality == state.mediaProfileState.qualityId }
                 ?: playData.dashVideos.firstOrNull()
@@ -1330,7 +1331,7 @@ class VideoPlayerV3ViewModel(
 
     // 加载合集内的分P
     private suspend fun updateVideoPages() {
-        videoInfoRepository.updateUgcPages(Prefs.apiType)
+        videoInfoRepository.updateUgcPages(Prefs.playbackApiType)
     }
 
     private suspend fun loadDanmaku(cid: Long) {
@@ -1366,7 +1367,7 @@ class VideoPlayerV3ViewModel(
             val subtitleList = videoPlayRepository.getSubtitle(
                 aid = state.aid,
                 cid = state.cid,
-                preferApiType = Prefs.apiType
+                preferApiType = Prefs.playbackApiType
             )
             _uiState.update { currentState ->
                 currentState.copy(
@@ -1431,7 +1432,7 @@ class VideoPlayerV3ViewModel(
     private suspend fun uploadHistory(uiState: PlayerUiState, time: Int) {
         try {
             with(uiState) {
-                val currentApiType = Prefs.apiType
+                val currentApiType = Prefs.playbackApiType
 
                 if (!fromSeason) {
                     logger.info { "Send heartbeat: [avid=$aid, cid=$cid, time=$time]" }
@@ -1470,7 +1471,7 @@ class VideoPlayerV3ViewModel(
             val mask = videoPlayRepository.getDanmakuMask(
                 aid = state.aid,
                 cid = state.cid,
-                preferApiType = Prefs.apiType
+                preferApiType = Prefs.playbackApiType
             )
 
             _uiState.update { it.copy(danmakuMask = mask) }
@@ -1487,7 +1488,7 @@ class VideoPlayerV3ViewModel(
             val videoShot = videoPlayRepository.getVideoShot(
                 aid = state.aid,
                 cid = state.cid,
-                preferApiType = Prefs.apiType
+                preferApiType = Prefs.playbackApiType
             )
             _uiState.update { it.copy(videoShot = videoShot) }
             logger.fInfo { "Load video shot success" }
@@ -1737,7 +1738,7 @@ class VideoPlayerV3ViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val isFollowing = userRepository.checkIsFollowing(
                 mid = authorMid,
-                preferApiType = Prefs.apiType
+                preferApiType = Prefs.playbackApiType
             )
             _uiState.update { it.copy(isFollowingUp = isFollowing ?: false) }
         }
