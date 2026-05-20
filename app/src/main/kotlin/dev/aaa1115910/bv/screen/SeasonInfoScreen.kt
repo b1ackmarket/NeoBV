@@ -8,6 +8,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,6 +63,11 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -105,6 +112,7 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
+import dev.aaa1115910.bv.util.focusedBorder
 import dev.aaa1115910.bv.util.focusedScale
 import dev.aaa1115910.bv.util.launchPlayerActivity
 import dev.aaa1115910.bv.util.requestFocus
@@ -177,7 +185,7 @@ fun SeasonInfoScreen(
                 val data = videoDetailRepository.getPgcVideoDetail(
                     seasonId = sId,
                     epid = eId,
-                    preferApiType = if (proxyArea != ProxyArea.MainLand) ApiType.App else Prefs.apiType
+                    preferApiType = if (proxyArea != ProxyArea.MainLand) ApiType.App else Prefs.playbackApiType
                 )
                 withContext(Dispatchers.Main) {
                     seasonData = data
@@ -200,7 +208,7 @@ fun SeasonInfoScreen(
                 val data = videoDetailRepository.getPgcVideoDetail(
                     seasonId = seasonId,
                     epid = epId,
-                    preferApiType = if (proxyArea != ProxyArea.MainLand) ApiType.App else Prefs.apiType
+                    preferApiType = if (proxyArea != ProxyArea.MainLand) ApiType.App else Prefs.playbackApiType
                 ).userStatus.progress
                 withContext(Dispatchers.Main) { lastPlayProgress = data }
                 logger.info { "update user status progress: $lastPlayProgress" }
@@ -281,6 +289,7 @@ fun SeasonInfoScreen(
                         cover = seasonData!!.cover,
                         newEpDesc = seasonData!!.newEpDesc,
                         description = seasonData!!.description,
+                        metaItems = seasonData!!.toSeasonMetaItems(),
                         lastPlayedIndex = lastPlayProgress?.lastEpId ?: -1,
                         lastPlayedTitle = lastPlayProgress?.lastEpIndex ?: "Unknown",
                         following = isFollowing,
@@ -365,7 +374,7 @@ fun SeasonInfoScreen(
                                     runCatching {
                                         val resultToast = userRepository.delSeasonFollow(
                                             seasonId = seasonData?.seasonId ?: return@launch,
-                                            preferApiType = Prefs.apiType
+                                            preferApiType = Prefs.playbackApiType
                                         )
                                         isFollowing = false
                                         withContext(Dispatchers.Main) {
@@ -383,7 +392,7 @@ fun SeasonInfoScreen(
                                     runCatching {
                                         val resultToast = userRepository.addSeasonFollow(
                                             seasonId = seasonData?.seasonId ?: return@launch,
-                                            preferApiType = Prefs.apiType
+                                            preferApiType = Prefs.playbackApiType
                                         )
                                         isFollowing = true
                                         withContext(Dispatchers.Main) {
@@ -550,6 +559,7 @@ fun SeasonBaseInfo(
     title: String,
     newEpDesc: String,
     description: String,
+    metaItems: List<String> = emptyList(),
     lastPlayedIndex: Int,
     lastPlayedTitle: String = "",
     following: Boolean,
@@ -558,6 +568,7 @@ fun SeasonBaseInfo(
     onPlay: () -> Unit,
     onClickFollow: (follow: Boolean) -> Unit,
 ) {
+    var showDescriptionDialog by remember { mutableStateOf(false) }
     Column(
         modifier = modifier
             .heightIn(min = 260.dp),
@@ -574,7 +585,42 @@ fun SeasonBaseInfo(
                 color = Color.White
             )
             Text(text = newEpDesc)
-            Text(text = description)
+            if (metaItems.isNotEmpty()) {
+                Text(
+                    text = metaItems.joinToString("  ·  "),
+                    color = Color.White.copy(alpha = 0.72f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (description.isNotBlank()) {
+                Box(
+                    modifier = Modifier
+                        .clip(MaterialTheme.shapes.medium)
+                        .focusedBorder(MaterialTheme.shapes.medium)
+                        .onPreviewKeyEvent {
+                            if (it.key != Key.DirectionCenter && it.key != Key.Enter) {
+                                return@onPreviewKeyEvent false
+                            }
+                            when (it.type) {
+                                KeyEventType.KeyDown -> true
+                                KeyEventType.KeyUp -> {
+                                    showDescriptionDialog = true
+                                    true
+                                }
+                                else -> false
+                            }
+                        }
+                        .focusable()
+                        .padding(8.dp)
+                ) {
+                    Text(
+                        text = description,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
         Spacer(modifier = Modifier.height(12.dp))
         SeasonInfoButtons(
@@ -587,6 +633,43 @@ fun SeasonBaseInfo(
             onClickFollow = onClickFollow
         )
     }
+
+    SeasonDescriptionDialog(
+        show = showDescriptionDialog,
+        title = title,
+        description = description,
+        onHideDialog = { showDescriptionDialog = false }
+    )
+}
+
+@Composable
+fun SeasonDescriptionDialog(
+    modifier: Modifier = Modifier,
+    show: Boolean,
+    title: String,
+    description: String,
+    onHideDialog: () -> Unit
+) {
+    if (show) {
+        AlertDialog(
+            modifier = modifier,
+            onDismissRequest = onHideDialog,
+            title = {
+                Text(
+                    text = title,
+                    color = Color.White
+                )
+            },
+            text = {
+                LazyColumn {
+                    item {
+                        Text(text = description)
+                    }
+                }
+            },
+            confirmButton = {}
+        )
+    }
 }
 
 @Composable
@@ -596,6 +679,7 @@ fun SeasonInfoPart(
     cover: String,
     newEpDesc: String,
     description: String,
+    metaItems: List<String> = emptyList(),
     lastPlayedIndex: Int,
     lastPlayedTitle: String = "",
     following: Boolean,
@@ -621,6 +705,7 @@ fun SeasonInfoPart(
             title = title,
             newEpDesc = newEpDesc,
             description = description,
+            metaItems = metaItems,
             lastPlayedIndex = lastPlayedIndex,
             lastPlayedTitle = lastPlayedTitle,
             following = following,
@@ -629,6 +714,23 @@ fun SeasonInfoPart(
             onPlay = onPlay,
             onClickFollow = onClickFollow
         )
+    }
+}
+
+private fun SeasonDetail.toSeasonMetaItems(): List<String> {
+    return buildList {
+        originTitle
+            ?.takeIf { it.isNotBlank() && it != title }
+            ?.let { add(it) }
+        if (styles.isNotEmpty()) add(styles.joinToString(" / "))
+        publish.publishDate
+            .takeIf { it.isNotBlank() }
+            ?.let { add(it) }
+        add(if (publish.isPublished) "已开播" else "未开播")
+        if (episodes.isNotEmpty()) add("${episodes.size} 集")
+        if (sections.isNotEmpty()) add("${sections.size} 个分区")
+        if (seasons.isNotEmpty()) add("${seasons.size} 个系列")
+        if (userStatus.pay) add("已购买")
     }
 }
 
