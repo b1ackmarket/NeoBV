@@ -7,12 +7,15 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.audio.AudioProcessor
+import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
@@ -29,6 +32,12 @@ import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.formatMinSec
 import java.util.ArrayDeque
 import java.util.Locale
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 @OptIn(UnstableApi::class)
 class ExoMediaPlayer(
@@ -82,7 +91,26 @@ class ExoMediaPlayer(
 
     @OptIn(UnstableApi::class)
     override fun initPlayer() {
-        val renderersFactory = DefaultRenderersFactory(context).apply {
+        val renderersFactory = object : DefaultRenderersFactory(context) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean
+            ): androidx.media3.exoplayer.audio.AudioSink {
+                if (!options.enableVolumeNormalization) {
+                    return super.buildAudioSink(
+                        context,
+                        enableFloatOutput,
+                        enableAudioTrackPlaybackParams
+                    ) ?: DefaultAudioSink.Builder(context).build()
+                }
+                return DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setAudioProcessors(arrayOf(SimpleVolumeNormalizerAudioProcessor()))
+                    .build()
+            }
+        }.apply {
             setExtensionRendererMode(
                 when (options.enableFfmpegAudioRenderer) {
                     true -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
@@ -322,5 +350,53 @@ class ExoMediaPlayer(
     private companion object {
         const val RealtimeSpeedWindowMs = 1_000L
         const val RealtimeSpeedIdleTimeoutMs = 1_200L
+    }
+}
+
+@OptIn(UnstableApi::class)
+private class SimpleVolumeNormalizerAudioProcessor : BaseAudioProcessor() {
+    private var gain = 1f
+
+    override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
+        if (inputAudioFormat.encoding != androidx.media3.common.C.ENCODING_PCM_16BIT) {
+            throw AudioProcessor.UnhandledAudioFormatException(inputAudioFormat)
+        }
+        return inputAudioFormat
+    }
+
+    override fun queueInput(inputBuffer: ByteBuffer) {
+        val inputSize = inputBuffer.remaining()
+        if (inputSize == 0) return
+        val outputBuffer = replaceOutputBuffer(inputSize).order(ByteOrder.nativeOrder())
+        val duplicate = inputBuffer.slice().order(ByteOrder.nativeOrder())
+        var peak = 0
+        while (duplicate.remaining() >= 2) {
+            peak = max(peak, abs(duplicate.short.toInt()))
+        }
+        val targetGain = if (peak > 0) {
+            (TargetPcmPeak / peak.toFloat()).coerceIn(MinGain, MaxGain)
+        } else {
+            gain
+        }
+        gain = gain * Smoothing + targetGain * (1f - Smoothing)
+        val samples = inputBuffer.slice().order(ByteOrder.nativeOrder())
+        while (samples.remaining() >= 2) {
+            val normalized = (samples.short * gain)
+                .roundToInt()
+                .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            outputBuffer.putShort(normalized.toShort())
+        }
+        if (samples.hasRemaining()) {
+            outputBuffer.put(samples.get())
+        }
+        inputBuffer.position(inputBuffer.limit())
+        outputBuffer.flip()
+    }
+
+    private companion object {
+        const val TargetPcmPeak = 12_000f
+        const val MinGain = 0.35f
+        const val MaxGain = 3.0f
+        const val Smoothing = 0.96f
     }
 }

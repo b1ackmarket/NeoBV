@@ -64,6 +64,7 @@ fun AudioVideoSetting(
     var selectedActionAfterPlay by remember { mutableStateOf(Prefs.actionAfterPlay) }
 
     var enableFfmpegAudioRenderer by remember { mutableStateOf(Prefs.enableFfmpegAudioRenderer) }
+    var enableVolumeNormalization by remember { mutableStateOf(Prefs.enableVolumeNormalization) }
     var enableSoftwareVideoRenderer by remember { mutableStateOf(Prefs.enableSoftwareVideoDecoder) }
     var sponsorBlockEnabled by remember { mutableStateOf(false) }
 
@@ -135,6 +136,15 @@ fun AudioVideoSetting(
             onCheckedChange = {
                 enableFfmpegAudioRenderer = it
                 Prefs.enableFfmpegAudioRenderer = it
+            }
+        )
+        SettingSwitchListItem(
+            title = "音量均衡",
+            supportText = "尝试压低突出的峰值、抬高偏小的声音，切换后重新进入播放生效",
+            checked = enableVolumeNormalization,
+            onCheckedChange = {
+                enableVolumeNormalization = it
+                Prefs.enableVolumeNormalization = it
             }
         )
         SettingSwitchListItem(
