@@ -43,15 +43,19 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.controllers.LiveDanmakuMenuState
 import dev.aaa1115910.bv.component.controllers.LiveBottomMenuController
 import dev.aaa1115910.bv.component.controllers.LiveBottomMenuItem
 import dev.aaa1115910.bv.component.controllers.LiveMenuController
+import dev.aaa1115910.bv.component.controllers.PlayerCommentPanelUiState
 import dev.aaa1115910.bv.component.controllers.PlayerSidePanels
 import dev.aaa1115910.bv.component.controllers.PlayerUpPanelUiState
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.component.DanmakuPlayerCompose
+import dev.aaa1115910.bv.entity.PlayerCommentItem
+import dev.aaa1115910.bv.entity.PlayerCommentSort
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.user.SpaceVideoOrder
@@ -74,8 +78,10 @@ import dev.aaa1115910.bv.viewmodel.player.PlayerSidePanel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.ArrayDeque
 import java.util.Calendar
 
 private fun currentClockText(): String {
@@ -84,6 +90,8 @@ private fun currentClockText(): String {
     val minute = calendar.get(Calendar.MINUTE).toString().padStart(2, '0')
     return "$hour:$minute"
 }
+
+private const val LiveChatPollIntervalMs = 5_000L
 
 @Composable
 fun LivePlayerScreen() {
@@ -107,6 +115,10 @@ fun LivePlayerScreen() {
     var selectedQuality by remember { mutableStateOf(Prefs.defaultLiveQuality.qn) }
     var selectedLineIndex by remember { mutableStateOf(0) }
     var liveDanmakuSocketJob by remember { mutableStateOf<Job?>(null) }
+    var liveChatReleaseJob by remember { mutableStateOf<Job?>(null) }
+    var liveChatMessages by remember { mutableStateOf<List<PlayerCommentItem>>(emptyList()) }
+    val liveChatSeenKeys = remember { linkedSetOf<String>() }
+    val pendingLiveChatMessages = remember { ArrayDeque<PlayerCommentItem>() }
     var liveUpPanelVideos by remember { mutableStateOf<List<VideoCardData>>(emptyList()) }
     var liveUpPanelOrder by remember { mutableStateOf(SpaceVideoOrder.PubDate) }
     var liveUpPanelFace by remember { mutableStateOf("") }
@@ -139,6 +151,42 @@ fun LivePlayerScreen() {
         )
     }
     val screenFocusRequester = remember { FocusRequester() }
+
+    fun appendLiveChatMessage(item: PlayerCommentItem): Boolean {
+        val key = item.liveChatDedupeKey()
+        if (!liveChatSeenKeys.add(key)) return false
+        while (liveChatSeenKeys.size > 500) liveChatSeenKeys.remove(liveChatSeenKeys.first())
+        liveChatMessages = (liveChatMessages + item).takeLast(200)
+        return true
+    }
+
+    fun appendLiveChatMessages(items: List<PlayerCommentItem>) {
+        if (items.isEmpty()) return
+        val newItems = items.filter { item ->
+            liveChatSeenKeys.add(item.liveChatDedupeKey())
+        }
+        if (newItems.isEmpty()) return
+        while (liveChatSeenKeys.size > 500) liveChatSeenKeys.remove(liveChatSeenKeys.first())
+        liveChatMessages = (liveChatMessages + newItems).takeLast(200)
+    }
+
+    fun releaseLiveChatMessagesGradually(items: List<PlayerCommentItem>) {
+        val newItems = filterNewLiveChatItems(items, liveChatSeenKeys)
+        if (newItems.isEmpty()) return
+        pendingLiveChatMessages.addAll(newItems)
+        while (pendingLiveChatMessages.size > 120) pendingLiveChatMessages.removeFirst()
+        if (liveChatReleaseJob?.isActive == true) return
+        liveChatReleaseJob = liveScope.launch {
+            while (pendingLiveChatMessages.isNotEmpty()) {
+                val batchSize = pendingLiveChatMessages.size.coerceAtLeast(1)
+                val gapMs = (LiveChatPollIntervalMs / batchSize).coerceIn(120L, 1_000L)
+                appendLiveChatMessage(pendingLiveChatMessages.removeFirst())
+                delay(gapMs)
+            }
+            liveChatReleaseJob = null
+        }
+    }
+
     val loadLiveUpPanelVideos = fun() {
         val ownerMid = roomContext?.ownerMid ?: 0L
         if (ownerMid <= 0L) return
@@ -240,17 +288,38 @@ fun LivePlayerScreen() {
         if ((roomContext?.liveStatus ?: 0) != 1) return@LaunchedEffect
         liveDanmakuSocketJob?.cancel()
         liveDanmakuSocketJob = LiveDataWebSocket.connectLiveEvent(resolvedRoomId) { event ->
-            if (event is DanmakuEvent && liveDanmakuState.enabledTypes.isNotEmpty()) {
-                liveDanmakuSession.addDanmaku(
-                    event = event,
-                    isPlaying = player.isPlaying
-                )
+            if (event is DanmakuEvent) {
+                liveScope.launch {
+                    appendLiveChatMessage(event.toLiveCommentItem())
+                    if (liveDanmakuState.enabledTypes.isNotEmpty()) {
+                        liveDanmakuSession.addDanmaku(
+                            event = event,
+                            isPlaying = player.isPlaying
+                        )
+                    }
+                }
             }
         }
     }
 
     LaunchedEffect(liveDanmakuState) {
         liveDanmakuSession.applyState(liveDanmakuState)
+    }
+
+    LaunchedEffect(roomContext?.roomId, roomContext?.liveStatus) {
+        val resolvedRoomId = roomContext?.roomId ?: return@LaunchedEffect
+        if ((roomContext?.liveStatus ?: 0) != 1) return@LaunchedEffect
+        while (isActive) {
+            delay(LiveChatPollIntervalMs)
+            if (!player.isPlaying) continue
+            val events = withContext(Dispatchers.IO) {
+                runCatching { liveRepository.getHistoryDanmaku(resolvedRoomId) }
+                    .getOrElse { emptyList() }
+            }
+            releaseLiveChatMessagesGradually(
+                events.takeLast(50).map { it.toLiveCommentItem(prefix = "poll") }
+            )
+        }
     }
 
     LaunchedEffect(roomContext?.roomId, selectedQuality, selectedLineIndex, reloadToken) {
@@ -300,6 +369,10 @@ fun LivePlayerScreen() {
             playbackSource = resolvedSource
             player.stop()
             liveDanmakuSession.clear()
+            liveChatMessages = emptyList()
+            liveChatSeenKeys.clear()
+            pendingLiveChatMessages.clear()
+            liveChatReleaseJob?.cancel()
             player.setOptions()
             player.playUrl(resolvedSource.playUrl, null)
             player.prepare()
@@ -308,6 +381,7 @@ fun LivePlayerScreen() {
                 events = historyDanmaku,
                 isPlaying = true
             )
+            appendLiveChatMessages(historyDanmaku.takeLast(50).map { it.toLiveCommentItem(prefix = "history") })
             selectedQuality = resolvedSource.currentQuality
             selectedLineIndex = resolvedSource.currentLineIndex
         }
@@ -337,6 +411,7 @@ fun LivePlayerScreen() {
     DisposableEffect(Unit) {
         onDispose {
             liveDanmakuSocketJob?.cancel()
+            liveChatReleaseJob?.cancel()
             player.pause()
             player.release()
             liveDanmakuSession.release()
@@ -589,6 +664,14 @@ fun LivePlayerScreen() {
                         Prefs.defaultDanmakuTypes = nextTypes
                     }
                 )
+                add(
+                    LiveBottomMenuItem(
+                        iconRes = R.drawable.comment_24px,
+                        label = "评论"
+                    ) {
+                        activeOverlay = LiveOverlayPanel.Comments
+                    }
+                )
                 if ((roomContext?.ownerMid ?: 0L) > 0L) {
                     add(
                         LiveBottomMenuItem(
@@ -607,18 +690,27 @@ fun LivePlayerScreen() {
         )
 
         PlayerSidePanels(
-            activePanel = if (activeOverlay == LiveOverlayPanel.UpSpace) {
-                PlayerSidePanel.UpSpace
-            } else {
-                PlayerSidePanel.None
+            activePanel = when (activeOverlay) {
+                LiveOverlayPanel.UpSpace -> PlayerSidePanel.UpSpace
+                LiveOverlayPanel.Comments -> PlayerSidePanel.Comments
+                else -> PlayerSidePanel.None
             },
             relatedVideos = emptyList(),
             upPanelUiState = PlayerUpPanelUiState(
+                upMid = roomContext?.ownerMid ?: 0L,
                 upName = upName,
                 upFace = liveUpPanelFace,
                 latestSelected = liveUpPanelOrder == SpaceVideoOrder.PubDate,
                 isFollowing = liveUpPanelFollowing,
                 videos = liveUpPanelVideos
+            ),
+            commentPanelUiState = PlayerCommentPanelUiState(
+                title = "直播评论",
+                emptyText = "暂无评论",
+                sort = PlayerCommentSort.Latest,
+                showSortToggle = false,
+                comments = liveChatMessages,
+                focusLatest = true
             ),
             onClose = {
                 activeOverlay = LiveOverlayPanel.None
@@ -650,7 +742,52 @@ fun LivePlayerScreen() {
                         }
                     }
                 }
+            },
+            onToggleCommentSort = {},
+            onCommentListPositionChanged = { _, _ -> },
+            onOpenUpPage = { mid, name ->
+                if (mid > 0L) UpInfoActivity.actionStart(context, mid, name)
             }
         )
     }
+}
+
+private fun DanmakuEvent.toLiveCommentItem(prefix: String = "live"): PlayerCommentItem {
+    val badge = listOfNotNull(
+        medalName?.takeIf { it.isNotBlank() },
+        medalLevel?.takeIf { it > 0 }?.toString()
+    ).joinToString(" ").takeIf { it.isNotBlank() }
+    return PlayerCommentItem(
+        id = "$prefix-${System.currentTimeMillis()}-${mid}-${content.hashCode()}",
+        mid = mid,
+        username = username,
+        message = content,
+        timeText = System.currentTimeMillis().toLiveChatTimeText(),
+        badgeText = badge
+    )
+}
+
+internal fun PlayerCommentItem.liveChatDedupeKey(): String {
+    val authorKey = mid.takeIf { it > 0 }?.toString() ?: username
+    return "$authorKey|$message"
+}
+
+internal fun filterNewLiveChatItems(
+    items: List<PlayerCommentItem>,
+    seenKeys: Set<String>,
+    maxItems: Int = 50
+): List<PlayerCommentItem> {
+    val emittedKeys = mutableSetOf<String>()
+    return items
+        .filter { item ->
+            val key = item.liveChatDedupeKey()
+            key !in seenKeys && emittedKeys.add(key)
+        }
+        .takeLast(maxItems)
+}
+
+private fun Long.toLiveChatTimeText(): String {
+    val calendar = Calendar.getInstance().apply { timeInMillis = this@toLiveChatTimeText }
+    return "${calendar.get(Calendar.HOUR_OF_DAY).toString().padStart(2, '0')}:" +
+        calendar.get(Calendar.MINUTE).toString().padStart(2, '0')
 }

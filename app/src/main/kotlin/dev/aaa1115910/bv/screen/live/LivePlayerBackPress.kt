@@ -4,7 +4,8 @@ internal enum class LiveOverlayPanel {
     None,
     RightMenu,
     BottomMenu,
-    UpSpace
+    UpSpace,
+    Comments
 }
 
 internal fun openLiveRightMenu(): LiveOverlayPanel = LiveOverlayPanel.RightMenu
