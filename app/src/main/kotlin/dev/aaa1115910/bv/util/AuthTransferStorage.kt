@@ -8,6 +8,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import dev.aaa1115910.bv.entity.AuthData
+import dev.aaa1115910.bv.entity.AppDataTransferFile
 import dev.aaa1115910.bv.entity.AuthTransferFile
 import java.io.File
 import java.io.IOException
@@ -38,12 +39,12 @@ object AuthTransferStorage {
     fun importFromUri(
         context: Context,
         uri: Uri
-    ): AuthData {
+    ): AppDataTransferFile {
         val content = context.contentResolver.openInputStream(uri)
             ?.bufferedReader()
             ?.use { it.readText() }
             ?: throw IOException("无法读取导入文件")
-        return AuthTransferFile.decode(content)
+        return AuthTransferFile.decodeTransfer(content)
     }
 
     fun resolveDisplayName(
