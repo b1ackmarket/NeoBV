@@ -27,6 +27,7 @@ import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.biliapi.http.util.toSmartDate
 import dev.aaa1115910.biliapi.entity.user.SpaceVideoOrder
 import dev.aaa1115910.biliapi.http.BiliHttpApi
+import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData
 import dev.aaa1115910.biliapi.http.entity.reply.ReplyItem
 import dev.aaa1115910.biliapi.repositories.UserRepository
 import dev.aaa1115910.biliapi.repositories.VideoPlayRepository
@@ -1538,7 +1539,7 @@ class VideoPlayerV3ViewModel(
         runCatching {
             val danmakuXmlData = BiliHttpApi.getDanmakuXml(cid = cid, sessData = Prefs.sessData)
 
-            danmakuXmlData.data.map {
+            dedupeDanmakuData(danmakuXmlData.data).map {
                 DanmakuItemData(
                     danmakuId = it.dmid,
                     position = (it.time * 1000).toLong(),
@@ -2245,6 +2246,18 @@ private fun String.parseReplyColor(): Int? {
     val value = trim().removePrefix("#")
     if (value.length != 6) return null
     return value.toIntOrNull(radix = 16)
+}
+
+internal fun dedupeDanmakuData(items: List<DanmakuData>): List<DanmakuData> {
+    val seen = HashSet<String>(items.size)
+    return items.filter { item ->
+        val key = if (item.dmid > 0L) {
+            "id:${item.dmid}"
+        } else {
+            "raw:${(item.time * 1000).toLong()}:${item.type}:${item.color}:${item.text}"
+        }
+        seen.add(key)
+    }
 }
 
 internal fun JumpModeQueue.toJumpModeState(): JumpModeState {
