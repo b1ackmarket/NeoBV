@@ -27,6 +27,7 @@ import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.biliapi.http.util.toSmartDate
 import dev.aaa1115910.biliapi.entity.user.SpaceVideoOrder
 import dev.aaa1115910.biliapi.http.BiliHttpApi
+import dev.aaa1115910.biliapi.http.entity.reply.ReplyItem
 import dev.aaa1115910.biliapi.repositories.UserRepository
 import dev.aaa1115910.biliapi.repositories.VideoPlayRepository
 import dev.aaa1115910.bilisubtitle.SubtitleParser
@@ -34,6 +35,9 @@ import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.entity.Audio
+import dev.aaa1115910.bv.entity.PlayerCommentItem
+import dev.aaa1115910.bv.entity.PlayerCommentPicture
+import dev.aaa1115910.bv.entity.PlayerCommentSort
 import dev.aaa1115910.bv.entity.PlayerType
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoAspectRatio
@@ -163,11 +167,40 @@ class VideoPlayerV3ViewModel(
     private var pluginPollingJob: Job? = null
     private var onlineCountJob: Job? = null
     private var upPanelLoadJob: Job? = null
+    private var commentsLoadJob: Job? = null
+    private var commentDetailLoadJob: Job? = null
+    private var commentPage = 1
+    private var commentsHasMore = true
+    private val loadedCommentIds = mutableSetOf<String>()
     private var upPanelOrder by mutableStateOf(SpaceVideoOrder.PubDate)
     val isUpPanelLatestSelected: Boolean
         get() = upPanelOrder == SpaceVideoOrder.PubDate
     var upPanelVideos by mutableStateOf<List<VideoCardData>>(emptyList())
         private set
+    var commentSort by mutableStateOf(PlayerCommentSort.Hot)
+        private set
+    var commentItems by mutableStateOf<List<PlayerCommentItem>>(emptyList())
+        private set
+    var commentListFirstVisibleItemIndex by mutableStateOf(0)
+        private set
+    var commentListFirstVisibleItemScrollOffset by mutableStateOf(0)
+        private set
+    var commentDetailRoot by mutableStateOf<PlayerCommentItem?>(null)
+        private set
+    var commentDetailReplies by mutableStateOf<List<PlayerCommentItem>>(emptyList())
+        private set
+    var commentDetailLoading by mutableStateOf(false)
+        private set
+    var commentDetailError by mutableStateOf<String?>(null)
+        private set
+    var commentTotalCountText by mutableStateOf("")
+        private set
+    var commentsLoading by mutableStateOf(false)
+        private set
+    var commentsError by mutableStateOf<String?>(null)
+        private set
+    val commentsCanLoadMore: Boolean
+        get() = commentsHasMore
 
     private var backToStartCountdownJob: Job? = null
     private var playNextCountdownJob: Job? = null
@@ -252,6 +285,26 @@ class VideoPlayerV3ViewModel(
         upPanelVideos = emptyList()
     }
 
+    private fun resetComments() {
+        commentsLoadJob?.cancel()
+        commentsLoadJob = null
+        commentDetailLoadJob?.cancel()
+        commentDetailLoadJob = null
+        commentItems = emptyList()
+        commentListFirstVisibleItemIndex = 0
+        commentListFirstVisibleItemScrollOffset = 0
+        commentDetailRoot = null
+        commentDetailReplies = emptyList()
+        commentDetailLoading = false
+        commentDetailError = null
+        commentTotalCountText = ""
+        commentsLoading = false
+        commentsError = null
+        commentPage = 1
+        commentsHasMore = true
+        loadedCommentIds.clear()
+    }
+
     fun init(
         aid: Long,
         cid: Long,
@@ -313,6 +366,7 @@ class VideoPlayerV3ViewModel(
         }
 
         resetUpPanelVideos()
+        resetComments()
 
         startClockUpdater()
 
@@ -796,6 +850,132 @@ class VideoPlayerV3ViewModel(
         loadUpPanelVideos()
     }
 
+    fun loadComments(force: Boolean = false, loadMore: Boolean = false) {
+        val aid = _uiState.value.aid
+        if (aid <= 0L) return
+        if (commentsLoading) return
+        if (loadMore && !commentsHasMore) return
+        if (!force && !loadMore && commentItems.isNotEmpty()) return
+        if (force) {
+            commentPage = 1
+            commentsHasMore = true
+            loadedCommentIds.clear()
+        }
+        commentsLoadJob?.cancel()
+        commentsLoading = true
+        commentsError = null
+        val requestedAid = aid
+        val requestedSort = commentSort
+        val requestedPage = if (loadMore) commentPage else 1
+        commentsLoadJob = viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                BiliHttpApi.getVideoReplyList(
+                    oid = requestedAid,
+                    type = 1,
+                    sort = requestedSort.toReplyApiSort(),
+                    page = requestedPage,
+                    pageSize = 20,
+                    sessData = Prefs.sessData
+                ).getResponseData()
+            }.onSuccess { data ->
+                if (_uiState.value.aid != requestedAid || commentSort != requestedSort) return@onSuccess
+                val topReply = data.top?.upper
+                val replies = buildList {
+                    if (requestedPage == 1) topReply?.let { add(it) }
+                    data.replies.orEmpty().forEach { reply ->
+                        if (reply.rpid != topReply?.rpid) add(reply)
+                    }
+                }
+                val newItems = replies
+                    .map { it.toPlayerCommentItem() }
+                    .filter { loadedCommentIds.add(it.id) }
+                commentItems = if (loadMore) commentItems + newItems else newItems
+                commentTotalCountText = formatCommentTotalCount(data.page?.count)
+                commentsHasMore = newItems.isNotEmpty() &&
+                    commentItems.size < (data.page?.count ?: Int.MAX_VALUE)
+                if (commentsHasMore) commentPage = requestedPage + 1
+                commentsLoading = false
+                commentsLoadJob = null
+            }.onFailure { error ->
+                if (error is CancellationException) return@onFailure
+                if (_uiState.value.aid != requestedAid || commentSort != requestedSort) return@onFailure
+                commentsError = error.message ?: "评论加载失败"
+                commentsLoading = false
+                commentsLoadJob = null
+            }
+        }
+    }
+
+    fun toggleCommentSort() {
+        commentSort = if (commentSort == PlayerCommentSort.Hot) {
+            PlayerCommentSort.Latest
+        } else {
+            PlayerCommentSort.Hot
+        }
+        loadComments(force = true)
+    }
+
+    fun loadMoreComments() {
+        loadComments(loadMore = true)
+    }
+
+    fun updateCommentListPosition(index: Int, offset: Int) {
+        commentListFirstVisibleItemIndex = index
+        commentListFirstVisibleItemScrollOffset = offset
+    }
+
+    fun openCommentDetail(comment: PlayerCommentItem) {
+        val aid = _uiState.value.aid
+        val root = comment.id.toLongOrNull() ?: return
+        if (aid <= 0L || root <= 0L) return
+        commentDetailLoadJob?.cancel()
+        commentDetailRoot = comment
+        commentDetailReplies = emptyList()
+        commentDetailLoading = true
+        commentDetailError = null
+        val requestedAid = aid
+        commentDetailLoadJob = viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                BiliHttpApi.getVideoReplyDetail(
+                    oid = requestedAid,
+                    root = root,
+                    type = 1,
+                    page = 1,
+                    pageSize = 20,
+                    sessData = Prefs.sessData
+                ).getResponseData()
+            }.onSuccess { data ->
+                if (_uiState.value.aid != requestedAid || commentDetailRoot?.id != comment.id) return@onSuccess
+                commentDetailReplies = data.replies.orEmpty()
+                    .filter { it.rpid != root }
+                    .map { it.toPlayerCommentItem() }
+                commentDetailLoading = false
+                commentDetailLoadJob = null
+            }.onFailure { error ->
+                if (error is CancellationException) return@onFailure
+                if (_uiState.value.aid != requestedAid || commentDetailRoot?.id != comment.id) return@onFailure
+                commentDetailError = error.message ?: "回复加载失败"
+                commentDetailLoading = false
+                commentDetailLoadJob = null
+            }
+        }
+    }
+
+    fun closeCommentDetail() {
+        commentDetailLoadJob?.cancel()
+        commentDetailLoadJob = null
+        commentDetailRoot = null
+        commentDetailReplies = emptyList()
+        commentDetailLoading = false
+        commentDetailError = null
+    }
+
+    fun showCommentActionToast(action: String) {
+        viewModelScope.launch {
+            _uiEffect.emit(PlayerUiEffect.ShowToast("$action 评论功能暂不可用"))
+        }
+    }
+
     fun toggleUpPanelFollow() {
         val authorMid = _uiState.value.authorMid
         if (authorMid == 0L) return
@@ -825,6 +1005,7 @@ class VideoPlayerV3ViewModel(
     fun playNewVideo(newVideo: VideoListItem) {
         videoPlayer?.pause()
         resetUpPanelVideos()
+        resetComments()
         viewModelScope.launch(Dispatchers.IO) {
             PluginManager.getPlayerPlugins().forEach { plugin ->
                 runCatching { plugin.onPlaybackEnded() }
@@ -1920,6 +2101,48 @@ internal fun PlayerUiState.copyForVideoSwitch(
         isFollowingUp = false,
         jumpModeState = jumpModeState.copyForVideoSwitch(newVideo.aid)
     )
+}
+
+internal fun PlayerCommentSort.toReplyApiSort(): Int {
+    return when (this) {
+        PlayerCommentSort.Latest -> 0
+        PlayerCommentSort.Hot -> 1
+    }
+}
+
+internal fun ReplyItem.toPlayerCommentItem(): PlayerCommentItem {
+    return PlayerCommentItem(
+        id = rpid.toString(),
+        mid = mid,
+        username = member.uname,
+        avatar = member.avatar,
+        message = content.message,
+        pictures = content.pictures.orEmpty()
+            .mapNotNull { picture ->
+                picture.imgSrc
+                    .takeIf { it.isNotBlank() }
+                    ?.let { PlayerCommentPicture(url = it, width = picture.imgWidth, height = picture.imgHeight) }
+            },
+        timeText = ctime.toSmartDate().orEmpty(),
+        likeText = like.takeIf { it > 0 }?.let { "${it.toWanString()}赞" }.orEmpty(),
+        replyText = rcount.takeIf { it > 0 }?.let { "${it.toWanString()}回复" }.orEmpty(),
+        ipLocation = replyControl?.location.orEmpty(),
+        color = member.vip?.nicknameColor?.parseReplyColor()
+    )
+}
+
+internal fun formatCommentTotalCount(count: Int?): String {
+    return count
+        ?.takeIf { it > 0 }
+        ?.toWanString()
+        ?.let { "${it}条" }
+        .orEmpty()
+}
+
+private fun String.parseReplyColor(): Int? {
+    val value = trim().removePrefix("#")
+    if (value.length != 6) return null
+    return value.toIntOrNull(radix = 16)
 }
 
 internal fun JumpModeQueue.toJumpModeState(): JumpModeState {

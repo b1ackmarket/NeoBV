@@ -6,7 +6,8 @@ import dev.aaa1115910.bv.screen.main.LeftNaviItem
 enum class PlayerSidePanel {
     None,
     UpSpace,
-    RelatedVideos
+    RelatedVideos,
+    Comments
 }
 
 data class PlayerOverlayState(

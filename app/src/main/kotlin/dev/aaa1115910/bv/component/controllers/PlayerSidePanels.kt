@@ -16,13 +16,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +46,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Border
 import androidx.tv.material3.MaterialTheme
@@ -49,8 +55,15 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.entity.PlayerCommentItem
+import dev.aaa1115910.bv.entity.PlayerCommentSort
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.viewmodel.player.PlayerSidePanel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 
 internal fun shouldCloseSidePanelForPreviewKey(
     eventType: KeyEventType,
@@ -90,6 +103,7 @@ internal fun truncateUpPanelName(
 }
 
 data class PlayerUpPanelUiState(
+    val upMid: Long = 0L,
     val upName: String = "",
     val upFace: String = "",
     val latestSelected: Boolean = true,
@@ -97,16 +111,44 @@ data class PlayerUpPanelUiState(
     val videos: List<VideoCardData> = emptyList()
 )
 
+data class PlayerCommentPanelUiState(
+    val title: String = "评论",
+    val emptyText: String = "暂无评论",
+    val sort: PlayerCommentSort = PlayerCommentSort.Latest,
+    val totalCountText: String = "",
+    val showSortToggle: Boolean = true,
+    val loading: Boolean = false,
+    val canLoadMore: Boolean = false,
+    val errorMessage: String? = null,
+    val comments: List<PlayerCommentItem> = emptyList(),
+    val focusLatest: Boolean = false,
+    val rememberedFirstVisibleItemIndex: Int = 0,
+    val rememberedFirstVisibleItemScrollOffset: Int = 0,
+    val detailRootComment: PlayerCommentItem? = null,
+    val detailReplies: List<PlayerCommentItem> = emptyList(),
+    val detailLoading: Boolean = false,
+    val detailErrorMessage: String? = null
+)
+
 @Composable
 fun PlayerSidePanels(
     activePanel: PlayerSidePanel,
     relatedVideos: List<VideoCardData>,
     upPanelUiState: PlayerUpPanelUiState,
+    commentPanelUiState: PlayerCommentPanelUiState = PlayerCommentPanelUiState(showSortToggle = false),
     onClose: () -> Unit,
     onRelatedVideoClicked: (VideoCardData) -> Unit,
     onUpVideoClicked: (VideoCardData) -> Unit,
+    onOpenUpPage: (Long, String) -> Unit = { _, _ -> },
     onToggleUpSort: () -> Unit,
-    onToggleUpFollow: () -> Unit
+    onToggleUpFollow: () -> Unit,
+    onToggleCommentSort: () -> Unit = {},
+    onLoadMoreComments: () -> Unit = {},
+    onCommentListPositionChanged: (Int, Int) -> Unit = { _, _ -> },
+    onOpenCommentDetail: (PlayerCommentItem) -> Unit = {},
+    onCloseCommentDetail: () -> Unit = {},
+    onCommentLike: (PlayerCommentItem) -> Unit = {},
+    onCommentDislike: (PlayerCommentItem) -> Unit = {}
 ) {
     var headerHasFocus by remember { mutableStateOf(false) }
 
@@ -128,7 +170,14 @@ fun PlayerSidePanels(
             ) {
                 Box(
                     modifier = Modifier.onPreviewKeyEvent {
-                        if (shouldCloseSidePanelForPreviewKey(it.type, it.key, headerHasFocus)) {
+                        if (
+                            activePanel == PlayerSidePanel.Comments &&
+                            commentPanelUiState.detailRootComment != null &&
+                            (it.key == Key.Back || it.key == Key.DirectionLeft)
+                        ) {
+                            if (it.type == KeyEventType.KeyDown) onCloseCommentDetail()
+                            true
+                        } else if (shouldCloseSidePanelForPreviewKey(it.type, it.key, headerHasFocus)) {
                             onClose()
                             true
                         } else {
@@ -145,14 +194,529 @@ fun PlayerSidePanels(
                         PlayerSidePanel.UpSpace -> PlayerUpSpacePanel(
                             state = upPanelUiState,
                             onHeaderFocusChanged = { headerHasFocus = it },
+                            onOpenUpPage = onOpenUpPage,
                             onVideoClicked = onUpVideoClicked,
                             onToggleSort = onToggleUpSort,
                             onToggleFollow = onToggleUpFollow
                         )
 
+                        PlayerSidePanel.Comments -> PlayerCommentsPanel(
+                            state = commentPanelUiState,
+                            onHeaderFocusChanged = { headerHasFocus = it },
+                            onToggleSort = onToggleCommentSort,
+                            onLoadMore = onLoadMoreComments,
+                            onListPositionChanged = onCommentListPositionChanged,
+                            onOpenCommentDetail = onOpenCommentDetail,
+                            onCloseCommentDetail = onCloseCommentDetail,
+                            onOpenUpPage = onOpenUpPage,
+                            onCommentLike = onCommentLike,
+                            onCommentDislike = onCommentDislike
+                        )
+
                         PlayerSidePanel.None -> Unit
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerCommentsPanel(
+    state: PlayerCommentPanelUiState,
+    onHeaderFocusChanged: (Boolean) -> Unit,
+    onToggleSort: () -> Unit,
+    onLoadMore: () -> Unit,
+    onListPositionChanged: (Int, Int) -> Unit,
+    onOpenCommentDetail: (PlayerCommentItem) -> Unit,
+    onCloseCommentDetail: () -> Unit,
+    onOpenUpPage: (Long, String) -> Unit,
+    onCommentLike: (PlayerCommentItem) -> Unit,
+    onCommentDislike: (PlayerCommentItem) -> Unit
+) {
+    val focusRequester = remember { FocusRequester() }
+    val sortFocusRequester = remember { FocusRequester() }
+    val latestFocusRequester = remember { FocusRequester() }
+    val restoreCommentFocusRequester = remember { FocusRequester() }
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = state.rememberedFirstVisibleItemIndex,
+        initialFirstVisibleItemScrollOffset = state.rememberedFirstVisibleItemScrollOffset
+    )
+    var actionComment by remember { mutableStateOf<PlayerCommentItem?>(null) }
+    var restoreCommentId by remember { mutableStateOf<String?>(null) }
+    var commentDetailWasOpen by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) {
+        if (state.showSortToggle) {
+            sortFocusRequester.requestFocus()
+        } else {
+            focusRequester.requestFocus()
+        }
+    }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .distinctUntilChanged()
+            .collect { (index, offset) -> onListPositionChanged(index, offset) }
+    }
+    LaunchedEffect(state.focusLatest, state.comments.size) {
+        if (state.focusLatest && state.comments.isNotEmpty() && state.detailRootComment == null) {
+            listState.animateScrollToItem(state.comments.lastIndex)
+            latestFocusRequester.requestFocus()
+        }
+    }
+    LaunchedEffect(state.detailRootComment, state.comments.size, restoreCommentId) {
+        if (state.detailRootComment != null) {
+            commentDetailWasOpen = true
+            return@LaunchedEffect
+        }
+        if (!commentDetailWasOpen) return@LaunchedEffect
+        val targetCommentId = restoreCommentId ?: return@LaunchedEffect
+        if (state.comments.isEmpty()) return@LaunchedEffect
+        val targetIndex = state.comments.indexOfFirst { it.id == targetCommentId }
+        if (targetIndex >= 0) {
+            listState.scrollToItem(targetIndex)
+            requestFocusWithRetry(restoreCommentFocusRequester)
+        } else {
+            requestFocusWithRetry(focusRequester)
+        }
+        restoreCommentId = null
+        commentDetailWasOpen = false
+    }
+    LaunchedEffect(state.comments.size, state.canLoadMore, state.loading) {
+        if (!state.canLoadMore || state.loading) return@LaunchedEffect
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+            .distinctUntilChanged()
+            .filter { index ->
+                index != null && index >= state.comments.lastIndex - 3
+            }
+            .collect {
+                onLoadMore()
+            }
+    }
+
+    Column(
+        modifier = Modifier.padding(horizontal = 18.dp, vertical = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    modifier = Modifier.size(24.dp),
+                    painter = painterResource(id = R.drawable.comment_24px),
+                    contentDescription = null,
+                    tint = Color.White
+                )
+                Text(
+                    modifier = Modifier.padding(start = 8.dp),
+                    text = listOf(state.title, state.totalCountText)
+                        .filter(String::isNotBlank)
+                        .joinToString(" · "),
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+            }
+            if (state.showSortToggle) {
+                PlayerPanelChip(
+                    modifier = Modifier.focusRequester(sortFocusRequester),
+                    text = if (state.sort == PlayerCommentSort.Latest) "最新" else "最热",
+                    emphasized = false,
+                    onClick = onToggleSort,
+                    onFocusChanged = onHeaderFocusChanged
+                )
+            }
+        }
+
+        if (state.detailRootComment != null) {
+            PlayerCommentDetailPanel(
+                rootComment = state.detailRootComment,
+                replies = state.detailReplies,
+                loading = state.detailLoading,
+                errorMessage = state.detailErrorMessage,
+                onBack = onCloseCommentDetail,
+                onOpenUpPage = onOpenUpPage,
+                onLike = onCommentLike,
+                onDislike = onCommentDislike
+            )
+            return@Column
+        }
+
+        when {
+            state.loading && state.comments.isEmpty() -> {
+                Text(
+                    modifier = Modifier
+                        .focusRequester(focusRequester)
+                        .focusable(),
+                    text = "加载中…",
+                    color = Color.White.copy(alpha = 0.72f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            state.errorMessage != null && state.comments.isEmpty() -> {
+                Text(
+                    modifier = Modifier
+                        .focusRequester(focusRequester)
+                        .focusable(),
+                    text = state.errorMessage,
+                    color = Color.White.copy(alpha = 0.72f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            state.comments.isEmpty() -> {
+                Text(
+                    modifier = Modifier
+                        .focusRequester(focusRequester)
+                        .focusable(),
+                    text = state.emptyText,
+                    color = Color.White.copy(alpha = 0.72f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.onPreviewKeyEvent {
+                        if (
+                            state.showSortToggle &&
+                            it.type == KeyEventType.KeyDown &&
+                            it.key == Key.Menu
+                        ) {
+                            scope.launch {
+                                listState.scrollToItem(0)
+                                sortFocusRequester.requestFocus()
+                            }
+                            return@onPreviewKeyEvent true
+                        }
+                        false
+                    },
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    itemsIndexed(state.comments) { index, comment ->
+                        PlayerCommentListItem(
+                            modifier = when {
+                                comment.id == restoreCommentId -> Modifier.focusRequester(restoreCommentFocusRequester)
+                                state.focusLatest && index == state.comments.lastIndex -> Modifier.focusRequester(latestFocusRequester)
+                                index == 0 -> Modifier.focusRequester(focusRequester)
+                                else -> Modifier
+                            },
+                            comment = comment,
+                            onClick = {
+                                restoreCommentId = comment.id
+                                onOpenCommentDetail(comment)
+                            },
+                            onOpenActions = { actionComment = comment }
+                        )
+                    }
+                    if (state.loading) {
+                        item {
+                            Text(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                text = "加载中…",
+                                color = Color.White.copy(alpha = 0.62f),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    actionComment?.let { comment ->
+        PlayerCommentActionDialog(
+            comment = comment,
+            onDismiss = { actionComment = null },
+            onOpenUpPage = onOpenUpPage,
+            onLike = onCommentLike,
+            onDislike = onCommentDislike
+        )
+    }
+}
+
+private suspend fun requestFocusWithRetry(focusRequester: FocusRequester) {
+    runCatching { focusRequester.requestFocus() }.onFailure {
+        delay(100)
+        runCatching { focusRequester.requestFocus() }
+    }
+}
+
+@Composable
+private fun PlayerCommentListItem(
+    modifier: Modifier = Modifier,
+    comment: PlayerCommentItem,
+    onClick: () -> Unit,
+    forceExpanded: Boolean = false,
+    onOpenActions: () -> Unit = {}
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    var expanded by remember(comment.id) { mutableStateOf(false) }
+    Surface(
+        onClick = onClick,
+        onLongClick = onOpenActions,
+        modifier = modifier
+            .fillMaxWidth()
+            .onFocusChanged { isFocused = it.isFocused },
+        shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.White.copy(alpha = 0.02f),
+            contentColor = Color.White,
+            focusedContainerColor = Color.White.copy(alpha = 0.1f),
+            focusedContentColor = Color.White
+        ),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = Border(
+                border = androidx.compose.foundation.BorderStroke(2.dp, Color.White.copy(alpha = 0.9f)),
+                shape = MaterialTheme.shapes.medium
+            ),
+            border = Border(
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                shape = MaterialTheme.shapes.medium
+            )
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (comment.avatar.isNotBlank()) {
+                AsyncImage(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape),
+                    model = comment.avatar,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .background(Color.White.copy(alpha = 0.12f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = comment.username.ifBlank { "?" }.take(1),
+                        color = Color.White.copy(alpha = 0.72f),
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                }
+            }
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        modifier = Modifier.weight(1f),
+                        text = comment.username.ifBlank { "匿名用户" },
+                        color = comment.color?.let { Color(0xff000000.toInt() or (it and 0x00ffffff)) }
+                            ?: Color.White.copy(alpha = 0.86f),
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = if (isFocused) FontWeight.Bold else FontWeight.Normal
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    val meta = listOf(comment.badgeText, comment.likeText, comment.replyText, comment.timeText)
+                        .filter { !it.isNullOrBlank() }
+                        .joinToString("  ")
+                    if (meta.isNotBlank()) {
+                        Text(
+                            modifier = Modifier.padding(start = 10.dp),
+                            text = meta,
+                            color = Color.White.copy(alpha = 0.58f),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                Text(
+                    text = comment.message,
+                    color = Color.White.copy(alpha = 0.9f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = if (forceExpanded || expanded) Int.MAX_VALUE else 4,
+                    overflow = if (forceExpanded || expanded) TextOverflow.Clip else TextOverflow.Ellipsis
+                )
+                if (comment.pictures.isNotEmpty()) {
+                    if (forceExpanded || expanded) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            comment.pictures.forEach { picture ->
+                                AsyncImage(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(132.dp)
+                                        .clip(MaterialTheme.shapes.medium),
+                                    model = picture.url,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = "${comment.pictures.size}张图片，进入详情展开",
+                            color = Color.White.copy(alpha = 0.58f),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+                if (comment.ipLocation.isNotBlank()) {
+                    Text(
+                        modifier = Modifier.align(Alignment.End),
+                        text = comment.ipLocation,
+                        color = Color.White.copy(alpha = 0.46f),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerCommentActionDialog(
+    comment: PlayerCommentItem,
+    onDismiss: () -> Unit,
+    onOpenUpPage: (Long, String) -> Unit,
+    onLike: (PlayerCommentItem) -> Unit,
+    onDislike: (PlayerCommentItem) -> Unit
+) {
+    TvAlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = comment.username.ifBlank { "评论操作" })
+        },
+        confirmButton = {},
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false
+        ),
+        text = {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                PlayerPanelChip(
+                    text = "点赞",
+                    emphasized = false,
+                    onFocusChanged = {},
+                    onClick = {
+                        onDismiss()
+                        onLike(comment)
+                    }
+                )
+                PlayerPanelChip(
+                    text = "主页",
+                    emphasized = true,
+                    onFocusChanged = {},
+                    onClick = {
+                        onDismiss()
+                        onOpenUpPage(comment.mid, comment.username)
+                    }
+                )
+                PlayerPanelChip(
+                    text = "点踩",
+                    emphasized = false,
+                    onFocusChanged = {},
+                    onClick = {
+                        onDismiss()
+                        onDislike(comment)
+                    }
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun PlayerCommentDetailPanel(
+    rootComment: PlayerCommentItem,
+    replies: List<PlayerCommentItem>,
+    loading: Boolean,
+    errorMessage: String?,
+    onBack: () -> Unit,
+    onOpenUpPage: (Long, String) -> Unit,
+    onLike: (PlayerCommentItem) -> Unit,
+    onDislike: (PlayerCommentItem) -> Unit
+) {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(rootComment.id) {
+        focusRequester.requestFocus()
+    }
+    LazyColumn(
+        modifier = Modifier.onPreviewKeyEvent {
+            if (it.key == Key.Back || it.key == Key.DirectionLeft) {
+                if (it.type == KeyEventType.KeyDown) onBack()
+                true
+            } else {
+                false
+            }
+        },
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            PlayerCommentListItem(
+                modifier = Modifier.focusRequester(focusRequester),
+                comment = rootComment,
+                onClick = {},
+                forceExpanded = true,
+                onOpenActions = { }
+            )
+        }
+        item {
+            Text(
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                text = "回复",
+                color = Color.White.copy(alpha = 0.72f),
+                style = MaterialTheme.typography.titleSmall
+            )
+        }
+        if (loading) {
+            item {
+                Text(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    text = "加载中…",
+                    color = Color.White.copy(alpha = 0.62f),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        } else if (errorMessage != null) {
+            item {
+                Text(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    text = errorMessage,
+                    color = Color.White.copy(alpha = 0.62f),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        } else if (replies.isEmpty()) {
+            item {
+                Text(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    text = "暂无回复",
+                    color = Color.White.copy(alpha = 0.62f),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        } else {
+            itemsIndexed(replies) { _, reply ->
+                PlayerCommentListItem(
+                    comment = reply,
+                    onClick = {},
+                    forceExpanded = true,
+                    onOpenActions = { }
+                )
             }
         }
     }
@@ -207,6 +771,7 @@ private fun PlayerRelatedPanel(
 private fun PlayerUpSpacePanel(
     state: PlayerUpPanelUiState,
     onHeaderFocusChanged: (Boolean) -> Unit,
+    onOpenUpPage: (Long, String) -> Unit,
     onVideoClicked: (VideoCardData) -> Unit,
     onToggleSort: () -> Unit,
     onToggleFollow: () -> Unit
@@ -228,14 +793,34 @@ private fun PlayerUpSpacePanel(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AsyncImage(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(MaterialTheme.shapes.large),
-                    model = state.upFace,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop
-                )
+                Surface(
+                    onClick = { onOpenUpPage(state.upMid, state.upName) },
+                    modifier = Modifier.size(50.dp),
+                    shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.large),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = Color.Transparent,
+                        contentColor = Color.White,
+                        focusedContainerColor = Color.White.copy(alpha = 0.14f),
+                        focusedContentColor = Color.White
+                    ),
+                    border = ClickableSurfaceDefaults.border(
+                        focusedBorder = Border(
+                            border = androidx.compose.foundation.BorderStroke(2.dp, Color.White.copy(alpha = 0.9f)),
+                            shape = MaterialTheme.shapes.large
+                        )
+                    ),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1f)
+                ) {
+                    AsyncImage(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .padding(2.dp)
+                            .clip(MaterialTheme.shapes.large),
+                        model = state.upFace,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop
+                    )
+                }
                 Column(
                     modifier = Modifier
                         .padding(start = 10.dp, end = 12.dp)
@@ -354,6 +939,7 @@ private fun PlayerSidePanelVideoItem(
 
 @Composable
 private fun PlayerPanelChip(
+    modifier: Modifier = Modifier,
     text: String,
     emphasized: Boolean,
     onFocusChanged: (Boolean) -> Unit,
@@ -362,7 +948,7 @@ private fun PlayerPanelChip(
     var isFocused by remember { mutableStateOf(false) }
     Surface(
         onClick = onClick,
-        modifier = Modifier
+        modifier = modifier
             .onFocusChanged {
                 isFocused = it.hasFocus
                 onFocusChanged(it.hasFocus)

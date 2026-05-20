@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -94,6 +95,7 @@ fun ControllerVideoInfo(
     onShowSettings: () -> Unit,
     onToggleJumpMode: () -> Unit,
     onShowRelatedVideos: () -> Unit,
+    onShowComments: () -> Unit,
     onGoToVideoInfo: () -> Unit,
     onToggleLoop: () -> Unit,
     onGoToUpPage: () -> Unit
@@ -148,6 +150,7 @@ fun ControllerVideoInfo(
                 onShowSettings = onShowSettings,
                 onToggleJumpMode = onToggleJumpMode,
                 onShowRelatedVideos = onShowRelatedVideos,
+                onShowComments = onShowComments,
                 onGoToVideoInfo = onGoToVideoInfo,
                 onToggleLoop = onToggleLoop,
                 onGoToUpPage = onGoToUpPage
@@ -275,6 +278,7 @@ fun ControllerVideoInfoBottom(
     onShowSettings: () -> Unit,
     onToggleJumpMode: () -> Unit,
     onShowRelatedVideos: () -> Unit,
+    onShowComments: () -> Unit,
     onGoToVideoInfo: () -> Unit,
     onToggleLoop: () -> Unit,
     onGoToUpPage: () -> Unit
@@ -481,6 +485,11 @@ fun ControllerVideoInfoBottom(
                 onClick = onShowRelatedVideos
             ) else null,
             ControllerInfoButton(
+                iconRes = R.drawable.comment_24px,
+                contentDescription = "评论",
+                onClick = onShowComments
+            ),
+            ControllerInfoButton(
                 iconRes = if (isLooping) R.drawable.repeat_one_on_24px else R.drawable.repeat_one_24px,
                 contentDescription = "循环播放",
                 onClick = onToggleLoop
@@ -514,7 +523,9 @@ fun ControllerVideoInfoBottom(
                     Icon(
                         painter = painterResource(id = button.iconRes),
                         contentDescription = button.contentDescription,
-                        modifier = Modifier.padding(5.dp),
+                        modifier = Modifier
+                            .size(32.dp)
+                            .padding(4.dp),
                         tint = LocalContentColor.current.copy(alpha = if (button.enabled) 1f else 0.32f)
                     )
                 }
@@ -608,6 +619,7 @@ private fun ControllerVideoInfoPreview() {
             onShowSettings = {},
             onToggleJumpMode = {},
             onShowRelatedVideos = {},
+            onShowComments = {},
             onGoToVideoInfo = {},
             onToggleLoop = {},
             onGoToUpPage = {},

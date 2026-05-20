@@ -32,6 +32,7 @@ import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.entity.PlayerCommentItem
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
@@ -106,10 +107,20 @@ fun VideoPlayerController(
     onJumpToPreviousVideo: () -> Unit,
     onJumpToNextVideo: () -> Unit,
     upPanelUiState: PlayerUpPanelUiState,
+    commentPanelUiState: PlayerCommentPanelUiState,
     onOpenUpPanel: () -> Unit,
+    onOpenCommentsPanel: () -> Unit,
     onUpVideoClicked: (VideoCardData) -> Unit,
     onToggleUpSort: () -> Unit,
     onToggleUpFollow: () -> Unit,
+    onToggleCommentSort: () -> Unit,
+    onLoadMoreComments: () -> Unit,
+    onCommentListPositionChanged: (Int, Int) -> Unit,
+    onOpenCommentDetail: (PlayerCommentItem) -> Unit,
+    onCloseCommentDetail: () -> Unit,
+    onOpenCommentUpPage: (Long, String) -> Unit,
+    onCommentLike: (PlayerCommentItem) -> Unit,
+    onCommentDislike: (PlayerCommentItem) -> Unit,
 
     //menu events
     onMediaProfileSettingChange: (MediaProfileSettingAction) -> Unit,
@@ -635,6 +646,14 @@ fun VideoPlayerController(
                 showListController = false
                 overlayState = overlayState.open(PlayerSidePanel.RelatedVideos)
             },
+            onShowComments = {
+                showInfoSeekController = false
+                showMenuController = false
+                showListController = false
+                showRelatedVideosController = false
+                onOpenCommentsPanel()
+                overlayState = overlayState.open(PlayerSidePanel.Comments)
+            },
             onGoToVideoInfo = {
                 VideoInfoActivity.actionStart(
                     context = context,
@@ -659,6 +678,7 @@ fun VideoPlayerController(
             activePanel = overlayState.activePanel,
             relatedVideos = uiState.relatedVideos,
             upPanelUiState = upPanelUiState,
+            commentPanelUiState = commentPanelUiState,
             onClose = {
                 overlayState = overlayState.closePanel()
             },
@@ -670,8 +690,16 @@ fun VideoPlayerController(
                 onUpVideoClicked(video)
                 overlayState = overlayState.closePanel()
             },
+            onOpenUpPage = onOpenCommentUpPage,
             onToggleUpSort = onToggleUpSort,
-            onToggleUpFollow = onToggleUpFollow
+            onToggleUpFollow = onToggleUpFollow,
+            onToggleCommentSort = onToggleCommentSort,
+            onLoadMoreComments = onLoadMoreComments,
+            onCommentListPositionChanged = onCommentListPositionChanged,
+            onOpenCommentDetail = onOpenCommentDetail,
+            onCloseCommentDetail = onCloseCommentDetail,
+            onCommentLike = onCommentLike,
+            onCommentDislike = onCommentDislike
         )
 
         VideoListController(

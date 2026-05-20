@@ -19,6 +19,7 @@ import dev.aaa1115910.biliapi.http.entity.region.RegionDynamic
 import dev.aaa1115910.biliapi.http.entity.region.RegionDynamicList
 import dev.aaa1115910.biliapi.http.entity.region.RegionFeedRcmd
 import dev.aaa1115910.biliapi.http.entity.region.RegionLocs
+import dev.aaa1115910.biliapi.http.entity.reply.ReplyData
 import dev.aaa1115910.biliapi.http.entity.search.AppSearchSquareData
 import dev.aaa1115910.biliapi.http.entity.search.KeywordSuggest
 import dev.aaa1115910.biliapi.http.entity.search.SearchResultData
@@ -195,6 +196,38 @@ object BiliHttpApi {
         parameter("aid", av)
         parameter("bvid", bv)
         sessData?.let { header("Cookie", "SESSDATA=$sessData;") }
+    }.body()
+
+    suspend fun getVideoReplyList(
+        oid: Long,
+        type: Int = 1,
+        sort: Int = 1,
+        page: Int = 1,
+        pageSize: Int = 20,
+        sessData: String? = null
+    ): BiliResponse<ReplyData> = client.get("/x/v2/reply") {
+        parameter("oid", oid)
+        parameter("type", type)
+        parameter("sort", sort)
+        parameter("pn", page)
+        parameter("ps", pageSize.coerceIn(1, 20))
+        sessData?.takeIf { it.isNotBlank() }?.let { header("Cookie", "SESSDATA=$it;") }
+    }.body()
+
+    suspend fun getVideoReplyDetail(
+        oid: Long,
+        root: Long,
+        type: Int = 1,
+        page: Int = 1,
+        pageSize: Int = 20,
+        sessData: String? = null
+    ): BiliResponse<ReplyData> = client.get("/x/v2/reply/reply") {
+        parameter("oid", oid)
+        parameter("type", type)
+        parameter("root", root)
+        parameter("pn", page)
+        parameter("ps", pageSize.coerceIn(1, 20))
+        sessData?.takeIf { it.isNotBlank() }?.let { header("Cookie", "SESSDATA=$it;") }
     }.body()
 
     /**

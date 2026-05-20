@@ -22,9 +22,11 @@ import androidx.compose.ui.platform.LocalContext
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.bv.component.DanmakuPlayerCompose
 import dev.aaa1115910.bv.component.controllers.PlayerUpPanelUiState
+import dev.aaa1115910.bv.component.controllers.PlayerCommentPanelUiState
 import dev.aaa1115910.bv.component.controllers.VideoPlayerController
 import dev.aaa1115910.bv.component.controllers.VideoProgressSeek
 import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
@@ -227,14 +229,34 @@ fun VideoPlayerV3Screen(
             playerViewModel.playJumpModeAdjacent(1)
         },
         upPanelUiState = PlayerUpPanelUiState(
+            upMid = uiState.authorMid,
             upName = uiState.authorName,
             upFace = uiState.authorFace,
             latestSelected = playerViewModel.isUpPanelLatestSelected,
             isFollowing = uiState.isFollowingUp,
             videos = playerViewModel.upPanelVideos
         ),
+        commentPanelUiState = PlayerCommentPanelUiState(
+            title = "评论",
+            sort = playerViewModel.commentSort,
+            totalCountText = playerViewModel.commentTotalCountText,
+            showSortToggle = true,
+            loading = playerViewModel.commentsLoading,
+            canLoadMore = playerViewModel.commentsCanLoadMore,
+            errorMessage = playerViewModel.commentsError,
+            comments = playerViewModel.commentItems,
+            rememberedFirstVisibleItemIndex = playerViewModel.commentListFirstVisibleItemIndex,
+            rememberedFirstVisibleItemScrollOffset = playerViewModel.commentListFirstVisibleItemScrollOffset,
+            detailRootComment = playerViewModel.commentDetailRoot,
+            detailReplies = playerViewModel.commentDetailReplies,
+            detailLoading = playerViewModel.commentDetailLoading,
+            detailErrorMessage = playerViewModel.commentDetailError
+        ),
         onOpenUpPanel = {
             playerViewModel.loadUpPanelVideos()
+        },
+        onOpenCommentsPanel = {
+            playerViewModel.loadComments()
         },
         onUpVideoClicked = { video ->
             playerViewModel.trySendHeartbeat()
@@ -245,6 +267,34 @@ fun VideoPlayerV3Screen(
         },
         onToggleUpFollow = {
             playerViewModel.toggleUpPanelFollow()
+        },
+        onToggleCommentSort = {
+            playerViewModel.toggleCommentSort()
+        },
+        onLoadMoreComments = {
+            playerViewModel.loadMoreComments()
+        },
+        onCommentListPositionChanged = { index, offset ->
+            playerViewModel.updateCommentListPosition(index, offset)
+        },
+        onOpenCommentDetail = { comment ->
+            playerViewModel.openCommentDetail(comment)
+        },
+        onCloseCommentDetail = {
+            playerViewModel.closeCommentDetail()
+        },
+        onOpenCommentUpPage = { mid, name ->
+            if (mid > 0L) {
+                UpInfoActivity.actionStart(context, mid, name)
+            } else {
+                "无法打开该用户主页".toast(context)
+            }
+        },
+        onCommentLike = {
+            playerViewModel.showCommentActionToast("点赞")
+        },
+        onCommentDislike = {
+            playerViewModel.showCommentActionToast("点踩")
         },
 
         onMediaProfileSettingChange = { action ->
