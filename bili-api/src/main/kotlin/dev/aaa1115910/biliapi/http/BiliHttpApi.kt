@@ -39,6 +39,7 @@ import dev.aaa1115910.biliapi.http.entity.user.RelationStat
 import dev.aaa1115910.biliapi.http.entity.user.UserCardData
 import dev.aaa1115910.biliapi.http.entity.user.UserFollowData
 import dev.aaa1115910.biliapi.http.entity.user.UserInfoData
+import dev.aaa1115910.biliapi.http.entity.user.UserSeasonsSeriesData
 import dev.aaa1115910.biliapi.http.entity.user.WebSpaceVideoData
 import dev.aaa1115910.biliapi.http.entity.user.favorite.FavoriteFolderInfo
 import dev.aaa1115910.biliapi.http.entity.user.favorite.FavoriteFolderInfoListData
@@ -1001,6 +1002,22 @@ object BiliHttpApi {
             parameter("ts", ts)
             parameter("access_key", accessKey)
         }.body()
+
+    suspend fun getUserSeasonsSeries(
+        mid: Long,
+        pageNumber: Int = 1,
+        pageSize: Int = 20
+    ): BiliResponse<UserSeasonsSeriesData> = client.get("/x/polymer/web-space/seasons_series_list") {
+        parameter("mid", mid)
+        parameter("page_num", pageNumber)
+        parameter("page_size", pageSize.coerceIn(1, 20))
+        parameter("web_location", "333.999")
+        parameter("dm_img_list", "[]")
+        parameter("dm_img_str", "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ")
+        parameter("dm_cover_img_str", "QU5HTEUgKEFNRCwgQU1EIFJhZGVvbiA3ODBNIEdyYXBoaWNzICgweDAwMDAxNUJGKSBEaXJlY3QzRDExIHZzXzVfMCBwc181XzAsIEQzRDExKUdvb2dsZSBJbmMuIChBTU")
+        parameter("dm_img_inter", "{\"ds\":[],\"wh\":[4769,2793,43],\"of\":[285,570,285]}")
+        header("referer", "https://space.bilibili.com/$mid")
+    }.body()
 
     /**
      * 获取剧集[seasonId]或[epId]的详细信息 (Web)，例如 ss24439 ep234533，传参仅需数字
