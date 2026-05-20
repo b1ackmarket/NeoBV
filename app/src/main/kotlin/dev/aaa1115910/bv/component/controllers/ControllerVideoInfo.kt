@@ -56,6 +56,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
+import dev.aaa1115910.biliapi.entity.video.VideoHeatmap
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.entity.ProgressSegmentMark
@@ -79,6 +80,8 @@ fun ControllerVideoInfo(
     playCountText: String,
     videoListButtonLabel: String,
     sponsorBlockProgressMarks: List<ProgressSegmentMark> = emptyList(),
+    watchedProgressMarks: List<ProgressSegmentMark> = emptyList(),
+    videoHeatmap: VideoHeatmap? = null,
     clock: Pair<Int, Int>,
     videoShot: VideoShot?,
     videoShotCache: VideoShotImageCache,
@@ -141,6 +144,8 @@ fun ControllerVideoInfo(
                 isLooping = isLooping,
                 videoListButtonLabel = videoListButtonLabel,
                 sponsorBlockProgressMarks = sponsorBlockProgressMarks,
+                watchedProgressMarks = watchedProgressMarks,
+                videoHeatmap = videoHeatmap,
                 onDirectionLeft = onDirectionLeft,
                 onDirectionRight = onDirectionRight,
                 onSeekGoTime = onSeekGoTime,
@@ -269,6 +274,8 @@ fun ControllerVideoInfoBottom(
     isLooping: Boolean,
     videoListButtonLabel: String,
     sponsorBlockProgressMarks: List<ProgressSegmentMark> = emptyList(),
+    watchedProgressMarks: List<ProgressSegmentMark> = emptyList(),
+    videoHeatmap: VideoHeatmap? = null,
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
     onSeekGoTime: () -> Unit,
@@ -444,7 +451,9 @@ fun ControllerVideoInfoBottom(
                 position = if (isSeeking) goTime else seekerState.currentTime,
                 bufferedPercentage = seekerState.bufferedPercentage,
                 isPersistentSeek = false,
-                segmentMarks = sponsorBlockProgressMarks
+                segmentMarks = sponsorBlockProgressMarks,
+                watchedSegmentMarks = watchedProgressMarks,
+                videoHeatmap = videoHeatmap
             )
         }
 
@@ -603,6 +612,7 @@ private fun ControllerVideoInfoPreview() {
             publishDateText = "5月8日",
             playCountText = "12.3万播放",
             videoListButtonLabel = "选集",
+            videoHeatmap = null,
             clock = Pair(12, 30),
             videoShot = null,
             videoShotCache = VideoShotImageCache(),

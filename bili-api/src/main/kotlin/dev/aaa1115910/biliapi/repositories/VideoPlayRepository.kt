@@ -14,6 +14,7 @@ import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskSegment
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskType
 import dev.aaa1115910.biliapi.entity.video.HeartbeatVideoType
 import dev.aaa1115910.biliapi.entity.video.Subtitle
+import dev.aaa1115910.biliapi.entity.video.VideoHeatmap
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.biliapi.grpc.utils.handleGrpcException
 import dev.aaa1115910.biliapi.http.BiliHttpApi
@@ -334,6 +335,14 @@ class VideoPlayRepository(
         }
         val videoShot = VideoShot.fromVideoShot(videoShortResponse.getResponseData())
         return videoShot
+    }
+
+    suspend fun getVideoHeatmap(
+        bvid: String,
+        cid: Long
+    ): VideoHeatmap? {
+        if (bvid.isBlank() || cid <= 0L) return null
+        return VideoHeatmap.fromPbp(BiliHttpApi.getVideoPbp(bvid = bvid, cid = cid))
     }
 
     suspend fun getOnlineCount(

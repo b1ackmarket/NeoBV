@@ -389,7 +389,8 @@ fun VideoPlayerV3Screen(
                     position = seekerState.value.currentTime,
                     bufferedPercentage = seekerState.value.bufferedPercentage,
                     isPersistentSeek = true,
-                    segmentMarks = uiState.sponsorBlockProgressMarks
+                    segmentMarks = uiState.sponsorBlockProgressMarks,
+                    watchedSegmentMarks = uiState.watchedProgressMarks
                 )
             }
         }

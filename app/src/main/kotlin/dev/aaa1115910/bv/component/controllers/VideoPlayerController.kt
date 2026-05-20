@@ -613,6 +613,8 @@ fun VideoPlayerController(
             playCountText = uiState.playCountText,
             videoListButtonLabel = videoListPanelState.buttonLabel,
             sponsorBlockProgressMarks = uiState.sponsorBlockProgressMarks,
+            watchedProgressMarks = uiState.watchedProgressMarks,
+            videoHeatmap = uiState.videoHeatmap,
             clock = uiState.clock,
             videoShot = uiState.videoShot,
             videoShotCache = videoShotCache,

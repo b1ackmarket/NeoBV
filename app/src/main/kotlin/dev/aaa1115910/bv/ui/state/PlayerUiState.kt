@@ -6,6 +6,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMask
 import dev.aaa1115910.biliapi.entity.video.Subtitle
+import dev.aaa1115910.biliapi.entity.video.VideoHeatmap
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bilisubtitle.entity.SubtitleItem
 import dev.aaa1115910.bv.component.controllers.DanmakuType
@@ -46,6 +47,7 @@ data class PlayerUiState(
     val isBuffering: Boolean = false, // 缓冲和暂停会同时出现，故单独列出
     // 进度条缩略图
     val videoShot: VideoShot? = null,
+    val videoHeatmap: VideoHeatmap? = null,
     // 播放器时钟
     val clock: Pair<Int, Int> = Pair(0, 0),
 
@@ -59,6 +61,7 @@ data class PlayerUiState(
     val showPlayerStats: Boolean = false,
     val mediaStatsInfo: String = "",
     val sponsorBlockProgressMarks: List<ProgressSegmentMark> = emptyList(),
+    val watchedProgressMarks: List<ProgressSegmentMark> = emptyList(),
     val jumpModeState: JumpModeState = JumpModeState(),
 
     // 播放器配置与资源

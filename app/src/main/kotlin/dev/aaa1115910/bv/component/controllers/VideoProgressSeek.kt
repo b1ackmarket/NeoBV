@@ -11,13 +11,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
+import dev.aaa1115910.biliapi.entity.video.VideoHeatmap
+import dev.aaa1115910.biliapi.entity.video.VideoHeatmapPoint
 import dev.aaa1115910.bv.entity.ProgressSegmentMark
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import kotlin.math.sqrt
 
 @Composable
 fun VideoProgressSeek(
@@ -26,17 +31,27 @@ fun VideoProgressSeek(
     position: Long,
     bufferedPercentage: Int,
     isPersistentSeek: Boolean,
-    segmentMarks: List<ProgressSegmentMark> = emptyList()
+    segmentMarks: List<ProgressSegmentMark> = emptyList(),
+    watchedSegmentMarks: List<ProgressSegmentMark> = emptyList(),
+    videoHeatmap: VideoHeatmap? = null
 ) {
     val colors: SliderColors = SliderDefaults.colors()
     val trackWidthDp = if (isPersistentSeek) 2.dp else 8.dp
     val segmentRanges = calculateProgressSegmentRanges(duration, segmentMarks)
+    val watchedRanges = calculateProgressSegmentRanges(duration, watchedSegmentMarks)
+    val heatmapPoints = if (!isPersistentSeek) videoHeatmap?.points.orEmpty() else emptyList()
+    val hasHeatmap = heatmapPoints.any { it.value > 0.0 }
+    val canvasHeightDp = when {
+        isPersistentSeek -> trackWidthDp
+        hasHeatmap -> 34.dp
+        else -> trackWidthDp
+    }
 
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(trackWidthDp)
-            .clip(RoundedCornerShape(50))
+            .height(canvasHeightDp)
+            .clip(RoundedCornerShape(8.dp))
     ) {
         val trackWidthPx = trackWidthDp.toPx()
         val currentFraction = if (duration > 0L) {
@@ -45,11 +60,26 @@ fun VideoProgressSeek(
             0f
         }
         val bufferedFraction = (bufferedPercentage.coerceIn(0, 100) / 100f)
+        val trackCenterY = if (hasHeatmap) {
+            size.height - trackWidthPx / 2f
+        } else {
+            center.y
+        }
+
+        if (hasHeatmap && duration > 0L) {
+            drawVideoHeatmap(
+                points = heatmapPoints,
+                duration = duration,
+                watchedRanges = watchedRanges,
+                playedColor = colors.activeTrackColor,
+                unplayedColor = colors.inactiveTrackColor
+            )
+        }
 
         drawLine(
             color = colors.inactiveTrackColor,
-            start = Offset(0f, center.y),
-            end = Offset(size.width, center.y),
+            start = Offset(0f, trackCenterY),
+            end = Offset(size.width, trackCenterY),
             strokeWidth = trackWidthPx,
             cap = StrokeCap.Round
         )
@@ -58,8 +88,8 @@ fun VideoProgressSeek(
             if (bufferedEndX > trackWidthPx / 2) {
                 drawLine(
                     color = colors.disabledActiveTrackColor,
-                    start = Offset(trackWidthPx / 2, center.y),
-                    end = Offset(bufferedEndX, center.y),
+                    start = Offset(trackWidthPx / 2, trackCenterY),
+                    end = Offset(bufferedEndX, trackCenterY),
                     strokeWidth = trackWidthPx,
                     cap = StrokeCap.Round
                 )
@@ -69,8 +99,8 @@ fun VideoProgressSeek(
         if (activeEndX > trackWidthPx / 2) {
             drawLine(
                 color = colors.activeTrackColor,
-                start = Offset(trackWidthPx / 2, center.y),
-                end = Offset(activeEndX, center.y),
+                start = Offset(trackWidthPx / 2, trackCenterY),
+                end = Offset(activeEndX, trackCenterY),
                 strokeWidth = trackWidthPx,
                 cap = StrokeCap.Round
             )
@@ -81,8 +111,8 @@ fun VideoProgressSeek(
             if (endX > startX) {
                 drawLine(
                     color = Color(segment.colorArgb),
-                    start = Offset(startX, center.y),
-                    end = Offset(endX, center.y),
+                    start = Offset(startX, trackCenterY),
+                    end = Offset(endX, trackCenterY),
                     strokeWidth = trackWidthPx,
                     cap = StrokeCap.Butt
                 )
@@ -90,6 +120,50 @@ fun VideoProgressSeek(
         }
     }
 
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawVideoHeatmap(
+    points: List<VideoHeatmapPoint>,
+    duration: Long,
+    watchedRanges: List<ProgressSegmentRange>,
+    playedColor: Color,
+    unplayedColor: Color
+) {
+    val validPoints = points.filter { it.value > 0.0 && it.startMs < duration }
+    if (validPoints.isEmpty()) return
+
+    val maxValue = validPoints.maxOf { it.value }.takeIf { it > 0.0 } ?: return
+    val heatmapTop = 2.dp.toPx()
+    val heatmapBottom = size.height - 10.dp.toPx()
+    val heatmapHeight = (heatmapBottom - heatmapTop).coerceAtLeast(1f)
+    val areaPath = Path().apply {
+        moveTo(0f, heatmapBottom)
+        validPoints.forEach { point ->
+            val centerMs = ((point.startMs + point.endMs) / 2L).coerceIn(0L, duration)
+            val x = size.width * (centerMs / duration.toFloat())
+            val normalized = sqrt((point.value / maxValue).coerceIn(0.0, 1.0)).toFloat()
+            val y = heatmapBottom - normalized * heatmapHeight
+            lineTo(x, y)
+        }
+        lineTo(size.width, heatmapBottom)
+        close()
+    }
+    drawPath(
+        path = areaPath,
+        color = unplayedColor.copy(alpha = 0.30f)
+    )
+    watchedRanges.forEach { range ->
+        val left = size.width * range.startFraction
+        val right = size.width * range.endFraction
+        if (right > left) {
+            clipRect(left = left, right = right) {
+                drawPath(
+                    path = areaPath,
+                    color = playedColor.copy(alpha = 0.48f)
+                )
+            }
+        }
+    }
 }
 
 internal data class ProgressSegmentRange(

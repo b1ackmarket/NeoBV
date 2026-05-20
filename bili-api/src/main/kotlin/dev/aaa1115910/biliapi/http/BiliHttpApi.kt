@@ -65,6 +65,7 @@ import dev.aaa1115910.biliapi.http.entity.video.TimelineAppData
 import dev.aaa1115910.biliapi.http.entity.video.VideoDetail
 import dev.aaa1115910.biliapi.http.entity.video.VideoInfo
 import dev.aaa1115910.biliapi.http.entity.video.VideoMoreInfo
+import dev.aaa1115910.biliapi.http.entity.video.VideoPbp
 import dev.aaa1115910.biliapi.http.entity.video.VideoShot
 import dev.aaa1115910.biliapi.http.entity.web.NavResponseData
 import dev.aaa1115910.biliapi.http.plugins.BiliUserAgent
@@ -806,6 +807,17 @@ object BiliHttpApi {
         if (sessData.isNotBlank()) {
             header("Cookie", "SESSDATA=$sessData;")
         }
+    }.body()
+
+    /**
+     * 获取视频高能进度条数据。
+     */
+    suspend fun getVideoPbp(
+        bvid: String,
+        cid: Long
+    ): VideoPbp = client.get("https://bvc.bilivideo.com/pbp/data") {
+        parameter("bvid", bvid)
+        parameter("cid", cid)
     }.body()
 
     /**

@@ -39,6 +39,7 @@ import dev.aaa1115910.bv.entity.PlayerCommentItem
 import dev.aaa1115910.bv.entity.PlayerCommentPicture
 import dev.aaa1115910.bv.entity.PlayerCommentSort
 import dev.aaa1115910.bv.entity.PlayerType
+import dev.aaa1115910.bv.entity.ProgressSegmentMark
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -169,6 +170,7 @@ class VideoPlayerV3ViewModel(
     private var upPanelLoadJob: Job? = null
     private var commentsLoadJob: Job? = null
     private var commentDetailLoadJob: Job? = null
+    private var lastWatchedProgressPositionMs = 0L
     private var commentPage = 1
     private var commentsHasMore = true
     private val loadedCommentIds = mutableSetOf<String>()
@@ -264,7 +266,9 @@ class VideoPlayerV3ViewModel(
             _uiState.update {
                 it.copy(
                     playerState = PlayerState.Ended,
-                    sponsorBlockProgressMarks = emptyList()
+                    sponsorBlockProgressMarks = emptyList(),
+                    watchedProgressMarks = emptyList(),
+                    videoHeatmap = null
                 )
             }
             viewModelScope.launch {
@@ -1012,7 +1016,14 @@ class VideoPlayerV3ViewModel(
                     .onFailure { logger.fWarn { "Plugin ${plugin.id} reset before switching video failed: ${it.message}" } }
             }
         }
-        _uiState.update { it.copy(sponsorBlockProgressMarks = emptyList()) }
+        resetWatchedProgress()
+        _uiState.update {
+            it.copy(
+                sponsorBlockProgressMarks = emptyList(),
+                watchedProgressMarks = emptyList(),
+                videoHeatmap = null
+            )
+        }
 
         val state = _uiState.value
 
@@ -1104,7 +1115,14 @@ class VideoPlayerV3ViewModel(
         val epid = state.epid
 
         loadVideoJob?.cancel()
-        _uiState.update { it.copy(sponsorBlockProgressMarks = emptyList()) }
+        resetWatchedProgress()
+        _uiState.update {
+            it.copy(
+                sponsorBlockProgressMarks = emptyList(),
+                watchedProgressMarks = emptyList(),
+                videoHeatmap = null
+            )
+        }
         loadVideoJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 resolveUrlsAndPlay(avid, cid, epid)
@@ -1121,6 +1139,7 @@ class VideoPlayerV3ViewModel(
                 launch { loadDanmaku(cid) }
                 launch { updateDanmakuMask() }
                 launch { updateVideoShot() }
+                launch { updateVideoHeatmap() }
                 launch { updateVideoPages() }
                 launch { refreshOnlineCount() }
             } catch (e: CancellationException) {
@@ -1678,6 +1697,20 @@ class VideoPlayerV3ViewModel(
         }
     }
 
+    private suspend fun updateVideoHeatmap() {
+        val state = _uiState.value
+        runCatching {
+            val videoHeatmap = videoPlayRepository.getVideoHeatmap(
+                bvid = state.bvid,
+                cid = state.cid
+            )
+            _uiState.update { it.copy(videoHeatmap = videoHeatmap) }
+            logger.fInfo { "Load video heatmap points: ${videoHeatmap?.points?.size ?: 0}" }
+        }.onFailure { err ->
+            logger.fWarn { "Load video heatmap failed: ${err.stackTraceToString()}" }
+        }
+    }
+
     private fun initDanmakuConfig() {
         val danmakuTypes = Prefs.defaultDanmakuTypes
         val area = Prefs.defaultDanmakuArea
@@ -1856,6 +1889,7 @@ class VideoPlayerV3ViewModel(
 
         val currentPos = player.currentPosition.coerceAtLeast(0L)
         val duration = player.duration.coerceAtLeast(0L)
+        updateWatchedProgress(currentPos, duration)
         _seekerState.update {
             it.copy(
                 totalDuration = duration,
@@ -1866,6 +1900,40 @@ class VideoPlayerV3ViewModel(
                     player.debugInfo
                 ).filter { info -> info.isNotBlank() }.joinToString("\n")
             )
+        }
+    }
+
+    private fun resetWatchedProgress(positionMs: Long = 0L) {
+        lastWatchedProgressPositionMs = positionMs
+        _uiState.update { it.copy(watchedProgressMarks = emptyList()) }
+    }
+
+    private fun updateWatchedProgress(currentPos: Long, duration: Long) {
+        val isPlaying = _uiState.value.playerState == PlayerState.Playing && videoPlayer?.isPlaying == true
+        if (!isPlaying || duration <= 0L) {
+            lastWatchedProgressPositionMs = currentPos
+            return
+        }
+
+        val previous = lastWatchedProgressPositionMs
+        lastWatchedProgressPositionMs = currentPos
+        val delta = currentPos - previous
+        if (previous <= 0L || delta !in 1L..1_500L) return
+
+        val start = previous.coerceIn(0L, duration)
+        val end = currentPos.coerceIn(0L, duration)
+        if (end <= start) return
+
+        val nextRanges = mergeWatchedProgressMarks(
+            marks = _uiState.value.watchedProgressMarks,
+            newMark = ProgressSegmentMark(
+                startMs = start,
+                endMs = end,
+                colorArgb = 0L
+            )
+        )
+        if (nextRanges != _uiState.value.watchedProgressMarks) {
+            _uiState.update { it.copy(watchedProgressMarks = nextRanges) }
         }
     }
 
@@ -2089,6 +2157,8 @@ internal fun PlayerUiState.copyForVideoSwitch(
         title = newVideo.title,
         isBuffering = true,
         videoShot = null,
+        videoHeatmap = null,
+        watchedProgressMarks = emptyList(),
         onlineCountText = null,
         mediaStatsInfo = "",
         publishDateText = if (clearDetailMetadata) "" else publishDateText,
@@ -2137,6 +2207,38 @@ internal fun formatCommentTotalCount(count: Int?): String {
         ?.toWanString()
         ?.let { "${it}条" }
         .orEmpty()
+}
+
+internal fun mergeWatchedProgressMarks(
+    marks: List<ProgressSegmentMark>,
+    newMark: ProgressSegmentMark
+): List<ProgressSegmentMark> {
+    if (newMark.endMs <= newMark.startMs) return marks
+    val merged = mutableListOf<ProgressSegmentMark>()
+    var start = newMark.startMs
+    var end = newMark.endMs
+    var inserted = false
+    (marks + newMark)
+        .sortedBy { it.startMs }
+        .forEach { mark ->
+            if (mark.endMs <= mark.startMs) return@forEach
+            if (!inserted && end < mark.startMs - 250L) {
+                merged += ProgressSegmentMark(start, end, newMark.colorArgb)
+                inserted = true
+            }
+            if (!inserted && mark.startMs <= end + 250L) {
+                start = minOf(start, mark.startMs)
+                end = maxOf(end, mark.endMs)
+            } else {
+                merged += mark
+            }
+        }
+    if (!inserted) {
+        merged += ProgressSegmentMark(start, end, newMark.colorArgb)
+    }
+    return merged
+        .takeLast(128)
+        .map { it.copy(colorArgb = newMark.colorArgb) }
 }
 
 private fun String.parseReplyColor(): Int? {
