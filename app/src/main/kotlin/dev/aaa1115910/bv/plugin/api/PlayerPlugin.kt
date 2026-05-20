@@ -4,7 +4,8 @@ data class PlayerPluginContext(
     val aid: Long,
     val cid: Long,
     val bvid: String,
-    val title: String
+    val title: String,
+    val fromSeason: Boolean = false
 )
 
 interface PlayerPlugin {

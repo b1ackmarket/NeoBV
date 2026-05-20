@@ -17,10 +17,12 @@ class SponsorBlockPlugin(
     private val handledSegmentIds = linkedSetOf<String>()
     private val dismissedSegmentIds = linkedSetOf<String>()
     private val minimumActivationPositionMs = 5_000L
+    private var allowEarlyActivation: Boolean = false
 
     override suspend fun onVideoLoaded(context: PlayerPluginContext) {
         enabled = configStore.isEnabled()
         config = configStore.readConfig().copy(enabled = enabled)
+        allowEarlyActivation = context.fromSeason
         handledSegmentIds.clear()
         dismissedSegmentIds.clear()
         segments = if (!enabled) {
@@ -32,7 +34,9 @@ class SponsorBlockPlugin(
 
     override suspend fun onPlaybackPosition(positionMs: Long): PluginPlaybackAction {
         if (!enabled || segments.isEmpty()) return PluginPlaybackAction.None
-        if (positionMs < minimumActivationPositionMs) return PluginPlaybackAction.None
+        if (!allowEarlyActivation && positionMs < minimumActivationPositionMs) {
+            return PluginPlaybackAction.None
+        }
 
         dismissedSegmentIds.removeAll { segmentId ->
             segments.firstOrNull { it.id == segmentId }?.contains(positionMs) != true
@@ -70,6 +74,7 @@ class SponsorBlockPlugin(
     override suspend fun onPlaybackEnded() {
         handledSegmentIds.clear()
         dismissedSegmentIds.clear()
+        allowEarlyActivation = false
         segments = emptyList()
     }
 

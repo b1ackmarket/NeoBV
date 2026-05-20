@@ -2000,7 +2000,8 @@ class VideoPlayerV3ViewModel(
             aid = state.aid,
             cid = state.cid,
             bvid = state.bvid,
-            title = state.title
+            title = state.title,
+            fromSeason = state.fromSeason
         )
         PluginManager.getPlayerPlugins().forEach { plugin ->
             runCatching { plugin.onVideoLoaded(context) }
