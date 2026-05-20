@@ -54,7 +54,8 @@ internal fun shouldRequestFollowingSeasonInitialFocus(itemCount: Int): Boolean =
 @Composable
 fun FollowingSeasonScreen(
     modifier: Modifier = Modifier,
-    followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel()
+    followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel(),
+    requestInitialFocus: Boolean = true
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -86,7 +87,7 @@ fun FollowingSeasonScreen(
     }
 
     LaunchedEffect(followingSeasons.size) {
-        if (shouldRequestFollowingSeasonInitialFocus(followingSeasons.size)) {
+        if (requestInitialFocus && shouldRequestFollowingSeasonInitialFocus(followingSeasons.size)) {
             firstCardFocusRequester.requestFocus(scope)
         }
     }

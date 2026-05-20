@@ -19,6 +19,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -73,6 +74,7 @@ fun DynamicsScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val firstGridItemFocusRequester = remember { FocusRequester() }
+    var gridReturnFocusIndex by remember { mutableIntStateOf(0) }
     val selectedAuthor = dynamicViewModel.selectedAuthor
     val filteredDynamics = dynamicViewModel.filteredDynamicList
     val onLogin = remember(context) {
@@ -101,7 +103,15 @@ fun DynamicsScreen(
     }
 
     LaunchedEffect(selectedAuthor) {
+        gridReturnFocusIndex = 0
         gridState.scrollToItem(0)
+    }
+
+    LaunchedEffect(filteredDynamics.size) {
+        gridReturnFocusIndex = gridReturnFocusIndex.coerceIn(
+            0,
+            (filteredDynamics.size - 1).coerceAtLeast(0)
+        )
     }
 
     LaunchedEffect(gridState, selectedAuthor, dynamicViewModel.dynamicList.size) {
@@ -160,7 +170,11 @@ fun DynamicsScreen(
                             .ifElse(isSelected, Modifier.focusRequester(defaultFocusRequester))
                             .onFocusChanged { isFocused = it.isFocused }
                             .focusProperties {
-                                right = firstGridItemFocusRequester
+                                right = if (filteredDynamics.isNotEmpty()) {
+                                    firstGridItemFocusRequester
+                                } else {
+                                    FocusRequester.Default
+                                }
                             },
                         onClick = {
                             dynamicViewModel.selectAuthor(if (isAllAuthors) null else author)
@@ -210,7 +224,10 @@ fun DynamicsScreen(
                 ) { index, item ->
                     SmallVideoCard(
                         modifier = Modifier
-                            .ifElse(index == 0, Modifier.focusRequester(firstGridItemFocusRequester))
+                            .ifElse(index == gridReturnFocusIndex, Modifier.focusRequester(firstGridItemFocusRequester))
+                            .onFocusChanged {
+                                if (it.hasFocus) gridReturnFocusIndex = index
+                            }
                             .focusProperties {
                                 left = defaultFocusRequester
                             },

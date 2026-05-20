@@ -165,7 +165,7 @@ fun PersonalContent(
                     }
 
                     PersonalTopNavItem.FollowingSeason -> {
-                        FollowingSeasonScreen()
+                        FollowingSeasonScreen(requestInitialFocus = false)
                     }
                 }
             }
