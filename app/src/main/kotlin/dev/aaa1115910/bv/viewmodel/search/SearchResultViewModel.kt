@@ -124,7 +124,7 @@ class SearchResultViewModel(
         val requestTid = selectedChildPartition?.tid ?: selectedPartition?.tid
         val requestOrder = selectedOrder
         val requestDuration = selectedDuration
-        val requestApiType = Prefs.apiType
+        val requestApiType = Prefs.recommendationApiType.toRequestApiType()
         val requestEnableProxy = enableProxySearchResult
         val page = when (searchType) {
             SearchType.Video -> videoSearchResult.page

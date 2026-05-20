@@ -99,6 +99,18 @@ object Prefs {
         save = { it.ordinal },
         restore = { ApiType.entries.getOrElse(it) { ApiType.Web } }
     )
+    var recommendationApiType by pref(
+        PrefKeys.prefRecommendationApiTypeKey,
+        RecommendationApiType.Web,
+        save = { it.ordinal },
+        restore = { RecommendationApiType.entries.getOrElse(it) { RecommendationApiType.Web } }
+    )
+    var playbackApiType by pref(
+        PrefKeys.prefPlaybackApiTypeKey,
+        ApiType.Web,
+        save = { it.ordinal },
+        restore = { ApiType.entries.getOrElse(it) { ApiType.Web } }
+    )
     var enableProxy by pref(PrefKeys.prefEnableProxyKey, false)
     var proxyHttpServer by pref(PrefKeys.prefProxyHttpServerKey, "")
     var proxyGRPCServer by pref(PrefKeys.prefProxyGRPCServerKey, "")
@@ -154,6 +166,7 @@ object Prefs {
         PrefKeys.prefEnableFfmpegAudioRenderer,
         PrefDefaultValues.enableFfmpegAudioRenderer
     )
+    var enableVolumeNormalization by pref(PrefKeys.prefEnableVolumeNormalizationKey, false)
 
     // =========================================================================
     // 播放器 - 弹幕
@@ -174,8 +187,8 @@ object Prefs {
                 .mapNotNull { runCatching { DanmakuType.entries[it.toInt()] }.getOrNull() }
         }
     )
-    var defaultDanmakuScale by pref(PrefKeys.prefDefaultDanmakuScaleKey, 1.75f)
-    var defaultDanmakuOpacity by pref(PrefKeys.prefDefaultDanmakuOpacityKey, 0.7f)
+    var defaultDanmakuScale by pref(PrefKeys.prefDefaultDanmakuScaleKey, 1.5f)
+    var defaultDanmakuOpacity by pref(PrefKeys.prefDefaultDanmakuOpacityKey, 0.5f)
     var defaultDanmakuSpeedFactor by pref(PrefKeys.prefDefaultDanmakuSpeedFactorKey, 1f)
     var defaultDanmakuArea by pref(PrefKeys.prefDefaultDanmakuAreaKey, 0.5f)
     var defaultDanmakuMask by pref(PrefKeys.prefDefaultDanmakuMask, false)
@@ -300,6 +313,23 @@ object Prefs {
     }
 }
 
+enum class RecommendationApiType(
+    val displayName: String,
+    val supportText: String
+) {
+    Web("Web", "使用网页端推荐和搜索接口"),
+    App("App", "使用移动端推荐和搜索接口"),
+    None("无推荐", "不携带登录态获取推荐，尽量减少个性化");
+
+    fun toRequestApiType(): ApiType = when (this) {
+        Web, None -> ApiType.Web
+        App -> ApiType.App
+    }
+
+    val useAuth: Boolean
+        get() = this != None
+}
+
 internal object PrefDefaultValues {
     val defaultQuality = Resolution.R8K
     val defaultLiveQuality = LiveDefaultQuality.Dolby
@@ -368,6 +398,8 @@ private object PrefKeys {
 
     // 网络 & API
     val prefApiTypeKey = intPreferencesKey("api_type")
+    val prefRecommendationApiTypeKey = intPreferencesKey("recommendation_api_type")
+    val prefPlaybackApiTypeKey = intPreferencesKey("playback_api_type")
     val prefEnableProxyKey = booleanPreferencesKey("enable_proxy")
     val prefProxyHttpServerKey = stringPreferencesKey("proxy_http_server")
     val prefProxyGRPCServerKey = stringPreferencesKey("proxy_grpc_server")
@@ -384,6 +416,7 @@ private object PrefKeys {
     // 播放器 - 音频
     val prefDefaultAudioKey = intPreferencesKey("da")
     val prefEnableFfmpegAudioRenderer = booleanPreferencesKey("enable_ffmpeg_audio_renderer")
+    val prefEnableVolumeNormalizationKey = booleanPreferencesKey("enable_volume_normalization")
 
     // 播放器 - 弹幕
     val prefDefaultDanmakuTypesKey = stringPreferencesKey("ddts")

@@ -23,14 +23,15 @@ class RecommendVideoRepository(
 
     suspend fun getPopularVideos(
         page: PopularVideoPage,
-        preferApiType: ApiType = ApiType.Web
+        preferApiType: ApiType = ApiType.Web,
+        useAuth: Boolean = true
     ): PopularVideoData {
         return when (preferApiType) {
             ApiType.Web -> {
                 val response = BiliHttpApi.getPopularVideoData(
                     pageSize = page.nextWebPageSize,
                     pageNumber = page.nextWebPageNumber,
-                    sessData = authRepository.sessionData ?: ""
+                    sessData = if (useAuth) authRepository.sessionData ?: "" else ""
                 ).getResponseData()
                 val list = response.list.map { UgcItem.fromVideoInfo(it) }
                 val nextPage = PopularVideoPage(
@@ -66,19 +67,20 @@ class RecommendVideoRepository(
 
     suspend fun getRecommendVideos(
         page: RecommendPage = RecommendPage(),
-        preferApiType: ApiType = ApiType.Web
+        preferApiType: ApiType = ApiType.Web,
+        useAuth: Boolean = true
     ): RecommendData {
         val items = when (preferApiType) {
             ApiType.Web -> BiliHttpApi.getFeedRcmd(
                 idx = page.nextWebIdx,
-                sessData = authRepository.sessionData
+                sessData = if (useAuth) authRepository.sessionData else null
             )
                 .getResponseData().item
                 .map { UgcItem.fromRcmdItem(it) }
 
             ApiType.App -> BiliHttpApi.getFeedIndex(
                 idx = page.nextAppIdx,
-                accessKey = authRepository.accessToken
+                accessKey = if (useAuth) authRepository.accessToken else null
             )
                 .getResponseData().items
                 .filter { it.cardGoto == "av" }

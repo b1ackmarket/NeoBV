@@ -42,9 +42,15 @@ fun CookiesDialog(
         scope.launch {
             runCatching {
                 val authData = AuthTransferStorage.importFromUri(context, uri)
-                userRepository.addUser(authData)
+                userRepository.addUser(authData.authData)
+                authData.settingsData?.saveToPrefs()
                 val displayName = AuthTransferStorage.resolveDisplayName(context, uri)
-                "已从 $displayName 导入登录信息".toast(context, Toast.LENGTH_LONG)
+                val importText = if (authData.settingsData == null) {
+                    "已从 $displayName 导入登录信息"
+                } else {
+                    "已从 $displayName 导入登录信息和设置"
+                }
+                importText.toast(context, Toast.LENGTH_LONG)
             }.onFailure {
                 println(it.stackTraceToString())
                 "导入失败：${it.message ?: "无法解析文件"}".toast(context, Toast.LENGTH_LONG)
@@ -56,14 +62,14 @@ fun CookiesDialog(
         AlertDialog(
             modifier = modifier,
             onDismissRequest = { onHideDialog() },
-            title = { Text(text = "Cookies 导入/导出") },
+            title = { Text(text = "数据导入/导出") },
             text = {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "导出会默认写入电视Documents目录，方便转移登录信息。",
+                        text = "导出会默认写入电视 Documents 目录，包含登录信息和当前软件设置。",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -90,7 +96,7 @@ fun CookiesDialog(
                             },
                             modifier = Modifier.padding(horizontal = 4.dp)
                         ) {
-                            Text(text = "导出到 Documents")
+                            Text(text = "导出数据")
                         }
                         OutlinedButton(
                             onClick = {
@@ -99,7 +105,7 @@ fun CookiesDialog(
                                 )
                             }
                         ) {
-                            Text(text = "从文件导入")
+                            Text(text = "导入数据")
                         }
                     }
                 }

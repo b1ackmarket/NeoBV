@@ -29,6 +29,7 @@ import dev.aaa1115910.bv.component.settings.CookiesDialog
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.util.RecommendationApiType
 
 @Composable
 fun OtherSetting(
@@ -38,9 +39,11 @@ fun OtherSetting(
     val scrollState = rememberScrollState()
 
     var showCookiesDialog by remember { mutableStateOf(false) }
-    var showPreferedApiDialog by remember { mutableStateOf(false) }
+    var showRecommendationApiDialog by remember { mutableStateOf(false) }
+    var showPlaybackApiDialog by remember { mutableStateOf(false) }
 
-    var selectedApi by remember { mutableStateOf(Prefs.apiType) }
+    var selectedRecommendationApi by remember { mutableStateOf(Prefs.recommendationApiType) }
+    var selectedPlaybackApi by remember { mutableStateOf(Prefs.playbackApiType) }
 
     Column(
         modifier = modifier
@@ -57,9 +60,14 @@ fun OtherSetting(
         Spacer(modifier = Modifier.height(12.dp))
 
         SettingListItem(
-            title = "接口选择",
-            supportText = "当前：${selectedApi.name}",
-            onClick = { showPreferedApiDialog = true }
+            title = "推荐搜索算法",
+            supportText = "当前：${selectedRecommendationApi.displayName}；${selectedRecommendationApi.supportText}",
+            onClick = { showRecommendationApiDialog = true }
+        )
+        SettingListItem(
+            title = "视频播放接口",
+            supportText = "当前：${selectedPlaybackApi.toPlaybackApiDisplayName()}",
+            onClick = { showPlaybackApiDialog = true }
         )
 //        SettingSwitchListItem(
 //            title = stringResource(R.string.settings_other_firebase_title),
@@ -73,8 +81,8 @@ fun OtherSetting(
 
 
         SettingListItem(
-            title = stringResource(R.string.settings_other_cookies_title),
-            supportText = stringResource(R.string.settings_other_cookies_text),
+            title = "数据导入/导出",
+            supportText = "导入或导出登录信息、播放设置、界面设置等软件数据",
             onClick = { showCookiesDialog = true }
         )
 
@@ -102,16 +110,37 @@ fun OtherSetting(
         onHideDialog = { showCookiesDialog = false }
     )
 
-    if (showPreferedApiDialog) {
+    if (showRecommendationApiDialog) {
+        OptionDialog(
+            options = RecommendationApiType.entries.toTypedArray(),
+            selectedOption = selectedRecommendationApi,
+            onDismiss = { showRecommendationApiDialog = false },
+            onSelect = {
+                Prefs.recommendationApiType = it
+                selectedRecommendationApi = it
+            },
+            getDisplayName = { it.displayName }
+        )
+    }
+
+    if (showPlaybackApiDialog) {
         OptionDialog(
             options = ApiType.entries.toTypedArray(),
-            selectedOption = selectedApi,
-            onDismiss = { showPreferedApiDialog = false },
+            selectedOption = selectedPlaybackApi,
+            onDismiss = { showPlaybackApiDialog = false },
             onSelect = {
+                Prefs.playbackApiType = it
                 Prefs.apiType = it
-                selectedApi = it
+                selectedPlaybackApi = it
             },
-            getDisplayName = { it.name }
+            getDisplayName = { it.toPlaybackApiDisplayName() }
         )
+    }
+}
+
+private fun ApiType.toPlaybackApiDisplayName(): String {
+    return when (this) {
+        ApiType.Web -> "Web"
+        ApiType.App -> "gRPC / App"
     }
 }

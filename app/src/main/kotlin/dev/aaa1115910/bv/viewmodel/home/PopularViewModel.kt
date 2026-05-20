@@ -46,7 +46,8 @@ class PopularViewModel(
         runCatching {
             val popularVideoData = recommendVideoRepository.getPopularVideos(
                 page = nextPage,
-                preferApiType = Prefs.apiType
+                preferApiType = Prefs.recommendationApiType.toRequestApiType(),
+                useAuth = Prefs.recommendationApiType.useAuth
             )
             beforeAppendData()
             nextPage = popularVideoData.nextPage

@@ -119,31 +119,6 @@ class SearchRepository(
         preferApiType: ApiType = ApiType.App,
         enableProxy: Boolean = false
     ): SearchTypeResult {
-        suspend fun searchByWeb(): SearchTypeResult {
-            val response = if (enableProxy) {
-                BiliHttpProxyApi.searchType(
-                    keyword = keyword,
-                    type = type.httpTypeParam,
-                    page = page.nextPageForWeb,
-                    tid = tid,
-                    order = order.httpOrderParam,
-                    duration = duration.httpDurationParam,
-                    buvid3 = authRepository.buvid3 ?: "",
-                )
-            } else {
-                BiliHttpApi.searchType(
-                    keyword = keyword,
-                    type = type.httpTypeParam,
-                    page = page.nextPageForWeb,
-                    tid = tid,
-                    order = order.httpOrderParam,
-                    duration = duration.httpDurationParam,
-                    buvid3 = authRepository.buvid3 ?: "",
-                )
-            }.getResponseData()
-            return SearchTypeResult.fromSearchTypeResult(response)
-        }
-
         suspend fun searchByApp(): SearchTypeResult {
             val searchTypeReply = runCatching {
                 val searchTypeRequest = searchByTypeRequest {
@@ -167,10 +142,45 @@ class SearchRepository(
             return SearchTypeResult.fromSearchTypeResult(searchTypeReply)
         }
 
-        return when {
-            preferApiType == ApiType.Web -> searchByWeb()
-            type == SearchType.Video -> searchByWeb()
-            else -> searchByApp()
+        suspend fun searchByWeb(): SearchTypeResult {
+            return runCatching {
+                val response = if (enableProxy) {
+                    BiliHttpProxyApi.searchType(
+                        keyword = keyword,
+                        type = type.httpTypeParam,
+                        page = page.nextPageForWeb,
+                        tid = tid,
+                        order = order.httpOrderParam,
+                        duration = duration.httpDurationParam,
+                        buvid3 = authRepository.buvid3 ?: "",
+                    )
+                } else {
+                    BiliHttpApi.searchType(
+                        keyword = keyword,
+                        type = type.httpTypeParam,
+                        page = page.nextPageForWeb,
+                        tid = tid,
+                        order = order.httpOrderParam,
+                        duration = duration.httpDurationParam,
+                        buvid3 = authRepository.buvid3 ?: "",
+                    )
+                }.getResponseData()
+                SearchTypeResult.fromSearchTypeResult(response)
+            }.getOrElse { webError ->
+                if (type == SearchType.Video || preferApiType == ApiType.Web) {
+                    runCatching { searchByApp() }.getOrElse { throw webError }
+                } else {
+                    throw webError
+                }
+            }
+        }
+
+        return when (preferApiType) {
+            ApiType.Web -> searchByWeb()
+            ApiType.App -> runCatching { searchByApp() }
+                .getOrElse { appError ->
+                    if (type == SearchType.Video) searchByWeb() else throw appError
+                }
         }
     }
 }

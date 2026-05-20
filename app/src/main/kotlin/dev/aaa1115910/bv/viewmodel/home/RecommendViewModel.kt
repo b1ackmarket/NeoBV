@@ -59,7 +59,8 @@ class RecommendViewModel(
         runCatching {
             val recommendData = recommendVideoRepository.getRecommendVideos(
                 page = nextPage,
-                preferApiType = Prefs.apiType
+                preferApiType = Prefs.recommendationApiType.toRequestApiType(),
+                useAuth = Prefs.recommendationApiType.useAuth
             )
             beforeAppendData()
             nextPage = recommendData.nextPage
