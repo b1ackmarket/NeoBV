@@ -6,6 +6,7 @@ import dev.aaa1115910.bv.plugin.impl.sponsorblock.SkipPolicy
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.SponsorBlockCategoryStyle
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.SponsorBlockConfig
 import dev.aaa1115910.bv.util.LogCatcherUtil
+import io.ktor.http.Parameters
 import io.ktor.http.ContentDisposition
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -28,6 +29,8 @@ import java.io.FileNotFoundException
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
@@ -40,11 +43,14 @@ object HttpServer {
     var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
     private val json = Json { ignoreUnknownKeys = true }
     private var currentMpdContent: String? = null
+    private val _searchInputFlow = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val searchInputFlow = _searchInputFlow.asSharedFlow()
 
     fun startServer() {
         if (server != null) return
         val newServer = embeddedServer(CIO, port = SERVER_PORT) {
             homeModule()
+            searchInputModule()
             logsUiStaticModule()
             logsApiModule()
             sponsorBlockModule()
@@ -75,6 +81,8 @@ object HttpServer {
 
     fun getMpdUrl(): String = getServerAddress("/video.mpd")
 
+    fun getSearchInputUrl(): String = getServerAddress("/input")
+
     private fun Application.homeModule() {
         routing {
             get("/video.mpd") {
@@ -95,6 +103,36 @@ object HttpServer {
                         status = HttpStatusCode.NotFound
                     )
                 call.respondBytes(bytes, contentType = ContentType.Text.Html.withCharset(Charsets.UTF_8))
+            }
+        }
+    }
+
+    private fun Application.searchInputModule() {
+        routing {
+            get("/input") {
+                call.respondText(
+                    text = searchInputHtml(),
+                    contentType = ContentType.Text.Html.withCharset(Charsets.UTF_8)
+                )
+            }
+            post("/api/search/input") {
+                val body = call.receiveText()
+                val keyword = parseFormBody(body)["keyword"]
+                    ?.trim()
+                    ?.take(200)
+                    .orEmpty()
+                if (keyword.isBlank()) {
+                    return@post call.respondText(
+                        text = """{"success":false,"error":"empty keyword"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.BadRequest
+                    )
+                }
+                _searchInputFlow.tryEmit(keyword)
+                call.respondText(
+                    text = """{"success":true}""",
+                    contentType = ContentType.Application.Json
+                )
             }
         }
     }
@@ -521,6 +559,129 @@ object HttpServer {
             }
             append(']')
         }
+    }
+
+    private fun parseFormBody(body: String): Parameters {
+        return Parameters.build {
+            body.split('&')
+                .filter { it.isNotBlank() }
+                .forEach { pair ->
+                    val key = pair.substringBefore('=').decodeUrlFormPart()
+                    val value = pair.substringAfter('=', "").decodeUrlFormPart()
+                    append(key, value)
+                }
+        }
+    }
+
+    private fun String.decodeUrlFormPart(): String {
+        return java.net.URLDecoder.decode(this, Charsets.UTF_8.name())
+    }
+
+    private fun searchInputHtml(): String {
+        return """
+            <!DOCTYPE html>
+            <html lang="zh-CN">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>NeoBV 搜索输入</title>
+              <style>
+                * { box-sizing: border-box; }
+                body {
+                  margin: 0;
+                  min-height: 100vh;
+                  background: #111214;
+                  color: #f6f7fb;
+                  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+                  display: grid;
+                  place-items: center;
+                  padding: 24px;
+                }
+                main {
+                  width: min(520px, 100%);
+                }
+                h1 {
+                  margin: 0 0 10px;
+                  font-size: 28px;
+                }
+                p {
+                  margin: 0 0 18px;
+                  color: #a5adba;
+                  line-height: 1.5;
+                }
+                form {
+                  display: grid;
+                  gap: 12px;
+                }
+                textarea {
+                  width: 100%;
+                  min-height: 140px;
+                  resize: vertical;
+                  border: 1px solid rgba(255,255,255,0.12);
+                  border-radius: 14px;
+                  background: #1c1f26;
+                  color: #fff;
+                  padding: 14px 16px;
+                  font-size: 18px;
+                  line-height: 1.5;
+                  outline: none;
+                }
+                textarea:focus {
+                  border-color: #72d58a;
+                  box-shadow: 0 0 0 3px rgba(114,213,138,0.16);
+                }
+                button {
+                  height: 48px;
+                  border: none;
+                  border-radius: 14px;
+                  background: #72d58a;
+                  color: #0d1510;
+                  font-size: 17px;
+                  font-weight: 700;
+                }
+                .status {
+                  min-height: 24px;
+                  color: #a5adba;
+                  font-size: 15px;
+                }
+              </style>
+            </head>
+            <body>
+              <main>
+                <h1>手机输入搜索</h1>
+                <p>输入文字后直接在电视上搜索。</p>
+                <form id="form">
+                  <textarea id="keyword" name="keyword" autofocus placeholder="输入 BV 号、关键词或链接"></textarea>
+                  <button type="submit">搜索</button>
+                  <div id="status" class="status"></div>
+                </form>
+              </main>
+              <script>
+                const form = document.getElementById('form');
+                const input = document.getElementById('keyword');
+                const status = document.getElementById('status');
+                let statusTimer = null;
+                const setStatus = (text) => {
+                  status.textContent = text;
+                  if (statusTimer) clearTimeout(statusTimer);
+                  if (text) statusTimer = setTimeout(() => { status.textContent = ''; }, 3000);
+                };
+                form.addEventListener('submit', async (event) => {
+                  event.preventDefault();
+                  setStatus('正在搜索...');
+                  const body = new URLSearchParams();
+                  body.set('keyword', input.value);
+                  const response = await fetch('/api/search/input', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'},
+                    body
+                  });
+                  setStatus(response.ok ? '已搜索' : '搜索失败，请检查电视和手机是否在同一网络');
+                });
+              </script>
+            </body>
+            </html>
+        """.trimIndent()
     }
 
     private fun jsonEscape(s: String): String {

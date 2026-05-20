@@ -52,24 +52,6 @@ fun SoftKeyboard(
         modifier = modifier.width(258.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        keys.forEachIndexed { rowIndex, rowKeys ->
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                rowKeys.forEachIndexed { index, key ->
-                    val keyModifier = if (rowIndex == 0 && index == 0) {
-                        Modifier.focusRequester(firstButtonFocusRequester)
-                    } else {
-                        Modifier
-                    }
-                    SoftKeyboardKey(
-                        modifier = keyModifier,
-                        key = key,
-                        onClick = { onClick(key) }
-                    )
-                }
-            }
-        }
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -88,6 +70,24 @@ fun SoftKeyboard(
                 key = stringResource(R.string.search_input_soft_keybord_search),
                 onClick = onSearch
             )
+        }
+        keys.forEachIndexed { rowIndex, rowKeys ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                rowKeys.forEachIndexed { index, key ->
+                    val keyModifier = if (rowIndex == 0 && index == 0) {
+                        Modifier.focusRequester(firstButtonFocusRequester)
+                    } else {
+                        Modifier
+                    }
+                    SoftKeyboardKey(
+                        modifier = keyModifier,
+                        key = key,
+                        onClick = { onClick(key) }
+                    )
+                }
+            }
         }
         if (showSearchWithProxy) {
             Surface(

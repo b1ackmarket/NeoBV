@@ -11,6 +11,7 @@ import dev.aaa1115910.biliapi.repositories.SearchRepository
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.dao.AppDatabase
 import dev.aaa1115910.bv.entity.db.SearchHistoryDB
+import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.swapListWithMainContext
@@ -30,6 +31,8 @@ class SearchInputViewModel(
     private val logger = KotlinLogging.logger { }
 
     var keyword by mutableStateOf("")
+    var phoneSearchKeyword by mutableStateOf<String?>(null)
+        private set
     val hotwords = mutableStateListOf<Hotword>()
     val suggests = mutableStateListOf<String>()
     val searchHistories = mutableStateListOf<SearchHistoryDB>()
@@ -37,6 +40,20 @@ class SearchInputViewModel(
     init {
         updateHotwords()
         loadSearchHistories()
+        observePhoneInput()
+    }
+
+    private fun observePhoneInput() {
+        viewModelScope.launch {
+            HttpServer.searchInputFlow.collect { input ->
+                keyword = input
+                phoneSearchKeyword = input
+            }
+        }
+    }
+
+    fun consumePhoneSearchKeyword() {
+        phoneSearchKeyword = null
     }
 
     private fun updateHotwords() {
@@ -45,7 +62,7 @@ class SearchInputViewModel(
             runCatching {
                 val hotwordData = searchRepository.getSearchHotwords(
                     limit = 50,
-                    preferApiType = Prefs.apiType
+                    preferApiType = Prefs.recommendationApiType.toRequestApiType()
                 )
                 logger.debug { "Find hotwords: $hotwordData" }
                 withContext(Dispatchers.Main) { hotwords.addAll(hotwordData) }
@@ -64,7 +81,7 @@ class SearchInputViewModel(
             runCatching {
                 val keywordSuggest = searchRepository.getSearchSuggest(
                     keyword = keyword,
-                    preferApiType = Prefs.apiType
+                    preferApiType = Prefs.recommendationApiType.toRequestApiType()
                 )
                 logger.debug { "Find suggests: $keywordSuggest" }
                 suggests.swapListWithMainContext(keywordSuggest)

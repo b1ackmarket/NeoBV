@@ -1,12 +1,14 @@
 package dev.aaa1115910.bv.screen.search
 
 import android.content.res.Configuration
+import android.graphics.BitmapFactory
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +42,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
@@ -57,15 +61,21 @@ import androidx.tv.material3.IconButton
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.search.Hotword
+import dev.aaa1115910.biliapi.util.AvBvConverter
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.search.SearchResultActivity
+import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.search.SearchKeyword
 import dev.aaa1115910.bv.component.search.SoftKeyboard
 import dev.aaa1115910.bv.entity.db.SearchHistoryDB
+import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
+import io.github.g0dkar.qrcode.QRCode
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -77,6 +87,7 @@ fun SearchInputScreen(
     val context = LocalContext.current
 
     val searchKeyword = searchInputViewModel.keyword
+    val phoneSearchKeyword = searchInputViewModel.phoneSearchKeyword
     val hotwords = searchInputViewModel.hotwords
     val searchHistories = searchInputViewModel.searchHistories
     val suggests = searchInputViewModel.suggests
@@ -84,13 +95,23 @@ fun SearchInputScreen(
     var enableProxy by remember { mutableStateOf(false) }
 
     val onSearch: (String) -> Unit = { keyword ->
-        SearchResultActivity.actionStart(context, keyword, enableProxy)
-        searchInputViewModel.keyword = keyword
-        searchInputViewModel.addSearchHistory(keyword)
+        val trimmedKeyword = keyword.trim()
+        if (trimmedKeyword.isNotBlank()) {
+            resolveDirectVideoAid(trimmedKeyword)?.let { aid ->
+                VideoInfoActivity.actionStart(context, aid)
+            } ?: SearchResultActivity.actionStart(context, trimmedKeyword, enableProxy)
+            searchInputViewModel.keyword = trimmedKeyword
+            searchInputViewModel.addSearchHistory(trimmedKeyword)
+        }
     }
 
     LaunchedEffect(searchKeyword) {
         searchInputViewModel.updateSuggests()
+    }
+    LaunchedEffect(phoneSearchKeyword) {
+        val keyword = phoneSearchKeyword ?: return@LaunchedEffect
+        searchInputViewModel.consumePhoneSearchKeyword()
+        onSearch(keyword)
     }
 
     SearchInputScreenContent(
@@ -108,6 +129,21 @@ fun SearchInputScreen(
         onDeleteHistory = { searchInputViewModel.deleteSearchHistory(it) },
         onDeleteAllHistories = { searchInputViewModel.deleteAllSearchHistories() }
     )
+}
+
+internal fun resolveDirectVideoAid(input: String): Long? {
+    val trimmed = input.trim()
+    val bvid = Regex("(?i)BV[0-9A-Za-z]{10}").find(trimmed)?.value
+    if (bvid != null) {
+        return runCatching { AvBvConverter.bv2av(bvid) }.getOrNull()
+    }
+    Regex("(?i)(?:^|[^0-9A-Za-z])av(\\d{1,18})(?:$|[^0-9A-Za-z])")
+        .find(trimmed)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.toLongOrNull()
+        ?.let { return it }
+    return null
 }
 
 @Composable
@@ -175,14 +211,21 @@ private fun SearchInputScreenContent(
                 )
             }
 
-            SearchHistory(
-                modifier = Modifier
-                    .padding(end = 10.dp),
-                histories = histories,
-                onSearch = onSearch,
-                onDelete = onDeleteHistory,
-                onDeleteAll = onDeleteAllHistories
-            )
+            Column(
+                modifier = Modifier.width(250.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                SearchHistory(
+                    modifier = Modifier
+                        .padding(end = 10.dp)
+                        .weight(1f),
+                    histories = histories,
+                    onSearch = onSearch,
+                    onDelete = onDeleteHistory,
+                    onDeleteAll = onDeleteAllHistories
+                )
+                SearchPhoneInputQr()
+            }
         }
     }
 }
@@ -461,6 +504,48 @@ private fun SearchHistory(
                     Text(text = stringResource(R.string.search_input_history_delete_all_confirm_dialog_cancel_button))
                 }
             }
+        )
+    }
+}
+
+@Composable
+private fun SearchPhoneInputQr(
+    modifier: Modifier = Modifier
+) {
+    val url = remember { HttpServer.getSearchInputUrl() }
+    var qrImage by remember { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(url) {
+        val output = ByteArrayOutputStream()
+        QRCode(url).render().writeImage(output)
+        val input = ByteArrayInputStream(output.toByteArray())
+        qrImage = BitmapFactory.decodeStream(input).asImageBitmap()
+    }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "手机扫码输入",
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            style = MaterialTheme.typography.titleMedium
+        )
+        qrImage?.let { image ->
+            Image(
+                modifier = Modifier
+                    .size(132.dp)
+                    .background(MaterialTheme.colorScheme.onSurface)
+                    .padding(8.dp),
+                bitmap = image,
+                contentDescription = null
+            )
+        }
+        Text(
+            text = url,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.46f),
+            style = MaterialTheme.typography.bodySmall
         )
     }
 }
