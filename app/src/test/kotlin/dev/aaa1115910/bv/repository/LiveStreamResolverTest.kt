@@ -8,7 +8,7 @@ import kotlin.test.assertNull
 
 class LiveStreamResolverTest {
     @Test
-    fun `preferred live url chooses hls stream before http stream`() {
+    fun `default live url chooses http stream before hls stream`() {
         val playInfo = Json.parseToJsonElement(
             """
             {
@@ -63,7 +63,7 @@ class LiveStreamResolverTest {
         ).jsonObject
 
         assertEquals(
-            "https://hls.example.com/live-bvc/12345/live_12345/index.m3u8?token=hls",
+            "https://flv.example.com/live-bvc/12345/live_12345.flv?token=flv",
             LiveStreamResolver.resolvePlayableUrl(playInfo)
         )
 

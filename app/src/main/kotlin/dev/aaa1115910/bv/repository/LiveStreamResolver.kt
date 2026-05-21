@@ -27,7 +27,7 @@ data class LivePlaybackSource(
 )
 
 object LiveStreamResolver {
-    private val preferredProtocols = listOf("http_hls", "http_stream")
+    private val defaultPreferredProtocols = listOf("http_stream", "http_hls")
 
     private data class LiveRouteCandidate(
         val routeKey: String,
@@ -53,8 +53,9 @@ object LiveStreamResolver {
         playInfo: JsonObject,
         requestedLineIndex: Int = 0
     ): LivePlaybackSource? {
-        val lines = resolveLines(playInfo)
-        val qualities = resolveQualities(playInfo)
+        val protocolOrder = defaultPreferredProtocols
+        val lines = resolveLines(playInfo, protocolOrder)
+        val qualities = resolveQualities(playInfo, protocolOrder)
         val currentQuality = playInfo["current_quality"]?.jsonPrimitive?.intOrNull
             ?: playInfo["playurl_info"]
                 .asJsonObjectOrNull()
@@ -108,12 +109,15 @@ object LiveStreamResolver {
         )
     }
 
-    private fun resolveLines(playInfo: JsonObject): List<LiveLineOption> {
+    private fun resolveLines(
+        playInfo: JsonObject,
+        protocolOrder: List<String>
+    ): List<LiveLineOption> {
         val playUrlInfo = playInfo["playurl_info"].asJsonObjectOrNull()
         val playUrl = playUrlInfo?.get("playurl").asJsonObjectOrNull()
         val streams = playUrl?.get("stream").asJsonArrayOrNull() ?: JsonArray(emptyList())
 
-        val lines = preferredProtocols.firstNotNullOfOrNull { protocolName ->
+        val lines = protocolOrder.firstNotNullOfOrNull { protocolName ->
             val stream = streams.firstOrNull {
                 it.asJsonObjectOrNull()?.get("protocol_name")?.jsonPrimitive?.contentOrNull == protocolName
             }.asJsonObjectOrNull() ?: return@firstNotNullOfOrNull null
@@ -130,8 +134,8 @@ object LiveStreamResolver {
         }
     }
 
-    private fun resolveQualities(playInfo: JsonObject): List<LiveQualityOption> {
-        val availableQns = resolveAvailableQualityQns(playInfo)
+    private fun resolveQualities(playInfo: JsonObject, protocolOrder: List<String>): List<LiveQualityOption> {
+        val availableQns = resolveAvailableQualityQns(playInfo, protocolOrder)
         val qualityElements = playInfo["quality_description"].asJsonArrayOrNull()
             ?: playInfo["playurl_info"]
                 .asJsonObjectOrNull()
@@ -208,7 +212,7 @@ object LiveStreamResolver {
         }
     }
 
-    private fun resolveAvailableQualityQns(playInfo: JsonObject): Set<Int> {
+    private fun resolveAvailableQualityQns(playInfo: JsonObject, protocolOrder: List<String>): Set<Int> {
         val streams = playInfo["playurl_info"]
             .asJsonObjectOrNull()
             ?.get("playurl")
@@ -217,7 +221,7 @@ object LiveStreamResolver {
             .asJsonArrayOrNull()
             ?: JsonArray(emptyList())
 
-        preferredProtocols.forEach { protocolName ->
+        protocolOrder.forEach { protocolName ->
             val stream = streams.firstOrNull {
                 it.asJsonObjectOrNull()?.get("protocol_name")?.jsonPrimitive?.contentOrNull == protocolName
             }.asJsonObjectOrNull() ?: return@forEach
@@ -288,7 +292,7 @@ object LiveStreamResolver {
             .sortedWith(compareBy<LiveRouteCandidate> { it.routeIndex }.thenBy { it.score })
             .map { it.url }
         val stableUrls = urls.filterNot { it.contains("mcdn", ignoreCase = true) }
-        return stableUrls.ifEmpty { urls }
+        return stableUrls.ifEmpty { urls }.distinct()
     }
 
     private fun resolveRouteCandidateScore(
