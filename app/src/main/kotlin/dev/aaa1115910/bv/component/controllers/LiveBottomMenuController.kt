@@ -1,5 +1,10 @@
 package dev.aaa1115910.bv.component.controllers
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -7,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -41,53 +47,59 @@ fun LiveBottomMenuController(
     items: List<LiveBottomMenuItem>,
     onDismiss: () -> Unit
 ) {
-    if (!show || items.isEmpty()) return
-
     val firstItemFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(show) {
-        if (show) {
+        if (show && items.isNotEmpty()) {
             firstItemFocusRequester.requestFocus()
         }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.52f))
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-        contentAlignment = Alignment.Center
+    AnimatedVisibility(
+        visible = show && items.isNotEmpty(),
+        modifier = modifier,
+        enter = fadeIn() + slideInVertically { it },
+        exit = fadeOut() + slideOutVertically { it }
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.Start),
-            verticalAlignment = Alignment.CenterVertically
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.Black.copy(alpha = 0.52f))
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            contentAlignment = Alignment.Center
         ) {
-            items.forEachIndexed { index, item ->
-                Surface(
-                    modifier = Modifier
-                        .then(if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier)
-                        .onPreviewKeyEvent {
-                            if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionUp) {
-                                onDismiss()
-                                return@onPreviewKeyEvent true
-                            }
-                            false
-                        },
-                    onClick = item.onClick
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.Start),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items.forEachIndexed { index, item ->
+                    Surface(
+                        modifier = Modifier
+                            .then(if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier)
+                            .onPreviewKeyEvent {
+                                if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionUp) {
+                                    onDismiss()
+                                    return@onPreviewKeyEvent true
+                                }
+                                false
+                            },
+                        onClick = item.onClick
                     ) {
-                        Icon(
-                            painter = painterResource(id = item.iconRes),
-                            contentDescription = item.label
-                        )
-                        Text(
-                            text = item.label,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                modifier = Modifier.size(24.dp),
+                                painter = painterResource(id = item.iconRes),
+                                contentDescription = item.label
+                            )
+                            Text(
+                                text = item.label,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
                     }
                 }
             }

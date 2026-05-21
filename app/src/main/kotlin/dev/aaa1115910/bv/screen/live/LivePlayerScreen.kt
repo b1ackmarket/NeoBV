@@ -2,6 +2,10 @@ package dev.aaa1115910.bv.screen.live
 
 import android.app.Activity
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -538,7 +542,9 @@ fun LivePlayerScreen() {
 
         AnimatedVisibility(
             visible = showTopOverlay && playbackSource != null,
-            modifier = Modifier.align(TopCenter)
+            modifier = Modifier.align(TopCenter),
+            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
         ) {
             Column(
                 modifier = Modifier

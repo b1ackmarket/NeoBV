@@ -1,9 +1,16 @@
 package dev.aaa1115910.bv.component.controllers
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -55,8 +62,6 @@ fun LiveMenuController(
     onLineSelected: (Int) -> Unit,
     onDanmakuStateChange: (LiveDanmakuMenuState) -> Unit
 ) {
-    if (!show) return
-
     var selectedNav by remember { mutableStateOf(LiveMenuNavItem.Quality) }
     var focusState by remember { mutableStateOf(MenuFocusState.MenuNav) }
     val navFocusRequester = remember { FocusRequester() }
@@ -75,144 +80,155 @@ fun LiveMenuController(
         }
     }
 
-    Surface(
-        modifier = modifier.fillMaxHeight(),
-        colors = SurfaceDefaults.colors(
-            containerColor = Color.Black.copy(alpha = 0.5f)
-        )
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.CenterEnd
     ) {
-        CompositionLocalProvider(
-            LocalMenuFocusStateData provides MenuFocusStateData(focusState = focusState)
+        AnimatedVisibility(
+            visible = show,
+            enter = fadeIn() + slideInHorizontally { it },
+            exit = fadeOut() + slideOutHorizontally { it }
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.End
+            Surface(
+                modifier = Modifier.fillMaxHeight(),
+                colors = SurfaceDefaults.colors(
+                    containerColor = Color.Black.copy(alpha = 0.5f)
+                )
             ) {
-                when (selectedNav) {
-                    LiveMenuNavItem.Quality -> {
-                        RadioMenuList(
-                            modifier = Modifier
-                                .padding(horizontal = 8.dp),
-                            items = qualityOptions.map { it.desc },
-                            selected = qualityOptions.indexOfFirst { it.qn == currentQuality },
-                            requestFocusWhen = focusState == MenuFocusState.Items,
-                            onSelectedChanged = { index -> onQualitySelected(qualityOptions[index]) },
-                            onFocusBackToParent = {
-                                focusState = MenuFocusState.MenuNav
-                                navItemRequesters[selectedNav.ordinal].requestFocus()
-                            }
-                        )
-                    }
-
-                    LiveMenuNavItem.Line -> {
-                        RadioMenuList(
-                            modifier = Modifier
-                                .padding(horizontal = 8.dp),
-                            items = lineOptions.map { it.label },
-                            selected = currentLineIndex,
-                            requestFocusWhen = focusState == MenuFocusState.Items,
-                            onSelectedChanged = onLineSelected,
-                            onFocusBackToParent = {
-                                focusState = MenuFocusState.MenuNav
-                                navItemRequesters[selectedNav.ordinal].requestFocus()
-                            }
-                        )
-                    }
-
-                    LiveMenuNavItem.Danmaku -> {
-                        DanmakuMenuList(
-                            currentEnabledTypes = danmakuState.enabledTypes,
-                            currentScale = danmakuState.scale,
-                            currentOpacity = danmakuState.opacity,
-                            currentSpeedFactor = danmakuState.speedFactor,
-                            currentArea = danmakuState.area,
-                            currentMaskEnabled = danmakuState.maskEnabled,
-                            onDanmakuSwitchChange = {
-                                onDanmakuStateChange(danmakuState.copy(enabledTypes = it))
-                            },
-                            onDanmakuSizeChange = {
-                                onDanmakuStateChange(danmakuState.copy(scale = it))
-                            },
-                            onDanmakuOpacityChange = {
-                                onDanmakuStateChange(danmakuState.copy(opacity = it))
-                            },
-                            onDanmakuSpeedFactorChange = {
-                                onDanmakuStateChange(danmakuState.copy(speedFactor = it))
-                            },
-                            onDanmakuAreaChange = {
-                                onDanmakuStateChange(danmakuState.copy(area = it))
-                            },
-                            onDanmakuMaskChange = {
-                                onDanmakuStateChange(danmakuState.copy(maskEnabled = it))
-                            },
-                            onFocusStateChange = {
-                                focusState = when (it) {
-                                    MenuFocusState.MenuNav -> {
-                                        navItemRequesters[selectedNav.ordinal].requestFocus()
-                                        MenuFocusState.MenuNav
-                                    }
-
-                                    else -> it
-                                }
-                            }
-                        )
-                    }
-                }
-
-                LazyColumn(
-                    modifier = Modifier
-                        .focusRequester(navFocusRequester)
-                        .focusRestorer(firstItemFocusRequester)
-                        .padding(horizontal = 8.dp)
-                        .onPreviewKeyEvent {
-                            if (it.type == KeyEventType.KeyUp) {
-                                if (listOf(Key.Enter, Key.DirectionCenter).contains(it.key)) {
-                                    return@onPreviewKeyEvent false
-                                }
-                                return@onPreviewKeyEvent true
-                            }
-                            when (it.key) {
-                                Key.DirectionLeft -> {
-                                    focusState = if (selectedNav == LiveMenuNavItem.Danmaku) {
-                                        MenuFocusState.Menu
-                                    } else {
-                                        MenuFocusState.Items
-                                    }
-                                    true
-                                }
-
-                                Key.DirectionCenter, Key.Enter -> {
-                                    focusState = if (selectedNav == LiveMenuNavItem.Danmaku) {
-                                        MenuFocusState.Menu
-                                    } else {
-                                        MenuFocusState.Items
-                                    }
-                                    true
-                                }
-
-                                else -> false
-                            }
-                        },
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(16.dp)
+                CompositionLocalProvider(
+                    LocalMenuFocusStateData provides MenuFocusStateData(focusState = focusState)
                 ) {
-                    itemsIndexed(LiveMenuNavItem.entries) { index, item ->
-                        MenuListItem(
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        when (selectedNav) {
+                            LiveMenuNavItem.Quality -> {
+                                RadioMenuList(
+                                    modifier = Modifier
+                                        .padding(horizontal = 8.dp),
+                                    items = qualityOptions.map { it.desc },
+                                    selected = qualityOptions.indexOfFirst { it.qn == currentQuality },
+                                    requestFocusWhen = focusState == MenuFocusState.Items,
+                                    onSelectedChanged = { index -> onQualitySelected(qualityOptions[index]) },
+                                    onFocusBackToParent = {
+                                        focusState = MenuFocusState.MenuNav
+                                        navItemRequesters[selectedNav.ordinal].requestFocus()
+                                    }
+                                )
+                            }
+
+                            LiveMenuNavItem.Line -> {
+                                RadioMenuList(
+                                    modifier = Modifier
+                                        .padding(horizontal = 8.dp),
+                                    items = lineOptions.map { it.label },
+                                    selected = currentLineIndex,
+                                    requestFocusWhen = focusState == MenuFocusState.Items,
+                                    onSelectedChanged = onLineSelected,
+                                    onFocusBackToParent = {
+                                        focusState = MenuFocusState.MenuNav
+                                        navItemRequesters[selectedNav.ordinal].requestFocus()
+                                    }
+                                )
+                            }
+
+                            LiveMenuNavItem.Danmaku -> {
+                                DanmakuMenuList(
+                                    currentEnabledTypes = danmakuState.enabledTypes,
+                                    currentScale = danmakuState.scale,
+                                    currentOpacity = danmakuState.opacity,
+                                    currentSpeedFactor = danmakuState.speedFactor,
+                                    currentArea = danmakuState.area,
+                                    currentMaskEnabled = danmakuState.maskEnabled,
+                                    onDanmakuSwitchChange = {
+                                        onDanmakuStateChange(danmakuState.copy(enabledTypes = it))
+                                    },
+                                    onDanmakuSizeChange = {
+                                        onDanmakuStateChange(danmakuState.copy(scale = it))
+                                    },
+                                    onDanmakuOpacityChange = {
+                                        onDanmakuStateChange(danmakuState.copy(opacity = it))
+                                    },
+                                    onDanmakuSpeedFactorChange = {
+                                        onDanmakuStateChange(danmakuState.copy(speedFactor = it))
+                                    },
+                                    onDanmakuAreaChange = {
+                                        onDanmakuStateChange(danmakuState.copy(area = it))
+                                    },
+                                    onDanmakuMaskChange = {
+                                        onDanmakuStateChange(danmakuState.copy(maskEnabled = it))
+                                    },
+                                    onFocusStateChange = {
+                                        focusState = when (it) {
+                                            MenuFocusState.MenuNav -> {
+                                                navItemRequesters[selectedNav.ordinal].requestFocus()
+                                                MenuFocusState.MenuNav
+                                            }
+
+                                            else -> it
+                                        }
+                                    }
+                                )
+                            }
+                        }
+
+                        LazyColumn(
                             modifier = Modifier
-                                .ifElse(index == 0, Modifier.focusRequester(firstItemFocusRequester))
-                                .focusRequester(navItemRequesters[index]),
-                            text = item.toDisplayName(),
-                            selected = focusState == MenuFocusState.MenuNav && selectedNav == item,
-                            onClick = {
-                                selectedNav = item
-                                focusState = if (item == LiveMenuNavItem.Danmaku) {
-                                    MenuFocusState.Menu
-                                } else {
-                                    MenuFocusState.Items
-                                }
-                            },
-                            onFocus = { selectedNav = item }
-                        )
+                                .focusRequester(navFocusRequester)
+                                .focusRestorer(firstItemFocusRequester)
+                                .padding(horizontal = 8.dp)
+                                .onPreviewKeyEvent {
+                                    if (it.type == KeyEventType.KeyUp) {
+                                        if (listOf(Key.Enter, Key.DirectionCenter).contains(it.key)) {
+                                            return@onPreviewKeyEvent false
+                                        }
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    when (it.key) {
+                                        Key.DirectionLeft -> {
+                                            focusState = if (selectedNav == LiveMenuNavItem.Danmaku) {
+                                                MenuFocusState.Menu
+                                            } else {
+                                                MenuFocusState.Items
+                                            }
+                                            true
+                                        }
+
+                                        Key.DirectionCenter, Key.Enter -> {
+                                            focusState = if (selectedNav == LiveMenuNavItem.Danmaku) {
+                                                MenuFocusState.Menu
+                                            } else {
+                                                MenuFocusState.Items
+                                            }
+                                            true
+                                        }
+
+                                        else -> false
+                                    }
+                                },
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(16.dp)
+                        ) {
+                            itemsIndexed(LiveMenuNavItem.entries) { index, item ->
+                                MenuListItem(
+                                    modifier = Modifier
+                                        .ifElse(index == 0, Modifier.focusRequester(firstItemFocusRequester))
+                                        .focusRequester(navItemRequesters[index]),
+                                    text = item.toDisplayName(),
+                                    selected = focusState == MenuFocusState.MenuNav && selectedNav == item,
+                                    onClick = {
+                                        selectedNav = item
+                                        focusState = if (item == LiveMenuNavItem.Danmaku) {
+                                            MenuFocusState.Menu
+                                        } else {
+                                            MenuFocusState.Items
+                                        }
+                                    },
+                                    onFocus = { selectedNav = item }
+                                )
+                            }
+                        }
                     }
                 }
             }
