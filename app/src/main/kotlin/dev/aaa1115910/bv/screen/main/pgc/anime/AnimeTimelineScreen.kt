@@ -58,6 +58,7 @@ import org.koin.compose.getKoin
 @Composable
 fun AnimeTimelineScreen(
     modifier: Modifier = Modifier,
+    timelineFilter: TimelineFilter = TimelineFilter.Anime,
     seasonRepository: SeasonRepository = getKoin().get()
 ) {
     val context = LocalContext.current
@@ -76,15 +77,15 @@ fun AnimeTimelineScreen(
             runCatching {
                 timelines.addAllWithMainContext {
                     seasonRepository.getTimeline(
-                        filter = TimelineFilter.Anime,
-                        preferApiType = Prefs.apiType
+                        filter = timelineFilter,
+                        preferApiType = Prefs.playbackApiType
                     )
                 }
                 runCatching {
                     delay(200)
                     logger.info { "scroll to item today" }
                     // web 接口可以获取到最大 7 天前的数据，而 app 接口只能从 6 天前开始获取
-                    val targetIndex = when (Prefs.apiType) {
+                    val targetIndex = when (Prefs.playbackApiType) {
                         ApiType.Web -> 7
                         ApiType.App -> 6
                     }
@@ -107,7 +108,10 @@ fun AnimeTimelineScreen(
                 modifier = Modifier.padding(start = 48.dp, top = 24.dp, bottom = 8.dp, end = 48.dp)
             ) {
                 Text(
-                    text = stringResource(id = R.string.title_activity_anime_timeline),
+                    text = when (timelineFilter) {
+                        TimelineFilter.GuoChuang -> "国创时间表"
+                        else -> stringResource(id = R.string.title_activity_anime_timeline)
+                    },
                     fontSize = 24.sp,
                 )
             }
