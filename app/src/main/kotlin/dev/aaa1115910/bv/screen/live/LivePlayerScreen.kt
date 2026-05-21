@@ -149,7 +149,8 @@ fun LivePlayerScreen() {
                     userAgent = "Mozilla/5.0",
                     referer = "https://live.bilibili.com/",
                     enableFfmpegAudioRenderer = false,
-                    enableSoftwareVideoDecoder = false
+                    enableSoftwareVideoDecoder = false,
+                    enableVolumeNormalization = Prefs.enableVolumeNormalization
                 )
             )
         )
