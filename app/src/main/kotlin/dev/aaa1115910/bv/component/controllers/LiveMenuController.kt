@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import dev.aaa1115910.bv.component.controllers.playermenu.DanmakuMenuList
+import dev.aaa1115910.bv.component.controllers.playermenu.PlayerStatsMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.RadioMenuList
 import dev.aaa1115910.bv.repository.LiveLineOption
@@ -46,7 +47,8 @@ import dev.aaa1115910.bv.component.ifElse
 enum class LiveMenuNavItem {
     Quality,
     Line,
-    Danmaku
+    Danmaku,
+    Stats
 }
 
 @Composable
@@ -58,9 +60,11 @@ fun LiveMenuController(
     lineOptions: List<LiveLineOption>,
     currentLineIndex: Int,
     danmakuState: LiveDanmakuMenuState,
+    showStats: Boolean,
     onQualitySelected: (LiveQualityOption) -> Unit,
     onLineSelected: (Int) -> Unit,
-    onDanmakuStateChange: (LiveDanmakuMenuState) -> Unit
+    onDanmakuStateChange: (LiveDanmakuMenuState) -> Unit,
+    onShowStatsChange: (Boolean) -> Unit
 ) {
     var selectedNav by remember { mutableStateOf(LiveMenuNavItem.Quality) }
     var focusState by remember { mutableStateOf(MenuFocusState.MenuNav) }
@@ -171,6 +175,23 @@ fun LiveMenuController(
                                     }
                                 )
                             }
+
+                            LiveMenuNavItem.Stats -> {
+                                PlayerStatsMenuList(
+                                    currentShowPlayerStats = showStats,
+                                    onShowPlayerStatsChange = onShowStatsChange,
+                                    onFocusStateChange = {
+                                        focusState = when (it) {
+                                            MenuFocusState.MenuNav -> {
+                                                navItemRequesters[selectedNav.ordinal].requestFocus()
+                                                MenuFocusState.MenuNav
+                                            }
+
+                                            else -> it
+                                        }
+                                    }
+                                )
+                            }
                         }
 
                         LazyColumn(
@@ -187,7 +208,7 @@ fun LiveMenuController(
                                     }
                                     when (it.key) {
                                         Key.DirectionLeft -> {
-                                            focusState = if (selectedNav == LiveMenuNavItem.Danmaku) {
+                                            focusState = if (selectedNav == LiveMenuNavItem.Danmaku || selectedNav == LiveMenuNavItem.Stats) {
                                                 MenuFocusState.Menu
                                             } else {
                                                 MenuFocusState.Items
@@ -196,7 +217,7 @@ fun LiveMenuController(
                                         }
 
                                         Key.DirectionCenter, Key.Enter -> {
-                                            focusState = if (selectedNav == LiveMenuNavItem.Danmaku) {
+                                            focusState = if (selectedNav == LiveMenuNavItem.Danmaku || selectedNav == LiveMenuNavItem.Stats) {
                                                 MenuFocusState.Menu
                                             } else {
                                                 MenuFocusState.Items
@@ -219,7 +240,7 @@ fun LiveMenuController(
                                     selected = focusState == MenuFocusState.MenuNav && selectedNav == item,
                                     onClick = {
                                         selectedNav = item
-                                        focusState = if (item == LiveMenuNavItem.Danmaku) {
+                                        focusState = if (item == LiveMenuNavItem.Danmaku || item == LiveMenuNavItem.Stats) {
                                             MenuFocusState.Menu
                                         } else {
                                             MenuFocusState.Items
@@ -249,4 +270,5 @@ private fun LiveMenuNavItem.toDisplayName(): String = when (this) {
     LiveMenuNavItem.Quality -> "画质"
     LiveMenuNavItem.Line -> "线路"
     LiveMenuNavItem.Danmaku -> "弹幕"
+    LiveMenuNavItem.Stats -> "统计信息"
 }

@@ -118,6 +118,8 @@ fun LivePlayerScreen() {
     var reloadToken by remember { mutableStateOf(0) }
     var selectedQuality by remember { mutableStateOf(Prefs.defaultLiveQuality.qn) }
     var selectedLineIndex by remember { mutableStateOf(0) }
+    var showLiveStats by remember { mutableStateOf(Prefs.showPlayerStats) }
+    var liveStatsText by remember { mutableStateOf("") }
     var liveDanmakuSocketJob by remember { mutableStateOf<Job?>(null) }
     var liveChatReleaseJob by remember { mutableStateOf<Job?>(null) }
     var liveChatMessages by remember { mutableStateOf<List<PlayerCommentItem>>(emptyList()) }
@@ -324,6 +326,22 @@ fun LivePlayerScreen() {
             releaseLiveChatMessagesGradually(
                 events.takeLast(50).map { it.toLiveCommentItem(prefix = "poll") }
             )
+        }
+    }
+
+    LaunchedEffect(showLiveStats, playbackSource, player.videoWidth, player.videoHeight) {
+        if (!showLiveStats) {
+            liveStatsText = ""
+            return@LaunchedEffect
+        }
+        while (true) {
+            liveStatsText = buildLiveStatsText(
+                playerDebugInfo = player.debugInfo,
+                playbackSource = playbackSource,
+                videoWidth = player.videoWidth,
+                videoHeight = player.videoHeight
+            )
+            delay(1_000)
         }
     }
 
@@ -611,6 +629,7 @@ fun LivePlayerScreen() {
             lineOptions = playbackSource?.lines.orEmpty(),
             currentLineIndex = playbackSource?.currentLineIndex ?: selectedLineIndex,
             danmakuState = liveDanmakuState,
+            showStats = showLiveStats,
             onQualitySelected = { quality ->
                 if (quality.qn != selectedQuality) {
                     selectedQuality = quality.qn
@@ -631,8 +650,29 @@ fun LivePlayerScreen() {
                 Prefs.defaultDanmakuSpeedFactor = newState.speedFactor
                 Prefs.defaultDanmakuArea = newState.area
                 Prefs.defaultDanmakuMask = newState.maskEnabled
+            },
+            onShowStatsChange = { show ->
+                showLiveStats = show
+                Prefs.showPlayerStats = show
             }
         )
+
+        if (showLiveStats && liveStatsText.isNotBlank()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 8.dp, top = 56.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(Color.Black.copy(alpha = 0.3f))
+            ) {
+                Text(
+                    modifier = Modifier.padding(8.dp),
+                    text = liveStatsText,
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
 
         LiveBottomMenuController(
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -797,4 +837,28 @@ private fun Long.toLiveChatTimeText(): String {
     val calendar = Calendar.getInstance().apply { timeInMillis = this@toLiveChatTimeText }
     return "${calendar.get(Calendar.HOUR_OF_DAY).toString().padStart(2, '0')}:" +
         calendar.get(Calendar.MINUTE).toString().padStart(2, '0')
+}
+
+private fun buildLiveStatsText(
+    playerDebugInfo: String,
+    playbackSource: LivePlaybackSource?,
+    videoWidth: Int,
+    videoHeight: Int
+): String {
+    return buildString {
+        val source = playbackSource
+        if (source != null) {
+            appendLine("live quality: ${source.currentQuality}")
+            appendLine("line: ${source.currentLineIndex + 1}/${source.lines.size.coerceAtLeast(1)}")
+            source.playUrl.toHostOrNull()?.let { appendLine("host: $it") }
+        }
+        if (videoWidth > 0 && videoHeight > 0) {
+            appendLine("resolution: ${videoWidth}x$videoHeight")
+        }
+        append(playerDebugInfo)
+    }.trim()
+}
+
+private fun String.toHostOrNull(): String? {
+    return runCatching { java.net.URI(this).host }.getOrNull()?.takeIf { it.isNotBlank() }
 }
