@@ -47,7 +47,8 @@ internal fun shouldUseWbiSignForGetPath(encodedPath: String): Boolean {
     return encodedPath.contains("wbi") ||
             encodedPath.contains("/pgc/player/web/playurl") ||
             encodedPath.contains("/pgc/player/web/v2/playurl") ||
-            encodedPath.contains("/xlive/web-room/v1/index/getDanmuInfo")
+            encodedPath.contains("/xlive/web-room/v1/index/getDanmuInfo") ||
+            encodedPath.contains("/x/web-interface/search/type")
 }
 
 fun HttpRequestBuilder.encAppPost() {

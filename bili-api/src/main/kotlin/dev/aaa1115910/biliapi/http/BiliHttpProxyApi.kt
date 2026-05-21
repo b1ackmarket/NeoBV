@@ -160,6 +160,15 @@ object BiliHttpProxyApi {
         parameter("search_type", type)
         parameter("page", page)
         parameter("pagesize", pageSize)
+        parameter("platform", "pc")
+        parameter("highlight", 1)
+        parameter("single_column", 0)
+        parameter("source_tag", 3)
+        parameter("web_location", 1430654)
+        parameter("dm_img_list", "[]")
+        parameter("dm_img_str", "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ")
+        parameter("dm_cover_img_str", "QU5HTEUgKEFNRCwgQU1EIFJhZGVvbiA3ODBNIEdyYXBoaWNzICgweDAwMDAxNUJGKSBEaXJlY3QzRDExIHZzXzVfMCBwc181XzAsIEQzRDExKUdvb2dsZSBJbmMuIChBTU")
+        parameter("dm_img_inter", "{\"ds\":[],\"wh\":[4769,2793,43],\"of\":[285,570,285]}")
         tid?.let { parameter("tids", it) }
         order?.let { parameter("order", it) }
         duration?.let { parameter("duration", it) }
