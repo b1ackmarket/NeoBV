@@ -8,7 +8,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class BiliResponse<T>(
     val code: Int,
-    val message: String,
+    val message: String = "",
     val ttl: Int? = null,
     val data: T? = null,
     val result: T? = null
