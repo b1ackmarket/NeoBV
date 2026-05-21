@@ -35,6 +35,8 @@ import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.entity.live.LiveCategory
+import dev.aaa1115910.bv.entity.live.LiveCategoryType
 import dev.aaa1115910.bv.screen.main.LoginRequiredPlaceholder
 import dev.aaa1115910.bv.viewmodel.live.LiveViewModel
 import kotlinx.coroutines.launch
@@ -68,6 +70,13 @@ internal fun targetLiveRoomIndexAfterCategoryDown(roomCount: Int): Int? {
     return 0.takeIf { roomCount > 0 }
 }
 
+internal fun shouldShowLiveLoginPlaceholder(
+    isLogin: Boolean,
+    selectedCategory: LiveCategory?
+): Boolean {
+    return !isLogin && selectedCategory?.type == LiveCategoryType.Following
+}
+
 @Composable
 fun LiveContent(
     navFocusRequester: FocusRequester,
@@ -79,20 +88,13 @@ fun LiveContent(
     val liveColumns = 4
     val gridState = rememberLazyGridState()
     var isRoomGridFocused by remember { mutableStateOf(false) }
+    val loginFocusRequester = remember { FocusRequester() }
     val roomFocusRequesters = remember(liveViewModel.rooms.map { it.roomId }) {
         List(liveViewModel.rooms.size) { FocusRequester() }
     }
 
     LaunchedEffect(liveViewModel.isLogin) {
         liveViewModel.onLoginStateChanged(liveViewModel.isLogin)
-    }
-
-    if (!liveViewModel.isLogin) {
-        LoginRequiredPlaceholder(
-            onLogin = onLogin,
-            focusRequester = navFocusRequester
-        )
-        return
     }
 
     Box(
@@ -111,9 +113,12 @@ fun LiveContent(
                 true
             }
     ) {
+        val selectedCategory = liveViewModel.categories.getOrNull(liveViewModel.selectedCategoryIndex)
+        val showLoginPlaceholder = shouldShowLiveLoginPlaceholder(liveViewModel.isLogin, selectedCategory)
         if (liveViewModel.categories.isNotEmpty()) {
             val categoryDownFocusRequester = targetLiveRoomIndexAfterCategoryDown(liveViewModel.rooms.size)
                 ?.let { roomFocusRequesters.getOrNull(it) }
+                ?: loginFocusRequester.takeIf { showLoginPlaceholder }
                 ?: FocusRequester.Default
             TopNav(
                 modifier = Modifier
@@ -137,75 +142,83 @@ fun LiveContent(
             )
         }
 
-        TvLazyVerticalGrid(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(top = 72.dp),
-            state = gridState,
-            columns = GridCells.Fixed(liveColumns),
-            contentPadding = PaddingValues(
-                start = 24.dp,
-                end = 24.dp,
-                bottom = 24.dp
-            ),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            itemsIndexed(liveViewModel.rooms, key = { _, room -> room.roomId }) { index, room ->
-                val roomFocusRequester = roomFocusRequesters.getOrNull(index)
-                SmallVideoCard(
-                    modifier = Modifier
-                        .then(
-                            if (roomFocusRequester != null) {
-                                Modifier.focusRequester(roomFocusRequester)
-                            } else {
-                                Modifier
-                            }
-                        )
-                        .onFocusChanged {
-                            if (it.hasFocus) {
-                                isRoomGridFocused = true
-                                liveViewModel.loadMoreIfNeeded(index)
-                            }
-                        }
-                        .ifElse(
-                            shouldRouteLiveRoomUpToCategory(index = index, columns = liveColumns),
-                            Modifier.focusProperties { up = navFocusRequester }
-                        )
-                        .ifElse(
-                            shouldRouteLiveRoomUpToPreviousRow(index = index, columns = liveColumns),
-                            Modifier.focusProperties {
-                                up = roomFocusRequesters.getOrNull(index - liveColumns)
-                                    ?: FocusRequester.Default
-                            }
-                        ),
-                    data = VideoCardData(
-                        avid = room.roomId.toLong(),
-                        title = room.title,
-                        cover = room.cover,
-                        upName = room.upName,
-                        playString = room.online.toString(),
-                        danmakuString = room.areaName
-                    ),
-                    onClick = {
-                        LivePlayerActivity.actionStart(
-                            context = context,
-                            roomId = room.roomId,
-                            title = room.title,
-                            upName = room.upName,
-                            online = room.online
-                        )
-                    }
-                )
-            }
-        }
-
-        if (liveViewModel.rooms.isEmpty() && !liveViewModel.loading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+        if (showLoginPlaceholder) {
+            LoginRequiredPlaceholder(
+                onLogin = onLogin,
+                modifier = Modifier.padding(top = 72.dp),
+                focusRequester = loginFocusRequester
+            )
+        } else {
+            TvLazyVerticalGrid(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = 72.dp),
+                state = gridState,
+                columns = GridCells.Fixed(liveColumns),
+                contentPadding = PaddingValues(
+                    start = 24.dp,
+                    end = 24.dp,
+                    bottom = 24.dp
+                ),
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(text = "暂无直播内容")
+                itemsIndexed(liveViewModel.rooms, key = { _, room -> room.roomId }) { index, room ->
+                    val roomFocusRequester = roomFocusRequesters.getOrNull(index)
+                    SmallVideoCard(
+                        modifier = Modifier
+                            .then(
+                                if (roomFocusRequester != null) {
+                                    Modifier.focusRequester(roomFocusRequester)
+                                } else {
+                                    Modifier
+                                }
+                            )
+                            .onFocusChanged {
+                                if (it.hasFocus) {
+                                    isRoomGridFocused = true
+                                    liveViewModel.loadMoreIfNeeded(index)
+                                }
+                            }
+                            .ifElse(
+                                shouldRouteLiveRoomUpToCategory(index = index, columns = liveColumns),
+                                Modifier.focusProperties { up = navFocusRequester }
+                            )
+                            .ifElse(
+                                shouldRouteLiveRoomUpToPreviousRow(index = index, columns = liveColumns),
+                                Modifier.focusProperties {
+                                    up = roomFocusRequesters.getOrNull(index - liveColumns)
+                                        ?: FocusRequester.Default
+                                }
+                            ),
+                        data = VideoCardData(
+                            avid = room.roomId.toLong(),
+                            title = room.title,
+                            cover = room.cover,
+                            upName = room.upName,
+                            playString = room.online.toString(),
+                            danmakuString = room.areaName
+                        ),
+                        onClick = {
+                            LivePlayerActivity.actionStart(
+                                context = context,
+                                roomId = room.roomId,
+                                title = room.title,
+                                upName = room.upName,
+                                online = room.online
+                            )
+                        }
+                    )
+                }
+            }
+
+            if (liveViewModel.rooms.isEmpty() && !liveViewModel.loading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "暂无直播内容")
+                }
             }
         }
     }

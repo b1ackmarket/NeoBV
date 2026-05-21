@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.bv.entity.live.LiveCategory
+import dev.aaa1115910.bv.entity.live.LiveCategoryType
 import dev.aaa1115910.bv.entity.live.LiveRoomCard
 import dev.aaa1115910.bv.repository.LiveRepository
 import dev.aaa1115910.bv.util.swapList
@@ -37,24 +38,29 @@ class LiveViewModel(
     private var canLoadMore = true
 
     init {
-        if (isLogin) {
-            ensureLoaded()
-        }
+        ensureLoaded()
     }
 
     fun ensureLoaded() {
-        if (!isLogin || categories.isNotEmpty() || loading) return
+        if (categories.isNotEmpty() || loading) return
         viewModelScope.launch(Dispatchers.IO) {
             loadCategories()
         }
     }
 
     fun onLoginStateChanged(isLogin: Boolean) {
-        if (!isLogin) {
-            clearData()
+        if (categories.isEmpty()) {
+            ensureLoaded()
             return
         }
-        ensureLoaded()
+        val selectedCategory = categories.getOrNull(selectedCategoryIndex)
+        if (isLogin && selectedCategory?.type == LiveCategoryType.Following && rooms.isEmpty()) {
+            loadCategory(selectedCategoryIndex, append = false)
+        } else if (!isLogin && selectedCategory?.type == LiveCategoryType.Following) {
+            rooms.clear()
+            nextPage = 1
+            canLoadMore = false
+        }
     }
 
     fun selectCategory(index: Int) {
@@ -64,7 +70,6 @@ class LiveViewModel(
     }
 
     fun refresh() {
-        if (!isLogin) return
         if (categories.isEmpty()) {
             ensureLoaded()
             return
@@ -73,7 +78,7 @@ class LiveViewModel(
     }
 
     fun loadMoreIfNeeded(focusedIndex: Int) {
-        if (!isLogin || loading || !canLoadMore) return
+        if (loading || !canLoadMore) return
         if (!dev.aaa1115910.bv.screen.main.live.shouldLoadMoreLiveRooms(
                 focusedIndex = focusedIndex,
                 roomCount = rooms.size
@@ -91,14 +96,15 @@ class LiveViewModel(
         try {
             val loaded = liveRepository.getCategories()
             if (loaded.isNotEmpty()) {
+                val initialIndex = initialCategoryIndex(loaded, isLogin)
                 val loadedRooms = liveRepository.getRooms(
-                    category = loaded[0],
+                    category = loaded[initialIndex],
                     page = 1,
                     pageSize = PageSize
                 )
                 withContext(Dispatchers.Main) {
                     categories.swapList(loaded)
-                    selectedCategoryIndex = 0
+                    selectedCategoryIndex = initialIndex
                     rooms.swapList(loadedRooms)
                     nextPage = 2
                     canLoadMore = loadedRooms.size >= PageSize
@@ -106,7 +112,7 @@ class LiveViewModel(
             } else {
                 withContext(Dispatchers.Main) {
                     categories.swapList(loaded)
-                    selectedCategoryIndex = 0
+                    selectedCategoryIndex = initialCategoryIndex(loaded, isLogin)
                     rooms.swapList(emptyList())
                     nextPage = 1
                     canLoadMore = false
@@ -120,8 +126,14 @@ class LiveViewModel(
     }
 
     private fun loadCategory(index: Int, append: Boolean) {
-        if (!isLogin) return
         val category = categories.getOrNull(index) ?: return
+        if (!isLogin && category.type == LiveCategoryType.Following) {
+            rooms.clear()
+            nextPage = 1
+            canLoadMore = false
+            loading = false
+            return
+        }
         val requestedPage = if (append) nextPage else 1
         loading = true
         viewModelScope.launch(Dispatchers.IO) {
@@ -153,12 +165,10 @@ class LiveViewModel(
         }
     }
 
-    private fun clearData() {
-        categories.clear()
-        rooms.clear()
-        selectedCategoryIndex = 0
-        loading = false
-        nextPage = 1
-        canLoadMore = true
+    private fun initialCategoryIndex(loaded: List<LiveCategory>, isLogin: Boolean): Int {
+        if (isLogin) return 0
+        return loaded.indexOfFirst { it.type == LiveCategoryType.Recommend }
+            .takeIf { it >= 0 }
+            ?: 0
     }
 }
