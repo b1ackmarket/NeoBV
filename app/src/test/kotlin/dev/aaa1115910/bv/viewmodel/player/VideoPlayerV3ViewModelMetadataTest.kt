@@ -3,6 +3,13 @@ package dev.aaa1115910.bv.viewmodel.player
 import dev.aaa1115910.biliapi.entity.DashAudio
 import dev.aaa1115910.biliapi.entity.DashVideo
 import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData
+import dev.aaa1115910.biliapi.http.entity.reply.ReplyContent
+import dev.aaa1115910.biliapi.http.entity.reply.ReplyItem
+import dev.aaa1115910.biliapi.http.entity.reply.ReplyMember
+import dev.aaa1115910.biliapi.http.entity.reply.ReplyPicture
+import dev.aaa1115910.biliapi.http.entity.reply.ReplyControl
+import dev.aaa1115910.biliapi.http.entity.reply.ReplyVip
+import dev.aaa1115910.bv.entity.PlayerCommentSort
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.repository.JumpModeQueueItem
 import dev.aaa1115910.bv.ui.state.JumpModeState
@@ -200,6 +207,54 @@ class VideoPlayerV3ViewModelMetadataTest {
         )
 
         assertEquals("", stats)
+    }
+
+    @Test
+    fun `reply sort maps to bilibili api sort values`() {
+        assertEquals(0, PlayerCommentSort.Latest.toReplyApiSort())
+        assertEquals(1, PlayerCommentSort.Hot.toReplyApiSort())
+    }
+
+    @Test
+    fun `reply item maps to player comment item`() {
+        val item = ReplyItem(
+            rpid = 123L,
+            mid = 456L,
+            ctime = 1_700_000_000L,
+            like = 32,
+            rcount = 7,
+            member = ReplyMember(
+                uname = "评论用户",
+                avatar = "https://avatar",
+                vip = ReplyVip(nicknameColor = "#FB7299")
+            ),
+            content = ReplyContent(
+                message = "这是一条评论",
+                pictures = listOf(ReplyPicture(imgSrc = "https://pic", imgWidth = 640, imgHeight = 360))
+            ),
+            replyControl = ReplyControl(location = "IP属地：上海")
+        )
+
+        val comment = item.toPlayerCommentItem()
+
+        assertEquals("123", comment.id)
+        assertEquals(456L, comment.mid)
+        assertEquals("评论用户", comment.username)
+        assertEquals("https://avatar", comment.avatar)
+        assertEquals("这是一条评论", comment.message)
+        assertEquals("https://pic", comment.pictures.single().url)
+        assertEquals("32赞", comment.likeText)
+        assertEquals("7回复", comment.replyText)
+        assertEquals("IP属地：上海", comment.ipLocation)
+        assertEquals(0xFB7299, comment.color)
+    }
+
+    @Test
+    fun `comment total count formats for panel title`() {
+        assertEquals("", formatCommentTotalCount(null))
+        assertEquals("", formatCommentTotalCount(0))
+        assertEquals("999条", formatCommentTotalCount(999))
+        assertEquals("1.2万条", formatCommentTotalCount(12_000))
     }
 
     @Test
