@@ -13,6 +13,13 @@ class ApiSignTest {
     }
 
     @Test
+    fun `user seasons series endpoint uses wbi signing`() {
+        assertTrue(
+            shouldUseWbiSignForGetPath("/x/polymer/web-space/seasons_series_list")
+        )
+    }
+
+    @Test
     fun `ordinary live endpoints do not use wbi signing`() {
         assertFalse(
             shouldUseWbiSignForGetPath("/xlive/web-room/v2/index/getRoomPlayInfo")
