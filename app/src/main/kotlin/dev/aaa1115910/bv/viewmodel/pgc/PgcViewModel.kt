@@ -44,6 +44,7 @@ abstract class PgcViewModel(
      * 推荐数据中会穿插排行榜，为了避免出现某一行仅出现单独几个剧集，因此将不满一行的剧集单独存起来
      */
     private val restSubItems = mutableListOf<PgcItem>()
+    private var visibleRestSubItemsCount = 0
 
     var updating by mutableStateOf(false)
     var hasNext by mutableStateOf(true)
@@ -87,6 +88,7 @@ abstract class PgcViewModel(
         carouselItems.clear()
         feedItems.clear()
         restSubItems.clear()
+        visibleRestSubItemsCount = 0
         cursor = 0
         hasNext = true
     }
@@ -145,22 +147,28 @@ abstract class PgcViewModel(
      */
     private suspend fun updateFeedItems(data: PgcFeedData) {
         logger.fInfo { "update $pgcType feed items: [items: ${data.items.size}, ranks: ${data.ranks.size}]" }
-        val epList = mutableStateListOf<PgcItem>()
+        hideVisibleRestSubItems()
+        val epList = mutableListOf<PgcItem>()
         epList.addAll(restSubItems)
         epList.addAll(data.items)
+        restSubItems.clear()
+        val completeRows = mutableListOf<List<PgcItem>>()
 
         epList.chunked(5).forEach { chunkedVCardList ->
             if (chunkedVCardList.size == 5) {
-                feedItems.addWithMainContext(
-                    FeedListItem(
-                        type = FeedListType.Ep,
-                        items = chunkedVCardList
-                    )
-                )
+                completeRows += chunkedVCardList
             } else {
-                restSubItems.clear()
                 restSubItems.addAll(chunkedVCardList)
             }
+        }
+
+        completeRows.forEach { rowItems ->
+            feedItems.addWithMainContext(
+                FeedListItem(
+                    type = FeedListType.Ep,
+                    items = rowItems
+                )
+            )
         }
 
         data.ranks.forEach { rank ->
@@ -171,6 +179,31 @@ abstract class PgcViewModel(
                 )
             )
         }
+
+        if (restSubItems.isNotEmpty() && (!data.hasNext || completeRows.isEmpty())) {
+            val visibleItems = restSubItems.toList()
+            feedItems.addWithMainContext(
+                FeedListItem(
+                    type = FeedListType.Ep,
+                    items = visibleItems
+                )
+            )
+            visibleRestSubItemsCount = visibleItems.size
+        }
+    }
+
+    private suspend fun hideVisibleRestSubItems() {
+        if (visibleRestSubItemsCount <= 0) return
+        withContext(Dispatchers.Main) {
+            val lastIndex = feedItems.lastIndex
+            if (lastIndex >= 0) {
+                val lastItem = feedItems[lastIndex]
+                if (lastItem.type == FeedListType.Ep && lastItem.items?.size == visibleRestSubItemsCount) {
+                    feedItems.removeAt(lastIndex)
+                }
+            }
+        }
+        visibleRestSubItemsCount = 0
     }
 }
 
