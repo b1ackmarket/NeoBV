@@ -31,7 +31,15 @@ jobs:
       - name: Write google-services.json
         env:
           DATA: ${{ github.event.inputs.google_services_json }}
-        run: printf '%s' "$DATA" > app/google-services.json
+        run: |
+          if [ -n "$DATA" ]; then
+            printf '%s' "$DATA" > app/google-services.json
+          else
+            echo "google_services_json input is empty; building without Firebase."
+          fi
+
+      - name: Validate google-services.json
+        run: node .github/scripts/validate-google-services.js
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew

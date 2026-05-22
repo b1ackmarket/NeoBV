@@ -30,6 +30,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.BV"
         tools:ignore="UnusedAttribute">
+        <meta-data
+            android:name="firebase_analytics_collection_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
+
         <activity
             android:name=".activities.user.UserLockSettingsActivity"
             android:exported="true"

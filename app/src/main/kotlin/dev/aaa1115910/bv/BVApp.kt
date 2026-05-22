@@ -22,6 +22,7 @@ import dev.aaa1115910.bv.plugin.impl.sponsorblock.HttpSponsorBlockApi
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.PrefsSponsorBlockConfigStore
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.SponsorBlockPlugin
 import dev.aaa1115910.bv.network.HttpServer
+import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs
 import org.koin.android.ext.koin.androidContext
@@ -63,6 +64,7 @@ class BVApp : Application(), KoinComponent {
 
         initCoreLibraries()
         Prefs.init()
+        FirebaseTelemetry.initialize(this)
         initDeviceInfo()
         initRepository()
         initProxy()

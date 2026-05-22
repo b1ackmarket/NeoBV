@@ -266,8 +266,6 @@
     <string name="settings_other_alpha_title">接收 Alpha 更新</string>
     <string name="settings_other_cookies_text">通过文件导出导出登录信息</string>
     <string name="settings_other_cookies_title">Cookies 文件导入/导出</string>
-    <string name="settings_other_firebase_text">这将帮助开发者更快地发现与解决大部分问题</string>
-    <string name="settings_other_firebase_title">发送错误日志</string>
     <string name="settings_other_old_player_text">使用旧版播放器，旧版播放器不会再有任何新特性更新，并且将在后续版本内移除</string>
     <string name="settings_other_old_player_title">旧版播放器</string>
     <string name="settings_storage_calculating">计算中</string>

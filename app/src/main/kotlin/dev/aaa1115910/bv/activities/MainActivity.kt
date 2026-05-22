@@ -4,16 +4,17 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import dev.aaa1115910.bv.component.settings.PrivacyConsentDialog
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.MainScreen
 import dev.aaa1115910.bv.screen.user.lock.UnlockUserScreen
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.Prefs
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.android.ext.android.inject
 
@@ -33,6 +34,7 @@ class MainActivity : ComponentActivity() {
             var isCheckingUserLock by remember { mutableStateOf(true) }
 //            var isMainlandChina by remember { mutableStateOf(false) }
             var userLockLocked by remember { mutableStateOf(false) }
+            var hasAcceptedAgreement by remember { mutableStateOf(Prefs.hasAcceptedUserAgreement) }
 
             LaunchedEffect(Unit) {
                 val user = userRepository.findUserByUid(userRepository.uid)
@@ -47,8 +49,14 @@ class MainActivity : ComponentActivity() {
                 if (isCheckingUserLock) {
                     //避免在检查网络的期间加载屏幕内容，导致检查完毕后显示屏幕内容时出现初始焦点未成功设置的问题
                 } else {
-                    //HomeScreen()
-                    if (!userLockLocked) {
+                    if (!hasAcceptedAgreement) {
+                        PrivacyConsentDialog(
+                            onAccept = {
+                                Prefs.hasAcceptedUserAgreement = true
+                                hasAcceptedAgreement = true
+                            }
+                        )
+                    } else if (!userLockLocked) {
                         MainScreen()
                     } else {
                         UnlockUserScreen(
@@ -63,4 +71,3 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-

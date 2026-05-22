@@ -69,16 +69,6 @@ fun OtherSetting(
             supportText = "当前：${selectedPlaybackApi.toPlaybackApiDisplayName()}",
             onClick = { showPlaybackApiDialog = true }
         )
-//        SettingSwitchListItem(
-//            title = stringResource(R.string.settings_other_firebase_title),
-//            supportText = stringResource(R.string.settings_other_firebase_text),
-//            checked = Prefs.enableFirebaseCollection,
-//            onCheckedChange = {
-//                Prefs.enableFirebaseCollection = it
-//                FirebaseUtil.setCrashlyticsCollectionEnabled(it)
-//            }
-//        )
-
 
         SettingListItem(
             title = "数据导入/导出",

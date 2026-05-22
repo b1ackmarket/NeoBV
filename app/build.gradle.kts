@@ -7,6 +7,7 @@ import java.util.Properties
 plugins {
     alias(gradleLibs.plugins.android.application)
     alias(gradleLibs.plugins.compose.compiler)
+    alias(gradleLibs.plugins.firebase.crashlytics) apply false
     alias(gradleLibs.plugins.google.ksp)
     alias(gradleLibs.plugins.google.services) apply false
     alias(gradleLibs.plugins.kotlin.android)
@@ -15,6 +16,7 @@ plugins {
 
 if (AppConfiguration.googleServicesAvailable) {
     apply(plugin = gradleLibs.plugins.google.services.get().pluginId)
+    apply(plugin = gradleLibs.plugins.firebase.crashlytics.get().pluginId)
 }
 
 
@@ -50,6 +52,7 @@ android {
         targetSdk = AppConfiguration.targetSdk
         versionCode = AppConfiguration.versionCode
         versionName = AppConfiguration.versionName
+        buildConfigField("boolean", "FIREBASE_AVAILABLE", AppConfiguration.googleServicesAvailable.toString())
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -115,6 +118,17 @@ android {
         compose = true
         buildConfig = true
     }
+    sourceSets {
+        getByName("main") {
+            kotlin.srcDir(
+                if (AppConfiguration.googleServicesAvailable) {
+                    "src/firebase/kotlin"
+                } else {
+                    "src/noFirebase/kotlin"
+                }
+            )
+        }
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -176,7 +190,11 @@ dependencies {
     annotationProcessor(androidx.room.compiler)
     ksp(androidx.room.compiler)
     ksp(libs.koin.ksp.compiler)
-    implementation(platform("${libs.firebase.bom.get()}"))
+    if (AppConfiguration.googleServicesAvailable) {
+        implementation(platform(libs.firebase.bom))
+        implementation(libs.firebase.analytics.ktx)
+        implementation(libs.firebase.crashlytics.ktx)
+    }
     implementation(androidx.activity.compose)
     implementation(androidx.core.ktx)
     implementation(androidx.core.splashscreen)
