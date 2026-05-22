@@ -65,6 +65,10 @@ object BiliLiveHttpApi {
     suspend fun getLiveDanmuInfo(roomId: Int): BiliResponse<DanmuInfoData> =
         client.get("/xlive/web-room/v1/index/getDanmuInfo") {
             parameter("id", roomId)
+            parameter("type", 0)
+            parameter("web_location", "444.8")
+            header("Referer", "https://live.bilibili.com/")
+            header("Origin", "https://live.bilibili.com")
         }.body()
 
     /**

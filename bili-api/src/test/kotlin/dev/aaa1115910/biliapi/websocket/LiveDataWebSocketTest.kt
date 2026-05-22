@@ -2,24 +2,106 @@ package dev.aaa1115910.biliapi.websocket
 
 import dev.aaa1115910.biliapi.http.entity.live.DanmakuEvent
 import dev.aaa1115910.biliapi.http.entity.live.HostListItem
+import dev.aaa1115910.biliapi.http.entity.live.SuperChatEvent
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.nio.ByteBuffer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class LiveDataWebSocketTest {
     @Test
-    fun `live danmaku host prefers first usable websocket host`() {
+    fun `live danmaku host prefers broadcast host`() {
         val hosts = listOf(
+            HostListItem(host = "backup.chat.bilibili.com", port = 2243, wssPort = 443, wsPort = 2244),
             HostListItem(host = "broadcastlv.chat.bilibili.com", port = 2243, wssPort = 443, wsPort = 2244),
-            HostListItem(host = "backup.chat.bilibili.com", port = 2243, wssPort = 443, wsPort = 2244)
+            HostListItem(host = "another.chat.bilibili.com", port = 2243, wssPort = 443, wsPort = 2244)
         )
 
         assertEquals(
             "broadcastlv.chat.bilibili.com",
-            LiveDataWebSocket.chooseLiveDanmakuHost(hosts).host
+            LiveDataWebSocket.preferLiveDanmakuHosts(hosts).first().host
         )
+    }
+
+    @Test
+    fun `live danmaku endpoints include wss and ws variants`() {
+        val endpoints = LiveDataWebSocket.buildLiveDanmakuEndpoints(
+            listOf(
+                HostListItem(host = "backup.chat.bilibili.com", port = 2243, wssPort = 443, wsPort = 2244),
+                HostListItem(host = "broadcastlv.chat.bilibili.com", port = 2243, wssPort = 443, wsPort = 2244)
+            )
+        )
+
+        assertEquals("wss://broadcastlv.chat.bilibili.com:443", endpoints[0].displayName())
+        assertEquals("ws://broadcastlv.chat.bilibili.com:2244", endpoints[1].displayName())
+        assertTrue(endpoints.any { it.displayName() == "wss://backup.chat.bilibili.com:443" })
+        assertTrue(endpoints.any { it.displayName() == "ws://backup.chat.bilibili.com:2244" })
+    }
+
+    @Test
+    fun `live auth packet requests protocol version 3 with uid`() {
+        val packet = LiveDataWebSocket.buildLiveAuthPacket(
+            roomId = 1234,
+            uid = 5678L,
+            token = "token"
+        )
+        val header = ByteBuffer.wrap(packet)
+
+        assertEquals(packet.size, header.getInt(0))
+        assertEquals(16, header.getShort(4).toInt())
+        assertEquals(1, header.getShort(6).toInt())
+        assertEquals(7, header.getInt(8))
+
+        val body = Json.parseToJsonElement(packet.copyOfRange(16, packet.size).decodeToString()).jsonObject
+        assertEquals("5678", body["uid"]?.jsonPrimitive?.content)
+        assertEquals("1234", body["roomid"]?.jsonPrimitive?.content)
+        assertEquals("3", body["protover"]?.jsonPrimitive?.content)
+        assertEquals("token", body["key"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `live heartbeat packet uses object body`() {
+        val packet = LiveDataWebSocket.buildLiveHeartbeatPacket(sequence = 9)
+        val header = ByteBuffer.wrap(packet)
+
+        assertEquals(31, packet.size)
+        assertEquals(31, header.getInt(0))
+        assertEquals(16, header.getShort(4).toInt())
+        assertEquals(1, header.getShort(6).toInt())
+        assertEquals(2, header.getInt(8))
+        assertEquals(9, header.getInt(12))
+        assertEquals("[object Object]", packet.copyOfRange(16, packet.size).decodeToString())
+    }
+
+    @Test
+    fun `live cookie header includes available web auth cookies`() {
+        val header = LiveDataWebSocket.buildLiveCookieHeader(
+            uid = 123L,
+            sessData = "sess",
+            biliJct = "csrf",
+            uidCkMd5 = "md5",
+            sid = "sid",
+            buvid3 = "buvid"
+        )
+
+        assertTrue(header.contains("DedeUserID=123"))
+        assertTrue(header.contains("DedeUserID__ckMd5=md5"))
+        assertTrue(header.contains("SESSDATA=sess"))
+        assertTrue(header.contains("bili_jct=csrf"))
+        assertTrue(header.contains("sid=sid"))
+        assertTrue(header.contains("buvid3=buvid"))
+    }
+
+    @Test
+    fun `live auth reply packet is parsed`() {
+        val packet = livePacket(op = 8, version = 1, body = """{"code":0}""".toByteArray())
+
+        assertTrue(LiveDataWebSocket.isLiveAuthReplySuccess(packet))
     }
 
     @Test
@@ -76,15 +158,125 @@ class LiveDataWebSocketTest {
         assertEquals("带后缀的实时弹幕", event.content)
         assertEquals(987654321L, event.mid)
         assertEquals("后缀用户", event.username)
+        assertEquals(16777215, event.color)
+        assertEquals(1, event.mode)
+    }
+
+    @Test
+    fun `live event parser reads concatenated uncompressed command packets`() = runBlocking {
+        val first = liveCommandPacket(
+            """
+            {
+              "cmd": "DANMU_MSG",
+              "info": [
+                [0, 1, 25, 16711680],
+                "第一条实时弹幕",
+                [111, "用户一"]
+              ],
+              "send_time": 1700000001
+            }
+            """.trimIndent()
+        )
+        val second = liveCommandPacket(
+            """
+            {
+              "cmd": "DANMU_MSG",
+              "info": [
+                [0, 1, 25, 65280],
+                "第二条实时弹幕",
+                [222, "用户二"]
+              ],
+              "send_time": 1700000002
+            }
+            """.trimIndent()
+        )
+
+        val events = LiveDataWebSocket.handleLiveEventData(first + second)
+
+        assertEquals(2, events.size)
+        assertEquals("第一条实时弹幕", assertIs<DanmakuEvent>(events[0]).content)
+        assertEquals(16711680, assertIs<DanmakuEvent>(events[0]).color)
+        assertEquals(1_700_000_001_000L, assertIs<DanmakuEvent>(events[0]).eventTimeMs)
+        assertEquals("第二条实时弹幕", assertIs<DanmakuEvent>(events[1]).content)
+        assertEquals(65280, assertIs<DanmakuEvent>(events[1]).color)
+        assertEquals(1_700_000_002_000L, assertIs<DanmakuEvent>(events[1]).eventTimeMs)
+    }
+
+    @Test
+    fun `live event parser reads app style danmaku extra user fields`() = runBlocking {
+        val packet = liveCommandPacket(
+            """
+            {
+              "cmd": "DANMU_MSG",
+              "info": [
+                [
+                  0, 1, 25, 16777215, 1700000003, 0, 0, "", 0, 0, 0, "", 0, {},
+                  {},
+                  {
+                    "extra": "{\"color\":65280,\"mode\":1,\"id_str\":\"abc\"}",
+                    "user": {
+                      "uid": 333,
+                      "base": { "name": "新格式用户" },
+                      "medal": { "name": "粉丝牌", "level": 12 }
+                    }
+                  }
+                ],
+                "新格式实时弹幕",
+                [0, ""]
+              ]
+            }
+            """.trimIndent()
+        )
+
+        val event = assertIs<DanmakuEvent>(LiveDataWebSocket.handleLiveEventData(packet).single())
+
+        assertEquals("新格式实时弹幕", event.content)
+        assertEquals(333L, event.mid)
+        assertEquals("新格式用户", event.username)
+        assertEquals("粉丝牌", event.medalName)
+        assertEquals(12, event.medalLevel)
+        assertEquals(65280, event.color)
+        assertEquals(1, event.mode)
+    }
+
+    @Test
+    fun `live event parser keeps super chat events`() = runBlocking {
+        val packet = liveCommandPacket(
+            """
+            {
+              "cmd": "SUPER_CHAT_MESSAGE",
+              "data": {
+                "id": 123,
+                "uid": 456,
+                "price": 30,
+                "message": "醒目留言",
+                "ts": 1700000004,
+                "user_info": { "uname": "SC用户" }
+              }
+            }
+            """.trimIndent()
+        )
+
+        val event = assertIs<SuperChatEvent>(LiveDataWebSocket.handleLiveEventData(packet).single())
+
+        assertEquals(123L, event.id)
+        assertEquals(456L, event.uid)
+        assertEquals("SC用户", event.username)
+        assertEquals("醒目留言", event.message)
+        assertEquals(30L, event.price)
+        assertEquals(1_700_000_004_000L, event.eventTimeMs)
     }
 
     private fun liveCommandPacket(json: String): ByteArray {
-        val body = json.toByteArray()
+        return livePacket(op = 5, version = 0, body = json.toByteArray())
+    }
+
+    private fun livePacket(op: Int, version: Int, body: ByteArray): ByteArray {
         return ByteBuffer.allocate(16 + body.size)
             .putInt(16 + body.size)
             .putShort(16)
-            .putShort(0)
-            .putInt(5)
+            .putShort(version.toShort())
+            .putInt(op)
             .putInt(1)
             .put(body)
             .array()

@@ -7,5 +7,19 @@ data class DanmakuEvent(
     val mid: Long,
     val username: String,
     val medalName: String? = null,
-    val medalLevel: Int? = null
+    val medalLevel: Int? = null,
+    val color: Int = 0xffffff,
+    val mode: Int = 1,
+    val eventTimeMs: Long = System.currentTimeMillis(),
+    val sendTimeMs: Long? = null,
+    val rndTimeMs: Long? = null
+) : LiveEvent
+
+data class SuperChatEvent(
+    val id: Long,
+    val uid: Long,
+    val username: String,
+    val message: String,
+    val price: Long,
+    val eventTimeMs: Long = System.currentTimeMillis()
 ) : LiveEvent

@@ -7,8 +7,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.bv.entity.live.LiveCategory
-import dev.aaa1115910.bv.entity.live.LiveCategoryType
 import dev.aaa1115910.bv.entity.live.LiveRoomCard
+import dev.aaa1115910.bv.entity.live.LiveCategoryType
 import dev.aaa1115910.bv.repository.LiveRepository
 import dev.aaa1115910.bv.util.swapList
 import kotlinx.coroutines.Dispatchers

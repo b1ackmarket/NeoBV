@@ -15,6 +15,9 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 import org.koin.core.annotation.Single
 
 @Single
@@ -46,7 +49,9 @@ class LiveRepository(
                 mid = item.uid,
                 username = item.nickname,
                 medalName = item.medal?.name,
-                medalLevel = item.medal?.level
+                medalLevel = item.medal?.level,
+                eventTimeMs = item.toEventTimeMs(),
+                rndTimeMs = item.rnd.takeIf { it > 0L }?.let(::normalizeLiveTimestampMs)
             )
         }
     }
@@ -221,3 +226,21 @@ internal fun JsonObject.toLiveRoomContext(
 private fun JsonElement?.asJsonObjectOrNull(): JsonObject? = this as? JsonObject
 
 private fun JsonElement?.asJsonArrayOrNull(): JsonArray? = this as? JsonArray
+
+private fun dev.aaa1115910.biliapi.http.entity.live.HistoryDanmaku.HistoryDanmakuItem.toEventTimeMs(): Long {
+    rnd.takeIf { it > 0L }?.let { return normalizeLiveTimestampMs(it) }
+    return runCatching {
+        val parsed = SimpleDateFormat("HH:mm:ss", Locale.US).parse(timeline) ?: return@runCatching System.currentTimeMillis()
+        val parsedCalendar = Calendar.getInstance().apply { time = parsed }
+        Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, parsedCalendar.get(Calendar.HOUR_OF_DAY))
+            set(Calendar.MINUTE, parsedCalendar.get(Calendar.MINUTE))
+            set(Calendar.SECOND, parsedCalendar.get(Calendar.SECOND))
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }.getOrDefault(System.currentTimeMillis())
+}
+
+private fun normalizeLiveTimestampMs(value: Long): Long {
+    return if (value < 10_000_000_000L) value * 1000L else value
+}

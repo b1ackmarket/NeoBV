@@ -22,6 +22,7 @@ dependencies {
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.serialization.kotlinx)
     implementation(libs.logging)
+    implementation(libs.okhttp)
     implementation(libs.slf4j.simple)
     testImplementation(libs.kotlin.test)
 }

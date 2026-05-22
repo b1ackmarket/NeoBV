@@ -18,6 +18,7 @@ ktor-jsoup = "2.3.0"
 logging = "7.0.7"
 lottie = "6.6.6"
 material = "1.12.0"
+okhttp = "4.12.0"
 protobuf = "4.31.0"
 #noinspection GradleDependency 之后的版本要求 minSDK >= 23
 qrcode = "3.3.0"
@@ -101,6 +102,9 @@ lottie = { module = "com.airbnb.android:lottie-compose", version.ref = "lottie" 
 
 # https://github.com/material-components/material-components-android
 material = { module = "com.google.android.material:material", version.ref = "material" }
+
+# https://square.github.io/okhttp/
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 
 # https://github.com/g0dkar/qrcode-kotlin
 qrcode = { module = "io.github.g0dkar:qrcode-kotlin-android", version.ref = "qrcode" }

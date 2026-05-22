@@ -37,6 +37,9 @@ import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.live.LiveCategory
 import dev.aaa1115910.bv.entity.live.LiveCategoryType
+import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.repository.LiveJumpModeRepository
+import dev.aaa1115910.bv.repository.toLiveJumpModeItems
 import dev.aaa1115910.bv.screen.main.LoginRequiredPlaceholder
 import dev.aaa1115910.bv.viewmodel.live.LiveViewModel
 import kotlinx.coroutines.launch
@@ -85,6 +88,7 @@ fun LiveContent(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val liveJumpModeRepository = remember { BVApp.koinApplication.koin.get<LiveJumpModeRepository>() }
     val liveColumns = 4
     val gridState = rememberLazyGridState()
     var isRoomGridFocused by remember { mutableStateOf(false) }
@@ -200,6 +204,10 @@ fun LiveContent(
                             danmakuString = room.areaName
                         ),
                         onClick = {
+                            liveJumpModeRepository.setPendingQueue(
+                                selectedRoomId = room.roomId,
+                                items = liveViewModel.rooms.toLiveJumpModeItems()
+                            )
                             LivePlayerActivity.actionStart(
                                 context = context,
                                 roomId = room.roomId,

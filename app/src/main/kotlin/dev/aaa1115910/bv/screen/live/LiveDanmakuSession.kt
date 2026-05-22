@@ -1,15 +1,8 @@
 package dev.aaa1115910.bv.screen.live
 
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
-import com.kuaishou.akdanmaku.DanmakuConfig
-import com.kuaishou.akdanmaku.data.DanmakuItemData
-import com.kuaishou.akdanmaku.ecs.component.filter.TypeFilter
-import com.kuaishou.akdanmaku.render.SimpleRenderer
-import com.kuaishou.akdanmaku.ui.DanmakuPlayer
 import dev.aaa1115910.biliapi.http.entity.live.DanmakuEvent
-import dev.aaa1115910.bv.component.controllers.DanmakuType
-import dev.aaa1115910.bv.component.controllers.LiveDanmakuMenuState
+import dev.aaa1115910.bv.component.LiveDanmakuOverlayController
+import dev.aaa1115910.bv.component.LiveDanmakuOverlayItem
 
 internal class LiveDanmakuTimeline(
     private val nowMs: () -> Long = { System.nanoTime() / 1_000_000L }
@@ -40,70 +33,50 @@ internal class LiveDanmakuTimeline(
 }
 
 class LiveDanmakuSession {
-    val player = DanmakuPlayer(SimpleRenderer())
-
-    private var danmakuConfig = DanmakuConfig()
-    private val danmakuTypeFilter = TypeFilter()
-    private val items = mutableListOf<DanmakuItemData>()
+    val overlayController = LiveDanmakuOverlayController()
     private val timeline = LiveDanmakuTimeline()
-    private var nextDanmakuId = 1L
-
-    fun applyState(state: LiveDanmakuMenuState) {
-        danmakuTypeFilter.clear()
-        if (!state.enabledTypes.contains(DanmakuType.All)) {
-            val disabledTypes = DanmakuType.entries.toMutableList().apply {
-                remove(DanmakuType.All)
-                removeAll(state.enabledTypes)
-            }
-            disabledTypes.mapNotNull { type ->
-                when (type) {
-                    DanmakuType.Rolling -> DanmakuItemData.DANMAKU_MODE_ROLLING
-                    DanmakuType.Top -> DanmakuItemData.DANMAKU_MODE_CENTER_TOP
-                    DanmakuType.Bottom -> DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM
-                    else -> null
-                }
-            }.forEach { danmakuTypeFilter.addFilterItem(it) }
-        }
-
-        danmakuConfig = danmakuConfig.copy(
-            density = 120,
-            textSizeScale = state.scale,
-            screenPart = state.area,
-            dataFilter = listOf(danmakuTypeFilter),
-            rollingSpeedFactor = state.speedFactor
-        )
-        danmakuConfig.updateFilter()
-        player.updateConfig(danmakuConfig)
-        player.setDanmakuRollingSpeed(state.speedFactor)
-    }
+    private val appendQueue = LiveDanmakuAppendQueue(currentPositionMs = { currentPositionMs() })
+    private val seenDanmakuKeys = linkedSetOf<String>()
+    private val seenLooseDanmakuKeys = linkedSetOf<String>()
 
     fun start() {
         timeline.start()
-        player.start()
+        overlayController.setPlaying(true)
     }
 
     fun pause() {
         timeline.pause()
-        player.pause()
+        overlayController.setPlaying(false)
     }
 
     fun currentPositionMs(): Long = timeline.currentPositionMs()
 
     fun addDanmaku(event: DanmakuEvent, isPlaying: Boolean) {
-        val positionMs = currentPositionMs() + 500L
-        items += DanmakuItemData(
-            danmakuId = nextDanmakuId++,
-            position = positionMs,
-            content = event.content,
-            mode = DanmakuItemData.DANMAKU_MODE_ROLLING,
-            textSize = 25,
-            textColor = Color.White.toArgb()
+        if (!markSeen(event)) return
+        addSeenDanmaku(event, isPlaying)
+    }
+
+    fun addSeenDanmaku(event: DanmakuEvent, isPlaying: Boolean) {
+        if (!overlayController.allows(event)) return
+        val item = appendQueue.add(event)
+        overlayController.append(
+            item = item,
+            delayMs = item.positionMs - currentPositionMs()
         )
-        if (items.size > 500) {
-            items.removeAt(0)
+        if (isPlaying) {
+            start()
         }
-        player.updateData(items.toList())
-        player.seekTo(positionMs)
+    }
+
+    fun appendDanmaku(events: List<DanmakuEvent>, isPlaying: Boolean) {
+        if (events.isEmpty()) return
+        val newEvents = events.filter(::markSeen)
+        if (newEvents.isEmpty()) return
+        appendQueue.seed(newEvents)
+        overlayController.append(
+            items = appendQueue.snapshot(),
+            currentPositionMs = currentPositionMs()
+        )
         if (isPlaying) {
             start()
         }
@@ -111,36 +84,106 @@ class LiveDanmakuSession {
 
     fun seedRecentDanmaku(events: List<DanmakuEvent>, isPlaying: Boolean) {
         if (events.isEmpty()) return
-        val currentPositionMs = currentPositionMs()
-        val recentEvents = events.takeLast(25)
-        val seedStart = (currentPositionMs - (recentEvents.size * 700L)).coerceAtLeast(0L)
-        recentEvents.forEachIndexed { index, event ->
-            items += DanmakuItemData(
-                danmakuId = nextDanmakuId++,
-                position = seedStart + index * 700L,
-                content = event.content,
-                mode = DanmakuItemData.DANMAKU_MODE_ROLLING,
-                textSize = 25,
-                textColor = Color.White.toArgb()
-            )
-        }
-        player.updateData(items.toList())
-        player.seekTo(currentPositionMs)
+        val newEvents = events.takeLast(25).filter(::markSeen)
+        if (newEvents.isEmpty()) return
         if (isPlaying) {
             start()
         }
     }
 
+    fun markSeen(events: List<DanmakuEvent>) {
+        events.forEach(::markSeenInternal)
+    }
+
+    fun markSeen(event: DanmakuEvent): Boolean = markSeenInternal(event)
+
     fun clear() {
-        items.clear()
-        nextDanmakuId = 1L
+        appendQueue.clear()
+        seenDanmakuKeys.clear()
+        seenLooseDanmakuKeys.clear()
         timeline.clear()
-        player.updateData(emptyList())
-        player.seekTo(0)
-        player.pause()
+        overlayController.clear()
+        overlayController.setPlaying(false)
     }
 
     fun release() {
-        player.release()
+        overlayController.release()
+    }
+
+    fun hasSeen(event: DanmakuEvent): Boolean =
+        event.stableKey() in seenDanmakuKeys || event.looseStableKey() in seenLooseDanmakuKeys
+
+    internal fun markSeenInternal(event: DanmakuEvent): Boolean {
+        if (!seenLooseDanmakuKeys.add(event.looseStableKey())) return false
+        seenDanmakuKeys.add(event.stableKey())
+        while (seenLooseDanmakuKeys.size > 3000) seenLooseDanmakuKeys.remove(seenLooseDanmakuKeys.first())
+        while (seenDanmakuKeys.size > 3000) seenDanmakuKeys.remove(seenDanmakuKeys.first())
+        return true
+    }
+}
+
+internal fun DanmakuEvent.stableKey(): String {
+    val time = rndTimeMs ?: sendTimeMs ?: eventTimeMs
+    return "$time|$mid|$username|$content"
+}
+
+internal fun DanmakuEvent.looseStableKey(): String = "${mid.takeIf { it > 0 } ?: username}|$content"
+
+internal class LiveDanmakuAppendQueue(
+    private val currentPositionMs: () -> Long,
+    private val leadTimeMs: Long = 500L,
+    private val minGapMs: Long = 120L,
+    private val maxItems: Int = 2000
+) {
+    private var lastAppendPositionMs = 0L
+    private val items = mutableListOf<LiveDanmakuOverlayItem>()
+    private var nextDanmakuId = 1L
+
+    fun add(event: DanmakuEvent): LiveDanmakuOverlayItem {
+        val item = buildItem(
+            event = event,
+            positionMs = nextPositionMs()
+        )
+        items += item
+        trim()
+        return item
+    }
+
+    fun seed(events: List<DanmakuEvent>): List<LiveDanmakuOverlayItem> {
+        if (events.isEmpty()) return emptyList()
+        val currentPositionMs = currentPositionMs()
+        val seedStart = (currentPositionMs - (events.size * 700L)).coerceAtLeast(0L)
+        return events.mapIndexed { index, event ->
+            val positionMs = seedStart + index * 700L
+            buildItem(event = event, positionMs = positionMs).also { item ->
+                items += item
+            }
+        }.also { trim() }
+    }
+
+    fun snapshot(): List<LiveDanmakuOverlayItem> = items.toList()
+
+    fun clear() {
+        lastAppendPositionMs = 0L
+        nextDanmakuId = 1L
+        items.clear()
+    }
+
+    private fun buildItem(event: DanmakuEvent, positionMs: Long): LiveDanmakuOverlayItem {
+        return LiveDanmakuOverlayItem(
+            id = nextDanmakuId++,
+            positionMs = positionMs,
+            event = event
+        )
+    }
+
+    private fun nextPositionMs(): Long {
+        val next = (currentPositionMs() + leadTimeMs).coerceAtLeast(lastAppendPositionMs + minGapMs)
+        lastAppendPositionMs = next
+        return next
+    }
+
+    private fun trim() {
+        while (items.size > maxItems) items.removeAt(0)
     }
 }

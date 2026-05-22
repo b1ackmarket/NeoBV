@@ -17,6 +17,7 @@ import dev.aaa1115910.bv.component.HomePageSettingItem
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.PersonalTopNavItem
 import dev.aaa1115910.bv.component.controllers.DanmakuType
+import dev.aaa1115910.bv.component.controllers.LiveDanmakuSourceMode
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.live.LiveDefaultQuality
@@ -192,6 +193,16 @@ object Prefs {
     var defaultDanmakuSpeedFactor by pref(PrefKeys.prefDefaultDanmakuSpeedFactorKey, 1f)
     var defaultDanmakuArea by pref(PrefKeys.prefDefaultDanmakuAreaKey, 0.5f)
     var defaultDanmakuMask by pref(PrefKeys.prefDefaultDanmakuMask, false)
+    var defaultLiveDanmakuSourceMode by pref(
+        PrefKeys.prefDefaultLiveDanmakuSourceModeKey,
+        LiveDanmakuSourceMode.WebSocketAndHistory,
+        save = { it.ordinal },
+        restore = { value ->
+            LiveDanmakuSourceMode.entries.getOrElse(value) {
+                LiveDanmakuSourceMode.WebSocketAndHistory
+            }
+        }
+    )
 
     // =========================================================================
     // 播放器 - 字幕
@@ -425,6 +436,7 @@ private object PrefKeys {
     val prefDefaultDanmakuSpeedFactorKey = floatPreferencesKey("ddsf")
     val prefDefaultDanmakuAreaKey = floatPreferencesKey("dda")
     val prefDefaultDanmakuMask = booleanPreferencesKey("prefer_enable_webmark")
+    val prefDefaultLiveDanmakuSourceModeKey = intPreferencesKey("live_danmaku_source_mode")
 
     // 播放器 - 字幕
     val prefDefaultSubtitleFontSizeKey = intPreferencesKey("dsfs")
