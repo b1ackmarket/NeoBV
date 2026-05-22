@@ -7,6 +7,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.io.EOFException
 import java.nio.ByteBuffer
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -102,6 +103,33 @@ class LiveDataWebSocketTest {
         val packet = livePacket(op = 8, version = 1, body = """{"code":0}""".toByteArray())
 
         assertTrue(LiveDataWebSocket.isLiveAuthReplySuccess(packet))
+    }
+
+    @Test
+    fun `live websocket failure reason includes connection stage and endpoint details`() {
+        val reason = LiveDataWebSocket.buildLiveWebSocketFailureReason(
+            throwable = EOFException("stream closed"),
+            endpoint = LiveDataWebSocket.LiveDanmakuEndpoint(
+                scheme = "wss",
+                host = "broadcastlv.chat.bilibili.com",
+                port = 443
+            ),
+            stage = "connecting",
+            endpointIndex = 0,
+            endpointCount = 4,
+            reconnectAttempt = 2,
+            hasCookie = true,
+            tokenLength = 12
+        )
+
+        assertTrue(reason.contains("EOFException: stream closed"))
+        assertTrue(reason.contains("stage=connecting"))
+        assertTrue(reason.contains("endpoint=wss://broadcastlv.chat.bilibili.com:443"))
+        assertTrue(reason.contains("url=wss://broadcastlv.chat.bilibili.com/sub"))
+        assertTrue(reason.contains("idx=1/4"))
+        assertTrue(reason.contains("retry=2"))
+        assertTrue(reason.contains("cookie=yes"))
+        assertTrue(reason.contains("token=12"))
     }
 
     @Test

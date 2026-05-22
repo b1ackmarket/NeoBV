@@ -158,6 +158,39 @@ object LiveDataWebSocket {
         }.joinToString("; ")
     }
 
+    internal fun buildLiveWebSocketFailureReason(
+        throwable: Throwable,
+        endpoint: LiveDanmakuEndpoint,
+        stage: String,
+        response: Response? = null,
+        endpointIndex: Int = 0,
+        endpointCount: Int = 1,
+        reconnectAttempt: Int = 0,
+        hasCookie: Boolean = false,
+        tokenLength: Int = 0
+    ): String {
+        return buildString {
+            append(throwable::class.simpleName ?: "failure")
+            throwable.message?.takeIf { it.isNotBlank() }?.let { append(": ").append(it) }
+            throwable.cause?.let { cause ->
+                append(" cause=")
+                    .append(cause::class.simpleName ?: "unknown")
+                cause.message?.takeIf { it.isNotBlank() }?.let { append(":").append(it) }
+            }
+            append(" stage=").append(stage)
+            append(" endpoint=").append(endpoint.displayName())
+            append(" url=").append(endpoint.websocketUrl())
+            append(" idx=").append(endpointIndex + 1).append('/').append(endpointCount.coerceAtLeast(1))
+            append(" retry=").append(reconnectAttempt)
+            append(" cookie=").append(if (hasCookie) "yes" else "no")
+            append(" token=").append(tokenLength)
+            response?.let {
+                append(" http=").append(it.code).append(' ').append(it.message)
+                append(" server=").append(it.header("server").orEmpty().ifBlank { "-" })
+            }
+        }.take(320)
+    }
+
     internal fun buildLiveHeartbeatPacket(sequence: Int = 1): ByteArray {
         return buildPacket(
             op = OpHeartbeat,
@@ -422,6 +455,7 @@ object LiveDataWebSocket {
         private var endpointIndex = 0
         private var reconnectAttempt = 0
         private var sequence = 1
+        private var connectionStage = "idle"
         @Volatile
         private var closed = false
         @Volatile
@@ -442,6 +476,7 @@ object LiveDataWebSocket {
                 return
             }
             authed = false
+            connectionStage = "connecting"
             heartbeatJob?.cancel()
             authTimeoutJob?.cancel()
             runCatching { webSocket?.close(1000, "reconnect") }
@@ -465,11 +500,19 @@ object LiveDataWebSocket {
             logger.info { "Live danmaku connecting: room=$roomId endpoint=${endpoint.displayName()} hasCookie=${cookieHeader.isNotBlank()}" }
             onDebug(LiveDataWebSocketDebugEvent.StateChanged(LiveDataWebSocketState.Connecting))
             onDebug(LiveDataWebSocketDebugEvent.HostChanged(endpoint.displayName()))
+            onDebug(
+                LiveDataWebSocketDebugEvent.Error(
+                    "connect stage=$connectionStage endpoint=${endpoint.displayName()} " +
+                        "idx=${endpointIndex + 1}/${endpoints.size} retry=$reconnectAttempt " +
+                        "cookie=${if (cookieHeader.isNotBlank()) "yes" else "no"} token=${token.length}"
+                )
+            )
             webSocket = okHttpClient.newWebSocket(request, Listener(endpoint))
         }
 
         private fun onAuthed() {
             authed = true
+            connectionStage = "authed"
             reconnectAttempt = 0
             authTimeoutJob?.cancel()
             onDebug(LiveDataWebSocketDebugEvent.StateChanged(LiveDataWebSocketState.Authed))
@@ -508,10 +551,21 @@ object LiveDataWebSocket {
 
         private inner class Listener(private val endpoint: LiveDanmakuEndpoint) : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                onDebug(LiveDataWebSocketDebugEvent.Error("opened http=${response.code} ${endpoint.displayName()}"))
+                connectionStage = "opened"
+                onDebug(
+                    LiveDataWebSocketDebugEvent.Error(
+                        "opened http=${response.code} ${endpoint.displayName()} " +
+                            "protocol=${response.header("sec-websocket-protocol").orEmpty().ifBlank { "-" }}"
+                    )
+                )
                 val sent = webSocket.send(ByteString.of(*buildLiveAuthPacket(roomId, uid, token)))
+                connectionStage = if (sent) "auth_sent" else "auth_send_failed"
                 logger.info { "Live danmaku auth sent: room=$roomId endpoint=${endpoint.displayName()} sent=$sent uid=$uid" }
-                onDebug(LiveDataWebSocketDebugEvent.Error("auth sent=$sent ${endpoint.displayName()}"))
+                onDebug(
+                    LiveDataWebSocketDebugEvent.Error(
+                        "auth sent=$sent stage=$connectionStage ${endpoint.displayName()} uid=$uid token=${token.length}"
+                    )
+                )
                 authTimeoutJob = scope.launch {
                     delay(6_000)
                     if (!authed && isActive) {
@@ -552,12 +606,17 @@ object LiveDataWebSocket {
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                val reason = buildString {
-                    append(t::class.simpleName ?: "failure")
-                    t.message?.takeIf { it.isNotBlank() }?.let { append(": ").append(it) }
-                    append(" at=").append(endpoint.displayName())
-                    response?.let { append(" http=").append(it.code).append(' ').append(it.message) }
-                }.take(160)
+                val reason = buildLiveWebSocketFailureReason(
+                    throwable = t,
+                    endpoint = endpoint,
+                    stage = connectionStage,
+                    response = response,
+                    endpointIndex = endpointIndex,
+                    endpointCount = endpoints.size,
+                    reconnectAttempt = reconnectAttempt,
+                    hasCookie = cookieHeader.isNotBlank(),
+                    tokenLength = token.length
+                )
                 logger.warn(t) { "Live danmaku websocket failed: room=$roomId endpoint=${endpoint.displayName()} reason=$reason" }
                 onDebug(LiveDataWebSocketDebugEvent.StateChanged(LiveDataWebSocketState.Failed))
                 onDebug(LiveDataWebSocketDebugEvent.Error(reason))
