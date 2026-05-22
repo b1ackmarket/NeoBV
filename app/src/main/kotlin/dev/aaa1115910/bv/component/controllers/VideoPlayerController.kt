@@ -631,11 +631,7 @@ fun VideoPlayerController(
                 showListController = true
             },
             onDanmakuSwitchChange = {
-                if (uiState.danmakuState.enabledTypes.isEmpty()) {
-                    onDanmakuSettingChange(DanmakuSettingAction.SetEnabledTypes(DanmakuType.entries))
-                } else {
-                    onDanmakuSettingChange(DanmakuSettingAction.SetEnabledTypes(emptyList()))
-                }
+                onDanmakuSettingChange(DanmakuSettingAction.ToggleEnabled)
             },
             onShowSettings = {
                 showInfoSeekController = false

@@ -27,7 +27,6 @@ import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.biliapi.http.util.toSmartDate
 import dev.aaa1115910.biliapi.entity.user.SpaceVideoOrder
 import dev.aaa1115910.biliapi.http.BiliHttpApi
-import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData
 import dev.aaa1115910.biliapi.http.entity.reply.ReplyItem
 import dev.aaa1115910.biliapi.repositories.UserRepository
 import dev.aaa1115910.biliapi.repositories.VideoPlayRepository
@@ -359,6 +358,7 @@ class VideoPlayerV3ViewModel(
                     speedFactor = Prefs.defaultDanmakuSpeedFactor,
                     maskEnabled = Prefs.defaultDanmakuMask,
                     enabledTypes = Prefs.defaultDanmakuTypes,
+                    lastEnabledTypes = Prefs.defaultDanmakuTypes.takeIf { it.isNotEmpty() } ?: DanmakuType.entries,
                 ),
                 subtitleState = SubtitleState(
                     fontSize = Prefs.defaultSubtitleFontSize,
@@ -590,7 +590,25 @@ class VideoPlayerV3ViewModel(
             is DanmakuSettingAction.SetArea -> old.copy(area = action.value)
             is DanmakuSettingAction.SetSpeedFactor -> old.copy(speedFactor = action.value)
             is DanmakuSettingAction.SetMaskEnabled -> old.copy(maskEnabled = action.enabled)
-            is DanmakuSettingAction.SetEnabledTypes -> old.copy(enabledTypes = action.types)
+            is DanmakuSettingAction.SetEnabledTypes -> {
+                if (action.types.isEmpty()) {
+                    old.copy(enabledTypes = emptyList(), lastEnabledTypes = old.enabledTypes)
+                } else {
+                    old.copy(enabledTypes = action.types, lastEnabledTypes = action.types)
+                }
+            }
+            DanmakuSettingAction.ToggleEnabled -> {
+                if (old.enabledTypes.isEmpty()) {
+                    old.copy(
+                        enabledTypes = old.lastEnabledTypes
+                            .takeIf { it.isNotEmpty() }
+                            ?: Prefs.defaultDanmakuTypes.takeIf { it.isNotEmpty() }
+                            ?: DanmakuType.entries
+                    )
+                } else {
+                    old.copy(enabledTypes = emptyList(), lastEnabledTypes = old.enabledTypes)
+                }
+            }
         }
 
         if (old == new) return
@@ -601,7 +619,9 @@ class VideoPlayerV3ViewModel(
         // ===== 副作用处理 =====
         if (new.enabledTypes != old.enabledTypes) {
             updateDanmakuConfigTypeFilter(new.enabledTypes)
-            Prefs.defaultDanmakuTypes = new.enabledTypes
+            if (new.enabledTypes.isNotEmpty()) {
+                Prefs.defaultDanmakuTypes = new.enabledTypes
+            }
         }
         if (new.scale != old.scale) {
             updateDanmakuScale(new.scale)
@@ -1539,7 +1559,7 @@ class VideoPlayerV3ViewModel(
         runCatching {
             val danmakuXmlData = BiliHttpApi.getDanmakuXml(cid = cid, sessData = Prefs.sessData)
 
-            dedupeDanmakuData(danmakuXmlData.data).map {
+            danmakuXmlData.data.map {
                 DanmakuItemData(
                     danmakuId = it.dmid,
                     position = (it.time * 1000).toLong(),
@@ -2249,18 +2269,6 @@ private fun String.parseReplyColor(): Int? {
     return value.toIntOrNull(radix = 16)
 }
 
-internal fun dedupeDanmakuData(items: List<DanmakuData>): List<DanmakuData> {
-    val seen = HashSet<String>(items.size)
-    return items.filter { item ->
-        val key = if (item.dmid > 0L) {
-            "id:${item.dmid}"
-        } else {
-            "raw:${(item.time * 1000).toLong()}:${item.type}:${item.color}:${item.text}"
-        }
-        seen.add(key)
-    }
-}
-
 internal fun JumpModeQueue.toJumpModeState(): JumpModeState {
     return JumpModeState(
         available = isUsable,
@@ -2341,6 +2349,7 @@ sealed interface DanmakuSettingAction {
     data class SetSpeedFactor(val value: Float) : DanmakuSettingAction
     data class SetMaskEnabled(val enabled: Boolean) : DanmakuSettingAction
     data class SetEnabledTypes(val types: List<DanmakuType>) : DanmakuSettingAction
+    data object ToggleEnabled : DanmakuSettingAction
 }
 
 sealed interface SubtitleSettingAction {

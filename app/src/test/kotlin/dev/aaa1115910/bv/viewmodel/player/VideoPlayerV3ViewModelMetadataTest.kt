@@ -2,7 +2,6 @@ package dev.aaa1115910.bv.viewmodel.player
 
 import dev.aaa1115910.biliapi.entity.DashAudio
 import dev.aaa1115910.biliapi.entity.DashVideo
-import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData
 import dev.aaa1115910.biliapi.http.entity.reply.ReplyContent
 import dev.aaa1115910.biliapi.http.entity.reply.ReplyItem
 import dev.aaa1115910.biliapi.http.entity.reply.ReplyMember
@@ -257,20 +256,4 @@ class VideoPlayerV3ViewModelMetadataTest {
         assertEquals("1.2万条", formatCommentTotalCount(12_000))
     }
 
-    @Test
-    fun `video danmaku data is deduped before passing to player`() {
-        val items = listOf(
-            DanmakuData(1f, 1, 25, 0xffffff, 1, 0, "a", 100L, 0, "重复"),
-            DanmakuData(1f, 1, 25, 0xffffff, 1, 0, "a", 100L, 0, "重复"),
-            DanmakuData(2f, 1, 25, 0xffffff, 1, 0, "b", 0L, 0, "无id"),
-            DanmakuData(2f, 1, 25, 0xffffff, 1, 0, "c", 0L, 0, "无id"),
-            DanmakuData(3f, 1, 25, 0xffffff, 1, 0, "d", 0L, 0, "无id")
-        )
-
-        val result = dedupeDanmakuData(items)
-
-        assertEquals(3, result.size)
-        assertEquals(listOf(100L, 0L, 0L), result.map { it.dmid })
-        assertEquals(listOf("重复", "无id", "无id"), result.map { it.text })
-    }
 }

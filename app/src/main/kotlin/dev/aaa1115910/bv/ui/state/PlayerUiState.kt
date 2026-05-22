@@ -123,6 +123,7 @@ data class DanmakuState(
     val speedFactor: Float = 1f,
     val maskEnabled: Boolean = false,
     val enabledTypes: List<DanmakuType> = emptyList(),
+    val lastEnabledTypes: List<DanmakuType> = emptyList(),
 )
 
 data class SubtitleState(
