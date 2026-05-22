@@ -38,7 +38,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -47,6 +46,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
+import androidx.tv.material3.Card
+import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
@@ -88,6 +89,7 @@ fun UpSpaceScreen(
     val scope = rememberCoroutineScope()
     val jumpModeRepository = remember { BVApp.koinApplication.koin.get<JumpModeRepository>() }
     val profileFocusRequester = remember { FocusRequester() }
+    val tabsFocusRequester = remember { FocusRequester() }
     var initialFocusRequested by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -111,83 +113,88 @@ fun UpSpaceScreen(
         }
     }
 
-    LaunchedEffect(upInfoViewModel.profileLoaded) {
-        if (!initialFocusRequested && upInfoViewModel.profileLoaded) {
+    LaunchedEffect(
+        upInfoViewModel.profileLoaded,
+        upInfoViewModel.videosLoaded,
+        upInfoViewModel.spaceVideos.size
+    ) {
+        val canRequestInitialFocus =
+            upInfoViewModel.profileLoaded ||
+                upInfoViewModel.videosLoaded ||
+                upInfoViewModel.spaceVideos.isNotEmpty()
+        if (!initialFocusRequested && canRequestInitialFocus) {
             initialFocusRequested = true
             profileFocusRequester.requestFocus(scope)
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 48.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        UpProfileHeader(
-            modifier = Modifier.focusRequester(profileFocusRequester),
-            upInfoViewModel = upInfoViewModel
+    when (upInfoViewModel.selectedTab) {
+        UpSpaceTab.Videos -> UpVideosGrid(
+            modifier = modifier,
+            upInfoViewModel = upInfoViewModel,
+            toViewViewModel = toViewViewModel,
+            jumpModeRepository = jumpModeRepository,
+            profileFocusRequester = profileFocusRequester,
+            tabsFocusRequester = tabsFocusRequester
         )
-        UpTabs(
-            tabs = upInfoViewModel.visibleTabs,
-            selectedTab = upInfoViewModel.selectedTab,
-            onSelect = upInfoViewModel::selectTab
+
+        UpSpaceTab.SeasonsSeries -> UpSeasonSeriesContent(
+            modifier = modifier,
+            upInfoViewModel = upInfoViewModel,
+            groups = upInfoViewModel.seasonsSeries,
+            loading = upInfoViewModel.seasonsSeriesLoading && !upInfoViewModel.seasonsSeriesLoaded,
+            profileFocusRequester = profileFocusRequester,
+            tabsFocusRequester = tabsFocusRequester,
+            onVideoClicked = { video ->
+                jumpModeRepository.setPendingQueue(
+                    source = JumpModeSource.Personal,
+                    selectedAid = video.avid,
+                    items = upInfoViewModel.seasonsSeries.flatMap { it.videos }.toJumpModeItems()
+                )
+                VideoInfoActivity.actionStart(
+                    context = context,
+                    aid = video.avid,
+                    proxyArea = ProxyArea.checkProxyArea(video.title)
+                )
+            },
+            onAddWatchLater = toViewViewModel::addToView
         )
-        when (upInfoViewModel.selectedTab) {
-            UpSpaceTab.Videos -> UpVideosGrid(
-                upInfoViewModel = upInfoViewModel,
-                toViewViewModel = toViewViewModel,
-                jumpModeRepository = jumpModeRepository
-            )
 
-            UpSpaceTab.SeasonsSeries -> UpSeasonSeriesContent(
-                groups = upInfoViewModel.seasonsSeries,
-                loading = upInfoViewModel.seasonsSeriesLoading && !upInfoViewModel.seasonsSeriesLoaded,
-                onVideoClicked = { video ->
-                    jumpModeRepository.setPendingQueue(
-                        source = JumpModeSource.Personal,
-                        selectedAid = video.avid,
-                        items = upInfoViewModel.seasonsSeries.flatMap { it.videos }.toJumpModeItems()
-                    )
-                    VideoInfoActivity.actionStart(
-                        context = context,
-                        aid = video.avid,
-                        proxyArea = ProxyArea.checkProxyArea(video.title)
-                    )
-                },
-                onAddWatchLater = toViewViewModel::addToView
-            )
-
-            UpSpaceTab.Favorites -> UpFavoritesContent(
-                groups = upInfoViewModel.favorites,
-                loading = upInfoViewModel.favoritesLoading && !upInfoViewModel.favoritesLoaded,
-                onVideoClicked = { video ->
-                    jumpModeRepository.setPendingQueue(
-                        source = JumpModeSource.Personal,
-                        selectedAid = video.avid,
-                        items = upInfoViewModel.favorites.flatMap { it.videos }.toJumpModeItems()
-                    )
-                    VideoInfoActivity.actionStart(
-                        context = context,
-                        aid = video.avid,
-                        proxyArea = ProxyArea.checkProxyArea(video.title)
-                    )
-                },
-                onAddWatchLater = toViewViewModel::addToView
-            )
-        }
+        UpSpaceTab.Favorites -> UpFavoritesContent(
+            modifier = modifier,
+            upInfoViewModel = upInfoViewModel,
+            groups = upInfoViewModel.favorites,
+            loading = upInfoViewModel.favoritesLoading && !upInfoViewModel.favoritesLoaded,
+            profileFocusRequester = profileFocusRequester,
+            tabsFocusRequester = tabsFocusRequester,
+            onVideoClicked = { video ->
+                jumpModeRepository.setPendingQueue(
+                    source = JumpModeSource.Personal,
+                    selectedAid = video.avid,
+                    items = upInfoViewModel.favorites.flatMap { it.videos }.toJumpModeItems()
+                )
+                VideoInfoActivity.actionStart(
+                    context = context,
+                    aid = video.avid,
+                    proxyArea = ProxyArea.checkProxyArea(video.title)
+                )
+            },
+            onAddWatchLater = toViewViewModel::addToView
+        )
     }
 }
 
 @Composable
 private fun UpVideosGrid(
+    modifier: Modifier,
     upInfoViewModel: UpInfoViewModel,
     toViewViewModel: ToViewViewModel,
-    jumpModeRepository: JumpModeRepository
+    jumpModeRepository: JumpModeRepository,
+    profileFocusRequester: FocusRequester,
+    tabsFocusRequester: FocusRequester
 ) {
     val context = LocalContext.current
     val gridState = rememberLazyGridState()
-    val firstVideoFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(gridState, upInfoViewModel.spaceVideos.size) {
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
@@ -205,20 +212,35 @@ private fun UpVideosGrid(
     }
 
     TvLazyVerticalGrid(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 48.dp, vertical = 24.dp),
         columns = GridCells.Fixed(4),
         state = gridState,
-        contentPadding = PaddingValues(bottom = 48.dp),
+        contentPadding = PaddingValues(bottom = 72.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp)
     ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            UpProfileHeader(
+                modifier = Modifier.focusRequester(profileFocusRequester),
+                upInfoViewModel = upInfoViewModel
+            )
+        }
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            UpTabs(
+                modifier = Modifier.focusRequester(tabsFocusRequester),
+                tabs = upInfoViewModel.visibleTabs,
+                selectedTab = upInfoViewModel.selectedTab,
+                onSelect = upInfoViewModel::selectTab
+            )
+        }
         if (upInfoViewModel.spaceVideos.isNotEmpty()) {
             itemsIndexed(
                 items = upInfoViewModel.spaceVideos,
                 key = { _, video -> video.avid }
-            ) { index, video ->
+            ) { _, video ->
                 SmallVideoCard(
-                    modifier = Modifier.ifElse(index == 0, Modifier.focusRequester(firstVideoFocusRequester)),
                     data = video,
                     onClick = {
                         jumpModeRepository.setPendingQueue(
@@ -248,7 +270,7 @@ private fun UpVideosGrid(
                 )
             }
         } else {
-            item {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 EmptyTip(
                     text = if (upInfoViewModel.videosLoaded && !upInfoViewModel.videosLoading) {
                         "空空如也"
@@ -362,6 +384,7 @@ private fun UpProfileHeader(
 
 @Composable
 private fun UpTabs(
+    modifier: Modifier = Modifier,
     tabs: List<UpSpaceTab>,
     selectedTab: UpSpaceTab,
     onSelect: (UpSpaceTab) -> Unit
@@ -372,7 +395,7 @@ private fun UpTabs(
     if (tabs.isEmpty()) return
 
     TabRow(
-        modifier = Modifier.focusRestorer(focusRequester),
+        modifier = modifier.focusRestorer(focusRequester),
         selectedTabIndex = selectedIndex,
         separator = { Spacer(modifier = Modifier.width(16.dp)) }
     ) {
@@ -395,58 +418,102 @@ private fun UpTabs(
 
 @Composable
 private fun UpSeasonSeriesContent(
+    modifier: Modifier = Modifier,
+    upInfoViewModel: UpInfoViewModel,
     groups: List<UpSeasonSeriesGroup>,
     loading: Boolean,
+    profileFocusRequester: FocusRequester,
+    tabsFocusRequester: FocusRequester,
     onVideoClicked: (VideoCardData) -> Unit,
     onAddWatchLater: (Long) -> Unit
 ) {
-    if (groups.isEmpty()) {
-        EmptyTip(text = if (loading) "加载中…" else "空空如也")
-        return
-    }
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 48.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
-        contentPadding = PaddingValues(bottom = 48.dp)
+        contentPadding = PaddingValues(bottom = 72.dp)
     ) {
-        itemsIndexed(groups, key = { _, group -> "${group.type}-${group.id}" }) { _, group ->
-            UpVideoGroupRow(
-                title = "${group.type.displayName} · ${group.title}",
-                subtitle = if (group.total > 0) "${group.total} 个视频" else null,
-                cover = group.cover,
-                videos = group.videos,
-                onVideoClicked = onVideoClicked,
-                onAddWatchLater = onAddWatchLater
+        item {
+            UpProfileHeader(
+                modifier = Modifier.focusRequester(profileFocusRequester),
+                upInfoViewModel = upInfoViewModel
             )
+        }
+        item {
+            UpTabs(
+                modifier = Modifier.focusRequester(tabsFocusRequester),
+                tabs = upInfoViewModel.visibleTabs,
+                selectedTab = upInfoViewModel.selectedTab,
+                onSelect = upInfoViewModel::selectTab
+            )
+        }
+        if (groups.isEmpty()) {
+            item {
+                EmptyTip(text = if (loading) "加载中…" else "空空如也")
+            }
+        } else {
+            itemsIndexed(groups, key = { _, group -> "${group.type}-${group.id}" }) { _, group ->
+                UpVideoGroupRow(
+                    title = "${group.type.displayName} · ${group.title}",
+                    subtitle = if (group.total > 0) "${group.total} 个视频" else null,
+                    cover = group.cover,
+                    videos = group.videos,
+                    onVideoClicked = onVideoClicked,
+                    onAddWatchLater = onAddWatchLater
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun UpFavoritesContent(
+    modifier: Modifier = Modifier,
+    upInfoViewModel: UpInfoViewModel,
     groups: List<UpFavoriteGroup>,
     loading: Boolean,
+    profileFocusRequester: FocusRequester,
+    tabsFocusRequester: FocusRequester,
     onVideoClicked: (VideoCardData) -> Unit,
     onAddWatchLater: (Long) -> Unit
 ) {
-    if (groups.isEmpty()) {
-        EmptyTip(text = if (loading) "加载中…" else "空空如也")
-        return
-    }
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 48.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
-        contentPadding = PaddingValues(bottom = 48.dp)
+        contentPadding = PaddingValues(bottom = 72.dp)
     ) {
-        itemsIndexed(groups, key = { _, group -> group.id }) { _, group ->
-            UpVideoGroupRow(
-                title = group.title,
-                subtitle = if (group.total > 0) "${group.total} 个视频" else null,
-                cover = group.cover.orEmpty(),
-                videos = group.videos,
-                onVideoClicked = onVideoClicked,
-                onAddWatchLater = onAddWatchLater
+        item {
+            UpProfileHeader(
+                modifier = Modifier.focusRequester(profileFocusRequester),
+                upInfoViewModel = upInfoViewModel
             )
+        }
+        item {
+            UpTabs(
+                modifier = Modifier.focusRequester(tabsFocusRequester),
+                tabs = upInfoViewModel.visibleTabs,
+                selectedTab = upInfoViewModel.selectedTab,
+                onSelect = upInfoViewModel::selectTab
+            )
+        }
+        if (groups.isEmpty()) {
+            item {
+                EmptyTip(text = if (loading) "加载中…" else "空空如也")
+            }
+        } else {
+            itemsIndexed(groups, key = { _, group -> group.id }) { _, group ->
+                UpVideoGroupRow(
+                    title = group.title,
+                    subtitle = if (group.total > 0) "${group.total} 个视频" else null,
+                    cover = group.cover.orEmpty(),
+                    videos = group.videos,
+                    onVideoClicked = onVideoClicked,
+                    onAddWatchLater = onAddWatchLater
+                )
+            }
         }
     }
 }
@@ -533,46 +600,43 @@ private fun UpCollectionCoverCard(
     countText: String?,
     onClick: () -> Unit
 ) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier.width(210.dp),
-        shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.large),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.White.copy(alpha = 0.03f),
-            contentColor = Color.White,
-            focusedContainerColor = Color.White.copy(alpha = 0.1f),
-            focusedContentColor = Color.White
-        ),
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(
-                border = BorderStroke(3.dp, MaterialTheme.colorScheme.border),
-                shape = MaterialTheme.shapes.large
-            )
-        )
+    Column(
+        modifier = Modifier.width(210.dp)
     ) {
-        Column {
+        Card(
+            onClick = onClick,
+            modifier = modifier
+                .fillMaxWidth()
+                .aspectRatio(1.6f),
+            shape = CardDefaults.shape(MaterialTheme.shapes.large),
+            border = CardDefaults.border(
+                focusedBorder = Border(
+                    border = BorderStroke(3.dp, MaterialTheme.colorScheme.border),
+                    shape = MaterialTheme.shapes.large
+                )
+            )
+        ) {
             CardCover(
-                modifier = Modifier.aspectRatio(1.6f),
                 cover = cover,
                 play = "",
                 danmaku = "",
                 time = countText.orEmpty()
             )
-            Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "全部",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color.White.copy(alpha = 0.65f),
-                    maxLines = 1
-                )
-            }
+        }
+        Column(modifier = Modifier.padding(vertical = 6.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "全部",
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.65f),
+                maxLines = 1
+            )
         }
     }
 }
