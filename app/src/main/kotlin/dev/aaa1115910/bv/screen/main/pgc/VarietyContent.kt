@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.pgc.PgcIndexActivity
+import dev.aaa1115910.bv.activities.pgc.PgcRankActivity
 import dev.aaa1115910.bv.tv.screens.main.pgc.PgcFeatureButtons
 import dev.aaa1115910.bv.tv.screens.main.pgc.PgcScaffold
 import dev.aaa1115910.bv.tv.screens.main.pgc.showPlaceholderToast
@@ -30,6 +31,9 @@ fun VarietyContent(
     val onOpenIndex: () -> Unit = {
         PgcIndexActivity.actionStart(context = context, pgcType = PgcType.Variety)
     }
+    val onOpenRank: () -> Unit = {
+        PgcRankActivity.actionStart(context = context, pgcType = PgcType.Variety)
+    }
 
     PgcScaffold(
         lazyListState = lazyListState,
@@ -38,7 +42,8 @@ fun VarietyContent(
         featureButtons = {
             VarietyFeatureButtons(
                 modifier = Modifier.padding(vertical = 24.dp),
-                onOpenIndex = onOpenIndex
+                onOpenIndex = onOpenIndex,
+                onOpenRank = onOpenRank
             )
         }
     )
@@ -47,7 +52,8 @@ fun VarietyContent(
 @Composable
 private fun VarietyFeatureButtons(
     modifier: Modifier = Modifier,
-    onOpenIndex: () -> Unit
+    onOpenIndex: () -> Unit,
+    onOpenRank: () -> Unit
 ) {
     val buttons = listOf(
         Triple(
@@ -66,9 +72,9 @@ private fun VarietyFeatureButtons(
             showPlaceholderToast
         ),
         Triple(
-            stringResource(R.string.pgc_home_button_unknown),
-            painterResource(R.drawable.pgc_placeholder_24),
-            showPlaceholderToast
+            stringResource(R.string.pgc_home_button_rank),
+            painterResource(R.drawable.pgc_rank_24),
+            onOpenRank
         )
     )
     PgcFeatureButtons(
@@ -84,6 +90,7 @@ private fun VarietyFeatureButtonsPreview() {
         VarietyFeatureButtons(
             modifier = Modifier,
             onOpenIndex = {},
+            onOpenRank = {}
         )
     }
 }

@@ -8,20 +8,20 @@ import kotlinx.serialization.json.JsonArray
 @Serializable
 data class PgcFeedData(
     @Suppress("SpellCheckingInspection")
-    var coursor: Int,
+    val coursor: Int = 0,
     @SerialName("has_next")
-    val hasNext: Boolean,
+    val hasNext: Boolean = false,
     var items: List<FeedSubItem> = emptyList()
 ) {
     @Serializable
     data class FeedSubItem(
-        val cover: String,
+        val cover: String = "",
         @SerialName("episode_id")
-        val episodeId: Int,
+        val episodeId: Int = 0,
         val hover: Hover? = null,
         val link: String? = null,
         @SerialName("rank_id")
-        val rankId: Int,
+        val rankId: Int = 0,
         val rating: String? = null,
         @SerialName("season_id")
         val seasonId: Int? = null,
@@ -29,21 +29,22 @@ data class PgcFeedData(
         val seasonType: Int? = null,
         val stat: Stat? = null,
         @SerialName("sub_title")
-        val subTitle: String,
+        val subTitle: String = "",
         val text: JsonArray? = null,
-        val title: String,
+        val title: String = "",
+        @SerialName("user_status")
         val userStatus: UserStatus? = null
     ) {
         @Serializable
         data class Stat(
-            val danmaku: Int,
-            val duration: Int,
-            val view: Long
+            val danmaku: Int = 0,
+            val duration: Int = 0,
+            val view: Long = 0
         )
 
         @Serializable
         data class UserStatus(
-            val follow: Int
+            val follow: Int = 0
         )
     }
 }

@@ -8,24 +8,24 @@ import kotlinx.serialization.json.JsonArray
 @Serializable
 data class PgcFeedV3Data(
     @Suppress("SpellCheckingInspection")
-    var coursor: Int,
+    val coursor: Int = 0,
     @SerialName("has_next")
-    val hasNext: Boolean,
-    val items: List<FeedItem>
+    val hasNext: Boolean = false,
+    val items: List<FeedItem> = emptyList()
 ) {
     @Serializable
     data class FeedItem(
         @SerialName("rank_id")
-        val rankId: Int,
+        val rankId: Int = 0,
         @SerialName("sub_items")
-        val subItems: List<FeedSubItem>,
+        val subItems: List<FeedSubItem> = emptyList(),
         val text: JsonArray? = null
     ) {
         @Serializable
         data class FeedSubItem(
             @SerialName("card_style")
-            val cardStyle: String,
-            val cover: String,
+            val cardStyle: String = "",
+            val cover: String = "",
             @SerialName("episode_id")
             val episodeId: Int? = null,
             val evaluate: String? = null,
@@ -33,11 +33,11 @@ data class PgcFeedV3Data(
             val inline: Inline? = null,
             val link: String? = null,
             @SerialName("rank_id")
-            val rankId: Int,
+            val rankId: Int = 0,
             val rating: String? = null,
             @SerialName("rating_count")
             val ratingCount: Int? = null,
-            val report: Report,
+            val report: Report? = null,
             @SerialName("season_id")
             val seasonId: Int? = null,
             @SerialName("season_type")
@@ -46,9 +46,10 @@ data class PgcFeedV3Data(
             @SerialName("sub_items")
             val subItems: List<FeedSubItem>? = null,
             @SerialName("sub_title")
-            val subTitle: String,
+            val subTitle: String = "",
             val text: JsonArray? = null,
-            val title: String,
+            val title: String = "",
+            @SerialName("user_status")
             val userStatus: UserStatus? = null
         ) {
             @Serializable
@@ -75,14 +76,14 @@ data class PgcFeedV3Data(
 
             @Serializable
             data class Stat(
-                val danmaku: Int,
-                val duration: Int,
-                val view: Long
+                val danmaku: Int = 0,
+                val duration: Int = 0,
+                val view: Long = 0
             )
 
             @Serializable
             data class UserStatus(
-                val follow: Int
+                val follow: Int = 0
             )
         }
     }

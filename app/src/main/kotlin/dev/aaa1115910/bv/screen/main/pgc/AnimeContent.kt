@@ -13,12 +13,12 @@ import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.pgc.PgcIndexActivity
+import dev.aaa1115910.bv.activities.pgc.PgcRankActivity
 import dev.aaa1115910.bv.activities.pgc.anime.AnimeTimelineActivity
 import dev.aaa1115910.bv.activities.user.FollowingSeasonActivity
 import dev.aaa1115910.bv.tv.screens.main.pgc.PgcFeatureButtons
 import dev.aaa1115910.bv.tv.screens.main.pgc.PgcScaffold
 import dev.aaa1115910.bv.ui.theme.BVTheme
-import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.pgc.PgcAnimeViewModel
 import org.koin.androidx.compose.koinViewModel
 
@@ -39,14 +39,8 @@ fun AnimeContent(
     val onOpenIndex: () -> Unit = {
         PgcIndexActivity.actionStart(context = context, pgcType = PgcType.Anime)
     }
-    val onOpenGamerAni: () -> Unit = {
-        val packageManager = context.packageManager
-        val gamerAniPackageName = "tw.com.gamer.android.animad"
-        packageManager.getLeanbackLaunchIntentForPackage(gamerAniPackageName)?.let {
-            context.startActivity(it)
-        } ?: run {
-            R.string.anime_home_button_gamer_ani_launch_failed.toast(context)
-        }
+    val onOpenRank: () -> Unit = {
+        PgcRankActivity.actionStart(context = context, pgcType = PgcType.Anime)
     }
 
     PgcScaffold(
@@ -59,7 +53,7 @@ fun AnimeContent(
                 onOpenTimeline = onOpenTimeline,
                 onOpenFollowing = onOpenFollowing,
                 onOpenIndex = onOpenIndex,
-                onOpenGamerAni = onOpenGamerAni
+                onOpenRank = onOpenRank
             )
         }
     )
@@ -71,7 +65,7 @@ private fun AnimeFeatureButtons(
     onOpenTimeline: () -> Unit,
     onOpenFollowing: () -> Unit,
     onOpenIndex: () -> Unit,
-    onOpenGamerAni: () -> Unit = {}
+    onOpenRank: () -> Unit = {}
 ) {
     val buttons = listOf(
         Triple(
@@ -90,9 +84,9 @@ private fun AnimeFeatureButtons(
             onOpenIndex
         ),
         Triple(
-            stringResource(R.string.anime_home_button_gamer_ani),
-            painterResource(R.drawable.pgc_gamer_ani_24),
-            onOpenGamerAni
+            stringResource(R.string.pgc_home_button_rank),
+            painterResource(R.drawable.pgc_rank_24),
+            onOpenRank
         )
     )
     PgcFeatureButtons(
@@ -110,7 +104,7 @@ private fun AnimeFeatureButtonsPreview() {
             onOpenTimeline = {},
             onOpenFollowing = {},
             onOpenIndex = {},
-            onOpenGamerAni = {}
+            onOpenRank = {}
         )
     }
 }

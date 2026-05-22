@@ -11,18 +11,22 @@ data class PgcFeedData(
             return PgcFeedData(
                 hasNext = data.hasNext,
                 cursor = data.coursor,
-                items = data.items.map { PgcItem.fromFeedSubItem(it) },
+                items = data.items.mapNotNull { PgcItem.fromFeedSubItem(it) },
                 ranks = emptyList()
             )
         }
 
         fun fromPgcFeedData(data: dev.aaa1115910.biliapi.http.entity.pgc.PgcFeedV3Data): PgcFeedData {
-            val itemsList = data.items.find { it.subItems.first().cardStyle == "v_card" }
-            val ranksList = data.items.find { it.subItems.first().cardStyle == "rank" }
+            val itemsList = data.items.find { item ->
+                item.subItems.firstOrNull()?.cardStyle == "v_card"
+            }
+            val ranksList = data.items.find { item ->
+                item.subItems.firstOrNull()?.cardStyle == "rank"
+            }
             return PgcFeedData(
                 hasNext = data.hasNext,
                 cursor = data.coursor,
-                items = itemsList?.subItems?.map { PgcItem.fromFeedSubItem(it) } ?: emptyList(),
+                items = itemsList?.subItems?.mapNotNull { PgcItem.fromFeedSubItem(it) } ?: emptyList(),
                 ranks = ranksList?.subItems?.map { FeedRank.fromFeedSubItem(it) } ?: emptyList()
             )
         }
@@ -40,11 +44,10 @@ data class PgcFeedData(
                     cover = feedSubItem.cover,
                     title = feedSubItem.title,
                     subTitle = feedSubItem.subTitle,
-                    items = feedSubItem.subItems?.map { PgcItem.fromFeedSubItem(it) }
+                    items = feedSubItem.subItems?.mapNotNull { PgcItem.fromFeedSubItem(it) }
                         ?: emptyList()
                 )
             }
         }
     }
 }
-

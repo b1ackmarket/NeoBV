@@ -2,6 +2,7 @@ package dev.aaa1115910.biliapi.repositories
 
 import dev.aaa1115910.biliapi.entity.CarouselData
 import dev.aaa1115910.biliapi.entity.pgc.PgcFeedData
+import dev.aaa1115910.biliapi.entity.pgc.PgcItem
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.biliapi.entity.pgc.index.Area
 import dev.aaa1115910.biliapi.entity.pgc.index.Copyright
@@ -18,6 +19,7 @@ import dev.aaa1115910.biliapi.entity.pgc.index.SpokenLanguage
 import dev.aaa1115910.biliapi.entity.pgc.index.Style
 import dev.aaa1115910.biliapi.entity.pgc.index.Year
 import dev.aaa1115910.biliapi.http.BiliHttpApi
+import dev.aaa1115910.biliapi.http.SeasonIndexType
 import org.koin.core.annotation.Single
 
 @Single
@@ -45,6 +47,30 @@ class PgcRepository {
             )
         }
         return data
+    }
+
+    suspend fun getRank(pgcType: PgcType): PgcFeedData.FeedRank {
+        val seasonType = pgcType.toSeasonIndexType()
+        val items = when (pgcType) {
+            PgcType.Anime -> BiliHttpApi.getPgcRank(seasonType = seasonType.id)
+                .getResponseData().list
+
+            PgcType.GuoChuang -> BiliHttpApi.getPgcSeasonRank(seasonType = seasonType.id)
+                .getResponseData().list
+
+            PgcType.Movie,
+            PgcType.Documentary,
+            PgcType.Tv,
+            PgcType.Variety -> BiliHttpApi.getPgcSeasonRank(seasonType = seasonType.id)
+                .getResponseData().list
+        }.map { PgcItem.fromRankItem(it, seasonType) }
+
+        return PgcFeedData.FeedRank(
+            cover = items.firstOrNull()?.cover.orEmpty(),
+            title = "${pgcType.displayName}排行榜",
+            subTitle = "近 3 日热度",
+            items = items
+        )
     }
 
     suspend fun getPgcIndex(
@@ -142,3 +168,22 @@ class PgcRepository {
         return data
     }
 }
+
+fun PgcType.toSeasonIndexType(): SeasonIndexType = when (this) {
+    PgcType.Anime -> SeasonIndexType.Anime
+    PgcType.GuoChuang -> SeasonIndexType.Guochuang
+    PgcType.Movie -> SeasonIndexType.Movie
+    PgcType.Documentary -> SeasonIndexType.Documentary
+    PgcType.Tv -> SeasonIndexType.Tv
+    PgcType.Variety -> SeasonIndexType.Variety
+}
+
+val PgcType.displayName: String
+    get() = when (this) {
+        PgcType.Anime -> "番剧"
+        PgcType.GuoChuang -> "国创"
+        PgcType.Movie -> "电影"
+        PgcType.Documentary -> "纪录片"
+        PgcType.Tv -> "电视剧"
+        PgcType.Variety -> "综艺"
+    }
