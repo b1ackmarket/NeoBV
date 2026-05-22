@@ -14,6 +14,8 @@ import dev.aaa1115910.biliapi.http.entity.home.RcmdTopData
 import dev.aaa1115910.biliapi.http.entity.index.IndexResultData
 import dev.aaa1115910.biliapi.http.entity.pgc.PgcFeedData
 import dev.aaa1115910.biliapi.http.entity.pgc.PgcFeedV3Data
+import dev.aaa1115910.biliapi.http.entity.pgc.PgcRankData
+import dev.aaa1115910.biliapi.http.entity.pgc.PgcRankResult
 import dev.aaa1115910.biliapi.http.entity.pgc.PgcWebInitialStateData
 import dev.aaa1115910.biliapi.http.entity.region.RegionDynamic
 import dev.aaa1115910.biliapi.http.entity.region.RegionDynamicList
@@ -40,6 +42,7 @@ import dev.aaa1115910.biliapi.http.entity.user.RelationStat
 import dev.aaa1115910.biliapi.http.entity.user.UserCardData
 import dev.aaa1115910.biliapi.http.entity.user.UserFollowData
 import dev.aaa1115910.biliapi.http.entity.user.UserInfoData
+import dev.aaa1115910.biliapi.http.entity.user.UserSeasonArchivesData
 import dev.aaa1115910.biliapi.http.entity.user.UserSeasonsSeriesData
 import dev.aaa1115910.biliapi.http.entity.user.WebSpaceVideoData
 import dev.aaa1115910.biliapi.http.entity.user.favorite.FavoriteFolderInfo
@@ -1064,6 +1067,40 @@ object BiliHttpApi {
         header("referer", "https://space.bilibili.com/$mid")
     }.body()
 
+    suspend fun getUserSeasonArchives(
+        mid: Long,
+        seasonId: Long,
+        pageNumber: Int = 1,
+        pageSize: Int = 20,
+        sortReverse: Boolean = true
+    ): BiliResponse<UserSeasonArchivesData> = client.get("/x/polymer/web-space/seasons_archives_list") {
+        parameter("mid", mid)
+        parameter("season_id", seasonId)
+        parameter("sort_reverse", sortReverse)
+        parameter("page_size", pageSize.coerceIn(1, 30))
+        parameter("page_num", pageNumber)
+        parameter("web_location", "333.1387")
+        header("referer", "https://space.bilibili.com/$mid")
+        header("origin", "https://space.bilibili.com")
+    }.body()
+
+    suspend fun getUserSeriesArchives(
+        mid: Long,
+        seriesId: Long,
+        pageNumber: Int = 1,
+        pageSize: Int = 20,
+        sort: String = "desc"
+    ): BiliResponse<UserSeasonArchivesData> = client.get("/x/series/archives") {
+        parameter("mid", mid)
+        parameter("series_id", seriesId)
+        parameter("sort", sort)
+        parameter("ps", pageSize.coerceIn(1, 30))
+        parameter("pn", pageNumber)
+        parameter("web_location", "333.1387")
+        header("referer", "https://space.bilibili.com/$mid")
+        header("origin", "https://space.bilibili.com")
+    }.body()
+
     /**
      * 获取剧集[seasonId]或[epId]的详细信息 (Web)，例如 ss24439 ep234533，传参仅需数字
      */
@@ -1530,6 +1567,22 @@ object BiliHttpApi {
         parameter("name", name)
         parameter("coursor", cursor)
         parameter("new_cursor_status", true)
+    }.body()
+
+    suspend fun getPgcRank(
+        seasonType: Int,
+        day: Int = 3
+    ): BiliResponse<PgcRankResult> = client.get("/pgc/web/rank/list") {
+        parameter("day", day)
+        parameter("season_type", seasonType)
+    }.body()
+
+    suspend fun getPgcSeasonRank(
+        seasonType: Int,
+        day: Int = 3
+    ): BiliResponse<PgcRankData> = client.get("/pgc/season/rank/web/list") {
+        parameter("day", day)
+        parameter("season_type", seasonType)
     }.body()
 
 
