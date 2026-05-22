@@ -116,14 +116,6 @@ fun PgcContent(
                 .onPreviewKeyEvent {
                     if (it.key == Key.Menu) {
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                        when (selectedTab) {
-                            PgcTopNavItem.Anime -> pgcAnimeViewModel.reloadAll()
-                            PgcTopNavItem.GuoChuang -> pgcGuoChuangViewModel.reloadAll()
-                            PgcTopNavItem.Movie -> pgcMovieViewModel.reloadAll()
-                            PgcTopNavItem.Documentary -> pgcDocumentaryViewModel.reloadAll()
-                            PgcTopNavItem.Tv -> pgcTvViewModel.reloadAll()
-                            PgcTopNavItem.Variety -> pgcVarietyViewModel.reloadAll()
-                        }
                         navFocusRequester.requestFocus()
                         return@onPreviewKeyEvent true
                     }
