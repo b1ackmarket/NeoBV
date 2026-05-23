@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -28,13 +27,10 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.component.settings.PrivacyPolicyDialog
-import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.component.settings.UpdateDialog
 import dev.aaa1115910.bv.network.GithubApi
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
-import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
@@ -56,11 +52,8 @@ fun AboutSetting(
     val logger = KotlinLogging.logger("AboutSetting")
 
     var showUpdateDialog by remember { mutableStateOf(false) }
-    var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
     var latestVersionName by remember { mutableStateOf("Loading...") }
     var receiveAlphaUpdates by remember { mutableStateOf(Prefs.receiveAlphaUpdates) }
-    var enableCrashReports by remember { mutableStateOf(Prefs.enableCrashReportCollection) }
-    var enableUsageStats by remember { mutableStateOf(Prefs.enableAnonymousUsageCollection) }
     val scrollState = rememberScrollState()
 
     LaunchedEffect(receiveAlphaUpdates) {
@@ -91,34 +84,9 @@ fun AboutSetting(
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            SettingListItem(
-                title = "用户协议与隐私政策",
-                supportText = "查看数据收集范围、用途、第三方服务、保存期限和退出方式",
-                onClick = { showPrivacyPolicyDialog = true }
-            )
-
-            SettingSwitchListItem(
-                title = "发送崩溃报告",
-                supportText = "默认关闭；开启后仅发送崩溃和高影响错误的脱敏排障信息",
-                checked = enableCrashReports,
-                onCheckedChange = {
-                    enableCrashReports = it
-                    FirebaseTelemetry.setCrashReportCollectionEnabled(it)
-                }
-            )
-
-            SettingSwitchListItem(
-                title = "发送匿名使用信息",
-                supportText = "默认关闭；开启后仅发送低频匿名事件，不包含观看内容和搜索词",
-                checked = enableUsageStats,
-                onCheckedChange = {
-                    enableUsageStats = it
-                    FirebaseTelemetry.setAnonymousUsageCollectionEnabled(it)
-                }
-            )
-
             Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     text = stringResource(
@@ -126,32 +94,27 @@ fun AboutSetting(
                         BuildConfig.VERSION_NAME
                     )
                 )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(
-                            R.string.settings_version_latest_version,
-                            latestVersionName
-                        )
+                Text(
+                    text = stringResource(
+                        R.string.settings_version_latest_version,
+                        latestVersionName
                     )
-                }
-                SettingSwitchListItem(
-                    modifier = Modifier.fillMaxWidth(),
-                    title = stringResource(R.string.settings_other_alpha_title),
-                    supportText = stringResource(R.string.settings_other_alpha_text),
-                    checked = receiveAlphaUpdates,
-                    onCheckedChange = {
-                        receiveAlphaUpdates = it
-                        Prefs.receiveAlphaUpdates = it
-                    }
                 )
             }
+            SettingSwitchListItem(
+                modifier = Modifier.fillMaxWidth(),
+                title = stringResource(R.string.settings_other_alpha_title),
+                supportText = stringResource(R.string.settings_other_alpha_text),
+                checked = receiveAlphaUpdates,
+                onCheckedChange = {
+                    receiveAlphaUpdates = it
+                    Prefs.receiveAlphaUpdates = it
+                }
+            )
             Button(onClick = { showUpdateDialog = true }) {
                 Text(text = stringResource(R.string.settings_version_check_update_button))
             }
         }
-
         Text(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -164,9 +127,6 @@ fun AboutSetting(
         show = showUpdateDialog,
         onHideDialog = { showUpdateDialog = false }
     )
-    if (showPrivacyPolicyDialog) {
-        PrivacyPolicyDialog(onDismissRequest = { showPrivacyPolicyDialog = false })
-    }
 }
 
 @Preview(device = "id:tv_1080p")

@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -70,7 +71,7 @@ internal fun shouldResetLiveRoomGridOnMenu(isRoomGridFocused: Boolean): Boolean 
 }
 
 internal fun targetLiveRoomIndexAfterCategoryDown(roomCount: Int): Int? {
-    return 0.takeIf { roomCount > 0 }
+    return null
 }
 
 internal fun shouldShowLiveLoginPlaceholder(
@@ -93,12 +94,23 @@ fun LiveContent(
     val gridState = rememberLazyGridState()
     var isRoomGridFocused by remember { mutableStateOf(false) }
     val loginFocusRequester = remember { FocusRequester() }
-    val roomFocusRequesters = remember(liveViewModel.rooms.map { it.roomId }) {
-        List(liveViewModel.rooms.size) { FocusRequester() }
-    }
 
     LaunchedEffect(liveViewModel.isLogin) {
         liveViewModel.onLoginStateChanged(liveViewModel.isLogin)
+    }
+
+    LaunchedEffect(liveViewModel.selectedCategoryIndex) {
+        gridState.scrollToItem(0)
+        isRoomGridFocused = false
+    }
+
+    LaunchedEffect(gridState, liveViewModel.rooms.size) {
+        snapshotFlow { gridState.firstVisibleItemIndex }
+            .collect { firstVisibleIndex ->
+                if (liveViewModel.rooms.isNotEmpty() && firstVisibleIndex >= liveViewModel.rooms.size) {
+                    gridState.scrollToItem(0)
+                }
+            }
     }
 
     Box(
@@ -120,10 +132,6 @@ fun LiveContent(
         val selectedCategory = liveViewModel.categories.getOrNull(liveViewModel.selectedCategoryIndex)
         val showLoginPlaceholder = shouldShowLiveLoginPlaceholder(liveViewModel.isLogin, selectedCategory)
         if (liveViewModel.categories.isNotEmpty()) {
-            val categoryDownFocusRequester = targetLiveRoomIndexAfterCategoryDown(liveViewModel.rooms.size)
-                ?.let { roomFocusRequesters.getOrNull(it) }
-                ?: loginFocusRequester.takeIf { showLoginPlaceholder }
-                ?: FocusRequester.Default
             TopNav(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -135,7 +143,8 @@ fun LiveContent(
                     },
                 items = liveViewModel.categories,
                 isLargePadding = true,
-                downFocusRequester = categoryDownFocusRequester,
+                downFocusRequester = loginFocusRequester.takeIf { showLoginPlaceholder }
+                    ?: FocusRequester.Default,
                 onSelectedChanged = { nav ->
                     val index = liveViewModel.categories.indexOf(nav)
                     if (index >= 0 && index != liveViewModel.selectedCategoryIndex) {
@@ -168,16 +177,8 @@ fun LiveContent(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 itemsIndexed(liveViewModel.rooms, key = { _, room -> room.roomId }) { index, room ->
-                    val roomFocusRequester = roomFocusRequesters.getOrNull(index)
                     SmallVideoCard(
                         modifier = Modifier
-                            .then(
-                                if (roomFocusRequester != null) {
-                                    Modifier.focusRequester(roomFocusRequester)
-                                } else {
-                                    Modifier
-                                }
-                            )
                             .onFocusChanged {
                                 if (it.hasFocus) {
                                     isRoomGridFocused = true
@@ -191,8 +192,7 @@ fun LiveContent(
                             .ifElse(
                                 shouldRouteLiveRoomUpToPreviousRow(index = index, columns = liveColumns),
                                 Modifier.focusProperties {
-                                    up = roomFocusRequesters.getOrNull(index - liveColumns)
-                                        ?: FocusRequester.Default
+                                    up = FocusRequester.Default
                                 }
                             ),
                         data = VideoCardData(

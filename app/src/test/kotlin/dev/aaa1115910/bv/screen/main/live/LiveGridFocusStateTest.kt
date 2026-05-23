@@ -46,10 +46,10 @@ class LiveGridFocusStateTest {
     }
 
     @Test
-    fun `down from category after menu targets first room`() {
+    fun `down from category uses default spatial focus search`() {
         assertTrue(shouldResetLiveRoomGridOnMenu(isRoomGridFocused = true))
         assertFalse(shouldResetLiveRoomGridOnMenu(isRoomGridFocused = false))
-        assertTrue(targetLiveRoomIndexAfterCategoryDown(roomCount = 30) == 0)
+        assertTrue(targetLiveRoomIndexAfterCategoryDown(roomCount = 30) == null)
         assertTrue(targetLiveRoomIndexAfterCategoryDown(roomCount = 0) == null)
     }
 

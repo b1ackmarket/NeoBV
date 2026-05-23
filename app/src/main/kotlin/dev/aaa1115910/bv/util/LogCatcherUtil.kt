@@ -81,6 +81,7 @@ object LogCatcherUtil {
         appendLine("Login: ${Prefs.isLogin}")
         appendLine("Incognito Mode: ${Prefs.incognitoMode}")
         appendLine("Recommendation Api Type: ${Prefs.recommendationApiType.name}")
+        appendLine("Personalized Recommendation: ${Prefs.enablePersonalizedRecommendation}")
         appendLine("Playback Api Type: ${Prefs.playbackApiType.name}")
         appendLine("Legacy Api Type: ${Prefs.apiType.name}")
         appendLine("Default Resolution: ${Prefs.defaultQuality}")

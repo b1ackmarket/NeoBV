@@ -27,3 +27,23 @@ enum class Resolution(val code: Int, private val strResLong: Int, private val st
     fun getDisplayName(context: Context) = context.getString(strResLong)
     fun getShortDisplayName(context: Context) = context.getString(strResShort)
 }
+
+fun Int.toVideoQualityDisplayName(context: Context, apiDescription: String? = null): String {
+    return toVideoQualityDisplayName(apiDescription) { resolution ->
+        resolution.getShortDisplayName(context)
+    }
+}
+
+internal fun Int.toVideoQualityDisplayName(
+    apiDescription: String? = null,
+    shortDisplayName: (Resolution) -> String
+): String {
+    return when (this) {
+        Resolution.R1080PPlus.code,
+        Resolution.R1080P60.code -> shortDisplayName(Resolution.fromCode(this))
+
+        else -> apiDescription
+            ?.takeIf { it.isNotBlank() }
+            ?: shortDisplayName(Resolution.fromCode(this))
+    }
+}

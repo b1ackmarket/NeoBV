@@ -26,8 +26,11 @@ import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.LogsActivity
 import dev.aaa1115910.bv.component.settings.CookiesDialog
+import dev.aaa1115910.bv.component.settings.PrivacyPolicyDialog
 import dev.aaa1115910.bv.component.settings.SettingListItem
+import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
+import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.RecommendationApiType
 
@@ -39,11 +42,14 @@ fun OtherSetting(
     val scrollState = rememberScrollState()
 
     var showCookiesDialog by remember { mutableStateOf(false) }
+    var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
     var showRecommendationApiDialog by remember { mutableStateOf(false) }
     var showPlaybackApiDialog by remember { mutableStateOf(false) }
 
     var selectedRecommendationApi by remember { mutableStateOf(Prefs.recommendationApiType) }
     var selectedPlaybackApi by remember { mutableStateOf(Prefs.playbackApiType) }
+    var enableCrashReports by remember { mutableStateOf(Prefs.enableCrashReportCollection) }
+    var enableUsageStats by remember { mutableStateOf(Prefs.enableAnonymousUsageCollection) }
 
     Column(
         modifier = modifier
@@ -69,11 +75,33 @@ fun OtherSetting(
             supportText = "当前：${selectedPlaybackApi.toPlaybackApiDisplayName()}",
             onClick = { showPlaybackApiDialog = true }
         )
-
         SettingListItem(
             title = "数据导入/导出",
             supportText = "导入或导出登录信息、播放设置、界面设置等软件数据",
             onClick = { showCookiesDialog = true }
+        )
+        SettingListItem(
+            title = "用户协议与隐私政策",
+            supportText = "查看数据收集范围、用途、第三方服务、保存期限和退出方式",
+            onClick = { showPrivacyPolicyDialog = true }
+        )
+        SettingSwitchListItem(
+            title = "发送崩溃报告",
+            supportText = "建议开启；开启后仅发送崩溃和高影响错误的脱敏排障信息",
+            checked = enableCrashReports,
+            onCheckedChange = {
+                enableCrashReports = it
+                FirebaseTelemetry.setCrashReportCollectionEnabled(it)
+            }
+        )
+        SettingSwitchListItem(
+            title = "发送匿名使用信息",
+            supportText = "建议开启；开启后仅发送低频匿名事件，不包含观看内容和搜索词",
+            checked = enableUsageStats,
+            onCheckedChange = {
+                enableUsageStats = it
+                FirebaseTelemetry.setAnonymousUsageCollectionEnabled(it)
+            }
         )
 
         SettingListItem(
@@ -99,6 +127,9 @@ fun OtherSetting(
         show = showCookiesDialog,
         onHideDialog = { showCookiesDialog = false }
     )
+    if (showPrivacyPolicyDialog) {
+        PrivacyPolicyDialog(onDismissRequest = { showPrivacyPolicyDialog = false })
+    }
 
     if (showRecommendationApiDialog) {
         OptionDialog(
@@ -130,7 +161,7 @@ fun OtherSetting(
 
 private fun ApiType.toPlaybackApiDisplayName(): String {
     return when (this) {
-        ApiType.Web -> "Web"
-        ApiType.App -> "gRPC / App"
+        ApiType.Web -> "Http"
+        ApiType.App -> "gRPC"
     }
 }

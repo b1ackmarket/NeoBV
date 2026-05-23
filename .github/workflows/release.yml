@@ -82,9 +82,30 @@ jobs:
       - name: Get changelog
         id: changelog
         run: |
+          current_tag="${GITHUB_REF_NAME}"
+          previous_tag="$(
+            git tag --list 'v[0-9]*' --sort=-creatordate |
+            grep -v -x "$current_tag" |
+            while IFS= read -r tag; do
+              if git merge-base --is-ancestor "$tag" "$current_tag"; then
+                printf '%s\n' "$tag"
+                break
+              fi
+            done
+          )"
+          if [ -n "$previous_tag" ]; then
+            changelog_range="$previous_tag..$current_tag"
+            changelog_title="Changes since $previous_tag"
+          else
+            changelog_range="$current_tag"
+            changelog_title="Changes in $current_tag"
+          fi
           {
             echo "changelog<<EOF"
-            echo "$(git log --pretty=format:"- %s (%h)" ${{ github.event.before }}..${{ github.sha }})"
+            echo "## $changelog_title"
+            echo
+            git log --pretty=format:"- %s (%h)" "$changelog_range"
+            echo
             echo "EOF"
           } >> "$GITHUB_ENV"
 

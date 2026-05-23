@@ -6,6 +6,7 @@ object AppConfiguration {
     const val compileSdk = 36
     const val minSdk = 21
     const val targetSdk = 36
+    const val firebaseProjectId = "neo-bv"
     private val rootDir: File by lazy {
         generateSequence(File(System.getProperty("user.dir")).canonicalFile) { it.parentFile }
             .firstOrNull { File(it, "settings.gradle.kts").exists() }
@@ -44,10 +45,23 @@ object AppConfiguration {
 
     private fun initConfigurations() {
         val googleServicesJsonFile = File(rootDir, "app/google-services.json")
-        googleServicesAvailable =
-            googleServicesJsonFile.exists() && googleServicesJsonFile.readText().let {
-                it.contains(applicationId) && it.contains("$applicationId.r8test") && it.contains("$applicationId.debug")
-            }
+        googleServicesAvailable = googleServicesJsonFile.exists() && hasValidGoogleServicesConfig(googleServicesJsonFile)
+    }
+
+    private fun hasValidGoogleServicesConfig(googleServicesJsonFile: File): Boolean {
+        val content = googleServicesJsonFile.readText()
+        val projectId = Regex(""""project_id"\s*:\s*"([^"]+)"""")
+            .find(content)
+            ?.groupValues
+            ?.get(1)
+        val packageNames = Regex(""""package_name"\s*:\s*"([^"]+)"""")
+            .findAll(content)
+            .map { it.groupValues[1] }
+            .toSet()
+        return projectId == firebaseProjectId &&
+            packageNames.contains(applicationId) &&
+            packageNames.contains("$applicationId.r8test") &&
+            packageNames.contains("$applicationId.debug")
     }
 
     private fun isGitDirty(): Boolean {

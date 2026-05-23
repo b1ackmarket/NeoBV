@@ -46,6 +46,7 @@ import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.entity.toVideoQualityDisplayName
 import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.network.MpdGenerator
 import dev.aaa1115910.bv.plugin.api.PlayerPluginContext
@@ -357,7 +358,8 @@ class VideoPlayerV3ViewModel(
                     area = Prefs.defaultDanmakuArea,
                     speedFactor = Prefs.defaultDanmakuSpeedFactor,
                     maskEnabled = Prefs.defaultDanmakuMask,
-                    enabledTypes = Prefs.defaultDanmakuTypes,
+                    enabledTypes = Prefs.defaultDanmakuTypes.takeIf { Prefs.defaultDanmakuEnabled }
+                        ?: emptyList(),
                     lastEnabledTypes = Prefs.defaultDanmakuTypes.takeIf { it.isNotEmpty() } ?: DanmakuType.entries,
                 ),
                 subtitleState = SubtitleState(
@@ -619,6 +621,7 @@ class VideoPlayerV3ViewModel(
         // ===== 副作用处理 =====
         if (new.enabledTypes != old.enabledTypes) {
             updateDanmakuConfigTypeFilter(new.enabledTypes)
+            Prefs.defaultDanmakuEnabled = new.enabledTypes.isNotEmpty()
             if (new.enabledTypes.isNotEmpty()) {
                 Prefs.defaultDanmakuTypes = new.enabledTypes
             }
@@ -1225,8 +1228,10 @@ class VideoPlayerV3ViewModel(
 
             // 2. 解析并去重可用的清晰度 (使用 associate 替代 forEach + mutableMap)
             val resolutionMap = playData.dashVideos.associate { video ->
-                video.quality to (playData.qualityDescriptions[video.quality]
-                    ?: Resolution.fromCode(video.quality).getShortDisplayName(BVApp.context))
+                video.quality to video.quality.toVideoQualityDisplayName(
+                    context = BVApp.context,
+                    apiDescription = playData.qualityDescriptions[video.quality]
+                )
             }
             logger.fInfo { "Video available resolution: $resolutionMap" }
 
@@ -1733,10 +1738,11 @@ class VideoPlayerV3ViewModel(
     }
 
     private fun initDanmakuConfig() {
-        val danmakuTypes = Prefs.defaultDanmakuTypes
-        val area = Prefs.defaultDanmakuArea
-        val scale = Prefs.defaultDanmakuScale
-        val factor = Prefs.defaultDanmakuSpeedFactor
+        val state = _uiState.value.danmakuState
+        val danmakuTypes = state.enabledTypes
+        val area = state.area.takeIf { it > 0f } ?: Prefs.defaultDanmakuArea
+        val scale = state.scale.takeIf { it > 0f } ?: Prefs.defaultDanmakuScale
+        val factor = state.speedFactor.takeIf { it > 0f } ?: Prefs.defaultDanmakuSpeedFactor
 
         danmakuTypeFilter.clear()
         if (!danmakuTypes.contains(DanmakuType.All)) {

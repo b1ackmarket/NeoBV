@@ -32,6 +32,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import kotlinx.coroutines.delay
 
 data class LiveBottomMenuItem(
     val iconRes: Int,
@@ -50,7 +51,8 @@ fun LiveBottomMenuController(
 
     LaunchedEffect(show) {
         if (show && items.isNotEmpty()) {
-            firstItemFocusRequester.requestFocus()
+            delay(80)
+            runCatching { firstItemFocusRequester.requestFocus() }
         }
     }
 

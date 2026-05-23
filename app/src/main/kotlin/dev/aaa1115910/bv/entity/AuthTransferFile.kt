@@ -78,6 +78,8 @@ data class SettingsExportData(
     val apiTypeLegacy: String,
     @SerialName("recommendation_api_type")
     val recommendationApiType: String,
+    @SerialName("enable_personalized_recommendation")
+    val enablePersonalizedRecommendation: Boolean = true,
     @SerialName("playback_api_type")
     val playbackApiType: String,
     @SerialName("enable_proxy")
@@ -152,7 +154,8 @@ data class SettingsExportData(
     fun saveToPrefs() {
         Prefs.apiType = enumValueOrDefault(apiTypeLegacy, ApiType.Web)
         Prefs.recommendationApiType =
-            enumValueOrDefault(recommendationApiType, RecommendationApiType.Web)
+            enumValueOrDefault(recommendationApiType, RecommendationApiType.App)
+        Prefs.enablePersonalizedRecommendation = enablePersonalizedRecommendation
         Prefs.playbackApiType = enumValueOrDefault(playbackApiType, ApiType.Web)
         Prefs.enableProxy = enableProxy
         Prefs.proxyHttpServer = proxyHttpServer
@@ -198,6 +201,7 @@ data class SettingsExportData(
             return SettingsExportData(
                 apiTypeLegacy = Prefs.apiType.name,
                 recommendationApiType = Prefs.recommendationApiType.name,
+                enablePersonalizedRecommendation = Prefs.enablePersonalizedRecommendation,
                 playbackApiType = Prefs.playbackApiType.name,
                 enableProxy = Prefs.enableProxy,
                 proxyHttpServer = Prefs.proxyHttpServer,

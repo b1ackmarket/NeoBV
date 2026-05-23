@@ -102,9 +102,12 @@ object Prefs {
     )
     var recommendationApiType by pref(
         PrefKeys.prefRecommendationApiTypeKey,
-        RecommendationApiType.Web,
+        RecommendationApiType.App,
         save = { it.ordinal },
-        restore = { RecommendationApiType.entries.getOrElse(it) { RecommendationApiType.Web } }
+        restore = {
+            RecommendationApiType.entries
+                .getOrElse(it) { RecommendationApiType.App }
+        }
     )
     var playbackApiType by pref(
         PrefKeys.prefPlaybackApiTypeKey,
@@ -116,6 +119,7 @@ object Prefs {
     var proxyHttpServer by pref(PrefKeys.prefProxyHttpServerKey, "")
     var proxyGRPCServer by pref(PrefKeys.prefProxyGRPCServerKey, "")
     var preferOfficialCdn by pref(PrefKeys.prefPreferOfficialCdn, PrefDefaultValues.preferOfficialCdn)
+    var enablePersonalizedRecommendation by pref(PrefKeys.prefEnablePersonalizedRecommendationKey, true)
 
     // =========================================================================
     // 播放器 - 视频
@@ -188,6 +192,23 @@ object Prefs {
                 .mapNotNull { runCatching { DanmakuType.entries[it.toInt()] }.getOrNull() }
         }
     )
+    var defaultDanmakuEnabled by pref(PrefKeys.prefDefaultDanmakuEnabledKey, true)
+    var defaultLiveDanmakuTypes by pref(
+        PrefKeys.prefDefaultLiveDanmakuTypesKey,
+        listOf(
+            DanmakuType.All,
+            DanmakuType.Rolling,
+            DanmakuType.Top,
+            DanmakuType.Bottom
+        ),
+        save = { list -> list.map { it.ordinal }.joinToString(",") },
+        restore = { str ->
+            if (str.isEmpty()) emptyList()
+            else str.split(",")
+                .mapNotNull { runCatching { DanmakuType.entries[it.toInt()] }.getOrNull() }
+        }
+    )
+    var defaultLiveDanmakuEnabled by pref(PrefKeys.prefDefaultLiveDanmakuEnabledKey, true)
     var defaultDanmakuScale by pref(PrefKeys.prefDefaultDanmakuScaleKey, 1.5f)
     var defaultDanmakuOpacity by pref(PrefKeys.prefDefaultDanmakuOpacityKey, 0.5f)
     var defaultDanmakuSpeedFactor by pref(PrefKeys.prefDefaultDanmakuSpeedFactorKey, 1f)
@@ -195,11 +216,11 @@ object Prefs {
     var defaultDanmakuMask by pref(PrefKeys.prefDefaultDanmakuMask, false)
     var defaultLiveDanmakuSourceMode by pref(
         PrefKeys.prefDefaultLiveDanmakuSourceModeKey,
-        LiveDanmakuSourceMode.WebSocketAndHistory,
+        PrefDefaultValues.defaultLiveDanmakuSourceMode,
         save = { it.ordinal },
         restore = { value ->
             LiveDanmakuSourceMode.entries.getOrElse(value) {
-                LiveDanmakuSourceMode.WebSocketAndHistory
+                PrefDefaultValues.defaultLiveDanmakuSourceMode
             }
         }
     )
@@ -281,6 +302,9 @@ object Prefs {
     // =========================================================================
 
     var incognitoMode by pref(PrefKeys.prefIncognitoModeKey, false)
+    var hasAcceptedUserAgreement by pref(PrefKeys.prefHasAcceptedUserAgreementKey, false)
+    var enableCrashReportCollection by pref(PrefKeys.prefEnableCrashReportCollectionKey, false)
+    var enableAnonymousUsageCollection by pref(PrefKeys.prefEnableAnonymousUsageCollectionKey, false)
 
     // =========================================================================
 
@@ -329,16 +353,15 @@ enum class RecommendationApiType(
     val supportText: String
 ) {
     Web("Web", "使用网页端推荐和搜索接口"),
-    App("App", "使用移动端推荐和搜索接口"),
-    None("无推荐", "不携带登录态获取推荐，尽量减少个性化");
+    App("App", "使用移动端推荐和搜索接口");
 
     fun toRequestApiType(): ApiType = when (this) {
-        Web, None -> ApiType.Web
+        Web -> ApiType.Web
         App -> ApiType.App
     }
 
     val useAuth: Boolean
-        get() = this != None
+        get() = Prefs.enablePersonalizedRecommendation
 }
 
 internal object PrefDefaultValues {
@@ -350,6 +373,7 @@ internal object PrefDefaultValues {
     const val showVideoInfo = true
     const val preferOfficialCdn = true
     val firstPersonalTopNavItem = PersonalTopNavItem.History
+    val defaultLiveDanmakuSourceMode = LiveDanmakuSourceMode.HistoryOnly
 }
 
 /**
@@ -415,6 +439,7 @@ private object PrefKeys {
     val prefProxyHttpServerKey = stringPreferencesKey("proxy_http_server")
     val prefProxyGRPCServerKey = stringPreferencesKey("proxy_grpc_server")
     val prefPreferOfficialCdn = booleanPreferencesKey("prefer_official_cdn")
+    val prefEnablePersonalizedRecommendationKey = booleanPreferencesKey("enable_personalized_recommendation")
 
     // 播放器 - 视频
     val prefDefaultQualityKey = intPreferencesKey("dq")
@@ -431,6 +456,9 @@ private object PrefKeys {
 
     // 播放器 - 弹幕
     val prefDefaultDanmakuTypesKey = stringPreferencesKey("ddts")
+    val prefDefaultDanmakuEnabledKey = booleanPreferencesKey("default_danmaku_enabled")
+    val prefDefaultLiveDanmakuTypesKey = stringPreferencesKey("live_danmaku_types")
+    val prefDefaultLiveDanmakuEnabledKey = booleanPreferencesKey("live_danmaku_enabled")
     val prefDefaultDanmakuScaleKey = floatPreferencesKey("dds2")
     val prefDefaultDanmakuOpacityKey = floatPreferencesKey("ddo")
     val prefDefaultDanmakuSpeedFactorKey = floatPreferencesKey("ddsf")
@@ -460,4 +488,7 @@ private object PrefKeys {
 
     // 隐身模式
     val prefIncognitoModeKey = booleanPreferencesKey("im")
+    val prefHasAcceptedUserAgreementKey = booleanPreferencesKey("has_accepted_user_agreement")
+    val prefEnableCrashReportCollectionKey = booleanPreferencesKey("enable_crash_report_collection")
+    val prefEnableAnonymousUsageCollectionKey = booleanPreferencesKey("enable_anonymous_usage_collection")
 }

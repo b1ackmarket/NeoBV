@@ -39,6 +39,14 @@ object FirebaseTelemetry {
     fun setAnonymousUsageCollectionEnabled(enabled: Boolean) {
         Prefs.enableAnonymousUsageCollection = enabled
         FirebaseTelemetryBridge.setAnalyticsCollectionEnabled(enabled)
+        if (enabled) {
+            setLastEvent(TelemetryEvent.TelemetryConsentEnabled)
+            FirebaseTelemetryBridge.logEvent(
+                TelemetryEvent.TelemetryConsentEnabled.key,
+                mapOf("source" to "settings")
+            )
+            logDailyActive("settings_consent")
+        }
     }
 
     fun setLastScreen(screen: TelemetryScreen) {

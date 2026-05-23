@@ -229,7 +229,9 @@ fun DynamicsScreen(
                                 if (it.hasFocus) gridReturnFocusIndex = index
                             }
                             .focusProperties {
-                                left = defaultFocusRequester
+                                if (index % 3 == 0) {
+                                    left = defaultFocusRequester
+                                }
                             },
                         data = remember(item) {
                             VideoCardData(

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
@@ -113,7 +114,7 @@ private enum class LiveDanmakuEventSource {
 }
 
 private data class LiveDanmakuDebugStats(
-    val sourceMode: LiveDanmakuSourceMode = LiveDanmakuSourceMode.WebSocketAndHistory,
+    val sourceMode: LiveDanmakuSourceMode = LiveDanmakuSourceMode.HistoryOnly,
     val wsState: LiveDataWebSocketState = LiveDataWebSocketState.Disabled,
     val wsHost: String = "",
     val wsError: String = "",
@@ -170,7 +171,7 @@ fun LivePlayerScreen() {
     val pendingLiveDanmakuKeys = remember { linkedSetOf<String>() }
     var lastNonEmptyDanmakuTypes by remember {
         mutableStateOf(
-            Prefs.defaultDanmakuTypes.takeIf { it.isNotEmpty() } ?: DanmakuType.entries
+            Prefs.defaultLiveDanmakuTypes.takeIf { it.isNotEmpty() } ?: DanmakuType.entries
         )
     }
     var liveUpPanelVideos by remember { mutableStateOf<List<VideoCardData>>(emptyList()) }
@@ -181,7 +182,8 @@ fun LivePlayerScreen() {
     var liveDanmakuState by remember {
         mutableStateOf(
             LiveDanmakuMenuState(
-                enabledTypes = Prefs.defaultDanmakuTypes,
+                enabledTypes = Prefs.defaultLiveDanmakuTypes.takeIf { Prefs.defaultLiveDanmakuEnabled }
+                    ?: emptyList(),
                 scale = Prefs.defaultDanmakuScale,
                 opacity = Prefs.defaultDanmakuOpacity,
                 speedFactor = Prefs.defaultDanmakuSpeedFactor,
@@ -214,15 +216,16 @@ fun LivePlayerScreen() {
 
     fun toggleLiveJumpMode() {
         if (!hasLiveJumpModeQueue()) {
-            statusText = "当前列表不支持跳动模式"
+            "当前列表不支持跳动模式".toast(context)
             return
         }
         liveJumpModeEnabled = !liveJumpModeEnabled
-        statusText = if (liveJumpModeEnabled) {
+        val message = if (liveJumpModeEnabled) {
             "进入跳动模式，按左右键切换直播间"
         } else {
             "已退出跳动模式"
         }
+        message.toast(context)
     }
 
     fun startLiveJumpModeHold(key: Key) {
@@ -742,6 +745,12 @@ fun LivePlayerScreen() {
             .background(Color.Black)
             .onPreviewKeyEvent { event ->
                 if (event.type == KeyEventType.KeyUp) {
+                    if (activeOverlay != LiveOverlayPanel.None) {
+                        liveJumpModeHoldJob?.cancel()
+                        liveJumpModeHoldJob = null
+                        liveJumpModeHoldKey = null
+                        return@onPreviewKeyEvent false
+                    }
                     when (event.key) {
                         Key.DirectionLeft -> {
                             return@onPreviewKeyEvent handleLiveJumpModeKeyUp(event.key, -1)
@@ -811,7 +820,11 @@ fun LivePlayerScreen() {
                             activeOverlay == LiveOverlayPanel.None ||
                             activeOverlay == LiveOverlayPanel.RightMenu
                         ) {
-                            activeOverlay = toggleLiveRightMenu(activeOverlay)
+                            val nextOverlay = toggleLiveRightMenu(activeOverlay)
+                            activeOverlay = nextOverlay
+                            if (nextOverlay == LiveOverlayPanel.None) {
+                                screenFocusRequester.requestFocus()
+                            }
                             true
                         } else {
                             false
@@ -856,8 +869,8 @@ fun LivePlayerScreen() {
             }
         }
 
-        LaunchedEffect(liveJumpModeEnabled) {
-            while (liveJumpModeEnabled) {
+        LaunchedEffect(liveJumpModeEnabled, activeOverlay) {
+            while (liveJumpModeEnabled && activeOverlay == LiveOverlayPanel.None) {
                 screenFocusRequester.requestFocus()
                 delay(1_000)
             }
@@ -968,9 +981,10 @@ fun LivePlayerScreen() {
             },
             onDanmakuStateChange = { newState ->
                 liveDanmakuState = newState
+                Prefs.defaultLiveDanmakuEnabled = newState.enabledTypes.isNotEmpty()
                 if (newState.enabledTypes.isNotEmpty()) {
                     lastNonEmptyDanmakuTypes = newState.enabledTypes
-                    Prefs.defaultDanmakuTypes = newState.enabledTypes
+                    Prefs.defaultLiveDanmakuTypes = newState.enabledTypes
                 }
                 Prefs.defaultDanmakuScale = newState.scale
                 Prefs.defaultDanmakuOpacity = newState.opacity
@@ -1021,6 +1035,7 @@ fun LivePlayerScreen() {
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(end = 8.dp, top = 56.dp)
+                    .widthIn(max = 420.dp)
                     .clip(MaterialTheme.shapes.medium)
                     .background(Color.Black.copy(alpha = 0.3f))
             ) {
@@ -1028,7 +1043,9 @@ fun LivePlayerScreen() {
                     modifier = Modifier.padding(8.dp),
                     text = liveDanmakuDebugText,
                     color = Color.White,
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
+                    softWrap = true,
+                    overflow = TextOverflow.Clip
                 )
             }
         }
@@ -1067,10 +1084,23 @@ fun LivePlayerScreen() {
                             emptyList()
                         }
                         liveDanmakuState = liveDanmakuState.copy(enabledTypes = nextTypes)
+                        Prefs.defaultLiveDanmakuEnabled = nextTypes.isNotEmpty()
                         if (nextTypes.isNotEmpty()) {
                             lastNonEmptyDanmakuTypes = nextTypes
-                            Prefs.defaultDanmakuTypes = nextTypes
+                            Prefs.defaultLiveDanmakuTypes = nextTypes
                         }
+                    }
+                )
+                add(
+                    LiveBottomMenuItem(
+                        iconRes = if (liveJumpModeEnabled) {
+                            R.drawable.jump_mode_on_24px
+                        } else {
+                            R.drawable.jump_mode_off_24px
+                        },
+                        label = "跳动模式"
+                    ) {
+                        toggleLiveJumpMode()
                     }
                 )
                 add(
@@ -1247,8 +1277,8 @@ private fun buildLiveDanmakuDebugText(stats: LiveDanmakuDebugStats): String {
         appendLine("live danmaku debug")
         appendLine("danmaku source: ${stats.sourceMode.toDebugName()}")
         appendLine("ws state: ${stats.wsState.toDebugName()}")
-        appendLine("ws host: ${stats.wsHost.ifBlank { "-" }}")
-        if (stats.wsError.isNotBlank()) appendLine("ws error: ${stats.wsError}")
+        appendWrappedDebugLine("ws host", stats.wsHost.ifBlank { "-" })
+        if (stats.wsError.isNotBlank()) appendWrappedDebugLine("ws error", stats.wsError)
         appendLine("ws recv: ${stats.wsRecv}")
         appendLine("ws danmaku: ${stats.wsDanmaku}")
         appendLine("ws last: ${stats.wsLastDanmakuAtMs.toElapsedText()}")
@@ -1259,6 +1289,38 @@ private fun buildLiveDanmakuDebugText(stats: LiveDanmakuDebugStats): String {
         appendLine("deduped: ${stats.deduped}")
         appendLine("queue: ${stats.queue}")
     }.trim()
+}
+
+private fun StringBuilder.appendWrappedDebugLine(
+    label: String,
+    value: String,
+    maxValueLineLength: Int = 42
+) {
+    val wrappedLines = value.wrapDebugValue(maxValueLineLength)
+    append(label)
+    append(": ")
+    appendLine(wrappedLines.firstOrNull().orEmpty())
+    wrappedLines.drop(1).forEach { line ->
+        append("  ")
+        appendLine(line)
+    }
+}
+
+private fun String.wrapDebugValue(maxLineLength: Int): List<String> {
+    if (length <= maxLineLength) return listOf(this)
+    val chunks = mutableListOf<String>()
+    var remaining = this
+    while (remaining.length > maxLineLength) {
+        val splitAt = remaining
+            .take(maxLineLength + 1)
+            .lastIndexOfAny(charArrayOf(' ', '/', '?', '&', '=', ':', ',', ';'))
+            .takeIf { it in 16 until maxLineLength }
+            ?: maxLineLength
+        chunks += remaining.substring(0, splitAt).trim()
+        remaining = remaining.substring(splitAt).trimStart()
+    }
+    if (remaining.isNotBlank()) chunks += remaining
+    return chunks
 }
 
 private fun LiveDanmakuSourceMode.toDebugName(): String = when (this) {

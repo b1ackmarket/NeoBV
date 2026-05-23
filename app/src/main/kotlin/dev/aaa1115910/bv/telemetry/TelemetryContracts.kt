@@ -17,6 +17,7 @@ enum class TelemetryScreen(val key: String) {
 enum class TelemetryEvent(val key: String) {
     AppOpen("app_open"),
     DailyActive("daily_active"),
+    TelemetryConsentEnabled("telemetry_consent_enabled"),
     VideoError("video_error"),
     LiveError("live_error"),
     ApiError("api_error"),

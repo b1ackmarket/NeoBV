@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -59,7 +60,6 @@ import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
-import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.CardCover
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
@@ -69,6 +69,7 @@ import dev.aaa1115910.bv.repository.JumpModeSource
 import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import dev.aaa1115910.bv.viewmodel.user.UpFavoriteGroup
@@ -91,6 +92,11 @@ fun UpSpaceScreen(
     val profileFocusRequester = remember { FocusRequester() }
     val tabsFocusRequester = remember { FocusRequester() }
     var initialFocusRequested by remember { mutableStateOf(false) }
+    var tabFocusRequestId by remember { mutableIntStateOf(0) }
+    val onTabSelected: (UpSpaceTab) -> Unit = { tab ->
+        if (tab != upInfoViewModel.selectedTab) tabFocusRequestId++
+        upInfoViewModel.selectTab(tab)
+    }
 
     LaunchedEffect(Unit) {
         val intent = (context as Activity).intent
@@ -115,14 +121,13 @@ fun UpSpaceScreen(
 
     LaunchedEffect(
         upInfoViewModel.profileLoaded,
-        upInfoViewModel.videosLoaded,
-        upInfoViewModel.spaceVideos.size
+        upInfoViewModel.selectedTab
     ) {
-        val canRequestInitialFocus =
-            upInfoViewModel.profileLoaded ||
-                upInfoViewModel.videosLoaded ||
-                upInfoViewModel.spaceVideos.isNotEmpty()
-        if (!initialFocusRequested && canRequestInitialFocus) {
+        if (
+            !initialFocusRequested &&
+            upInfoViewModel.profileLoaded &&
+            upInfoViewModel.selectedTab == UpSpaceTab.Videos
+        ) {
             initialFocusRequested = true
             profileFocusRequester.requestFocus(scope)
         }
@@ -135,7 +140,9 @@ fun UpSpaceScreen(
             toViewViewModel = toViewViewModel,
             jumpModeRepository = jumpModeRepository,
             profileFocusRequester = profileFocusRequester,
-            tabsFocusRequester = tabsFocusRequester
+            tabsFocusRequester = tabsFocusRequester,
+            tabFocusRequestId = tabFocusRequestId,
+            onTabSelected = onTabSelected
         )
 
         UpSpaceTab.SeasonsSeries -> UpSeasonSeriesContent(
@@ -145,6 +152,8 @@ fun UpSpaceScreen(
             loading = upInfoViewModel.seasonsSeriesLoading && !upInfoViewModel.seasonsSeriesLoaded,
             profileFocusRequester = profileFocusRequester,
             tabsFocusRequester = tabsFocusRequester,
+            tabFocusRequestId = tabFocusRequestId,
+            onTabSelected = onTabSelected,
             onVideoClicked = { video ->
                 jumpModeRepository.setPendingQueue(
                     source = JumpModeSource.Personal,
@@ -167,6 +176,8 @@ fun UpSpaceScreen(
             loading = upInfoViewModel.favoritesLoading && !upInfoViewModel.favoritesLoaded,
             profileFocusRequester = profileFocusRequester,
             tabsFocusRequester = tabsFocusRequester,
+            tabFocusRequestId = tabFocusRequestId,
+            onTabSelected = onTabSelected,
             onVideoClicked = { video ->
                 jumpModeRepository.setPendingQueue(
                     source = JumpModeSource.Personal,
@@ -191,7 +202,9 @@ private fun UpVideosGrid(
     toViewViewModel: ToViewViewModel,
     jumpModeRepository: JumpModeRepository,
     profileFocusRequester: FocusRequester,
-    tabsFocusRequester: FocusRequester
+    tabsFocusRequester: FocusRequester,
+    tabFocusRequestId: Int,
+    onTabSelected: (UpSpaceTab) -> Unit
 ) {
     val context = LocalContext.current
     val gridState = rememberLazyGridState()
@@ -232,7 +245,8 @@ private fun UpVideosGrid(
                 modifier = Modifier.focusRequester(tabsFocusRequester),
                 tabs = upInfoViewModel.visibleTabs,
                 selectedTab = upInfoViewModel.selectedTab,
-                onSelect = upInfoViewModel::selectTab
+                focusRequestId = tabFocusRequestId,
+                onSelect = onTabSelected
             )
         }
         if (upInfoViewModel.spaceVideos.isNotEmpty()) {
@@ -387,21 +401,30 @@ private fun UpTabs(
     modifier: Modifier = Modifier,
     tabs: List<UpSpaceTab>,
     selectedTab: UpSpaceTab,
+    focusRequestId: Int = 0,
     onSelect: (UpSpaceTab) -> Unit
 ) {
-    val focusRequester = remember { FocusRequester() }
     val selectedIndex = tabs.indexOf(selectedTab).coerceAtLeast(0)
+    val tabFocusRequesters = remember(tabs) {
+        tabs.map { FocusRequester() }
+    }
 
     if (tabs.isEmpty()) return
 
+    LaunchedEffect(focusRequestId) {
+        if (focusRequestId > 0) {
+            runCatching { tabFocusRequesters[selectedIndex].requestFocus() }
+        }
+    }
+
     TabRow(
-        modifier = modifier.focusRestorer(focusRequester),
+        modifier = modifier.focusRestorer(tabFocusRequesters[selectedIndex]),
         selectedTabIndex = selectedIndex,
         separator = { Spacer(modifier = Modifier.width(16.dp)) }
     ) {
         tabs.forEachIndexed { index, tab ->
             Tab(
-                modifier = Modifier.ifElse(index == 0, Modifier.focusRequester(focusRequester)),
+                modifier = Modifier.focusRequester(tabFocusRequesters[index]),
                 selected = tab == selectedTab,
                 onFocus = { onSelect(tab) },
                 onClick = { onSelect(tab) }
@@ -424,6 +447,8 @@ private fun UpSeasonSeriesContent(
     loading: Boolean,
     profileFocusRequester: FocusRequester,
     tabsFocusRequester: FocusRequester,
+    tabFocusRequestId: Int,
+    onTabSelected: (UpSpaceTab) -> Unit,
     onVideoClicked: (VideoCardData) -> Unit,
     onAddWatchLater: (Long) -> Unit
 ) {
@@ -445,7 +470,8 @@ private fun UpSeasonSeriesContent(
                 modifier = Modifier.focusRequester(tabsFocusRequester),
                 tabs = upInfoViewModel.visibleTabs,
                 selectedTab = upInfoViewModel.selectedTab,
-                onSelect = upInfoViewModel::selectTab
+                focusRequestId = tabFocusRequestId,
+                onSelect = onTabSelected
             )
         }
         if (groups.isEmpty()) {
@@ -475,6 +501,8 @@ private fun UpFavoritesContent(
     loading: Boolean,
     profileFocusRequester: FocusRequester,
     tabsFocusRequester: FocusRequester,
+    tabFocusRequestId: Int,
+    onTabSelected: (UpSpaceTab) -> Unit,
     onVideoClicked: (VideoCardData) -> Unit,
     onAddWatchLater: (Long) -> Unit
 ) {
@@ -496,7 +524,8 @@ private fun UpFavoritesContent(
                 modifier = Modifier.focusRequester(tabsFocusRequester),
                 tabs = upInfoViewModel.visibleTabs,
                 selectedTab = upInfoViewModel.selectedTab,
-                onSelect = upInfoViewModel::selectTab
+                focusRequestId = tabFocusRequestId,
+                onSelect = onTabSelected
             )
         }
         if (groups.isEmpty()) {
@@ -527,7 +556,6 @@ private fun UpVideoGroupRow(
     onVideoClicked: (VideoCardData) -> Unit,
     onAddWatchLater: (Long) -> Unit
 ) {
-    val focusRequester = remember { FocusRequester() }
     var showAllVideos by remember { mutableStateOf(false) }
 
     Column(
@@ -554,13 +582,16 @@ private fun UpVideoGroupRow(
             }
         }
         LazyRow(
-            modifier = Modifier.focusRestorer(focusRequester),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
-            contentPadding = PaddingValues(end = 48.dp)
+            contentPadding = PaddingValues(
+                start = 18.dp,
+                top = 8.dp,
+                end = 48.dp,
+                bottom = 8.dp
+            )
         ) {
             item {
                 UpCollectionCoverCard(
-                    modifier = Modifier.focusRequester(focusRequester),
                     title = title,
                     cover = cover,
                     countText = subtitle,
@@ -607,7 +638,8 @@ private fun UpCollectionCoverCard(
             onClick = onClick,
             modifier = modifier
                 .fillMaxWidth()
-                .aspectRatio(1.6f),
+                .aspectRatio(1.6f)
+                .touchClick(onClick),
             shape = CardDefaults.shape(MaterialTheme.shapes.large),
             border = CardDefaults.border(
                 focusedBorder = Border(

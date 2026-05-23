@@ -99,6 +99,9 @@ fun LiveMenuController(
             focusState = MenuFocusState.MenuNav
             delay(80)
             runCatching { navItemRequesters[LiveMenuNavItem.Quality.ordinal].requestFocus() }
+        } else {
+            selectedNav = LiveMenuNavItem.Quality
+            focusState = MenuFocusState.MenuNav
         }
     }
 

@@ -33,9 +33,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
@@ -45,6 +47,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.requestFocus
@@ -65,6 +68,9 @@ fun UserPanel(
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
     var inIncognitoMode by remember { mutableStateOf(Prefs.incognitoMode) }
+    var personalizedRecommendationEnabled by remember {
+        mutableStateOf(Prefs.enablePersonalizedRecommendation)
+    }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus(scope)
@@ -96,7 +102,7 @@ fun UserPanel(
         ) {
             UserPanelMyItem(
                 modifier = Modifier
-                    .width(300.dp),
+                    .width(480.dp),
                 username = username,
                 face = face,
                 level = level,
@@ -104,7 +110,7 @@ fun UserPanel(
                 nextLevelExp = nextLevelExp,
             )
 
-            val buttonWidth = 120.dp
+            val buttonWidth = 160.dp
             Row {
                 UserPanelSmallItem(
                     modifier = Modifier
@@ -117,12 +123,34 @@ fun UserPanel(
                                 }
                             }
                             false
-                        },
+                    },
                     title = if (inIncognitoMode) "隐身开启" else "隐身关闭",
-                    icon = if (inIncognitoMode) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                    icon = rememberVectorPainter(
+                        if (inIncognitoMode) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility
+                    ),
                     onClick = {
                         inIncognitoMode = !inIncognitoMode
                         Prefs.incognitoMode = inIncognitoMode
+                    }
+                )
+                UserPanelSmallItem(
+                    modifier = Modifier
+                        .width(buttonWidth),
+                    title = if (personalizedRecommendationEnabled) {
+                        "个性化推荐开启"
+                    } else {
+                        "个性化推荐关闭"
+                    },
+                    icon = painterResource(
+                        id = if (personalizedRecommendationEnabled) {
+                            R.drawable.personalized_recommendation_on_24px
+                        } else {
+                            R.drawable.personalized_recommendation_off_24px
+                        }
+                    ),
+                    onClick = {
+                        personalizedRecommendationEnabled = !personalizedRecommendationEnabled
+                        Prefs.enablePersonalizedRecommendation = personalizedRecommendationEnabled
                     }
                 )
                 UserPanelSmallItem(
@@ -135,9 +163,9 @@ fun UserPanel(
                                 }
                             }
                             false
-                        },
+                    },
                     title = "账号管理",
-                    icon = Icons.Rounded.AccountBox,
+                    icon = rememberVectorPainter(Icons.Rounded.AccountBox),
                     onClick = {
                         onGoUserSwitch()
                         onHide()
@@ -228,7 +256,7 @@ private fun UserPanelMyItem(
 private fun UserPanelSmallItem(
     modifier: Modifier = Modifier,
     title: String,
-    icon: ImageVector,
+    icon: Painter,
     onClick: () -> Unit
 ) {
     Surface(
@@ -248,8 +276,9 @@ private fun UserPanelSmallItem(
             Icon(
                 modifier = Modifier
                     .padding(12.dp)
+                    .size(24.dp)
                     .align(Alignment.TopStart),
-                imageVector = icon,
+                painter = icon,
                 contentDescription = null
             )
             Text(

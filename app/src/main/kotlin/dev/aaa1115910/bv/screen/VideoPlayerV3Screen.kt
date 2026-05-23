@@ -375,7 +375,7 @@ fun VideoPlayerV3Screen(
                     // 突然变成完全不透明一瞬间，因此这次新版选择直接在此处设置透明度
                     .alpha(uiState.danmakuState.opacity)
                     .ifElse(
-                        { Prefs.defaultDanmakuMask },
+                        { uiState.danmakuState.maskEnabled },
                         Modifier.danmakuMask(currentDanmakuMaskFrame, aspectRatio)
                     ),
                 danmakuPlayer = danmakuPlayer

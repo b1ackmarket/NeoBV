@@ -136,6 +136,11 @@ class LiveViewModel(
         }
         val requestedPage = if (append) nextPage else 1
         loading = true
+        if (!append) {
+            rooms.clear()
+            nextPage = 1
+            canLoadMore = false
+        }
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val loadedRooms = liveRepository.getRooms(

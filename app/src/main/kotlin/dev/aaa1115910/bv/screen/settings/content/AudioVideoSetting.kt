@@ -38,6 +38,11 @@ import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.player.SeekStepOption
 import kotlinx.coroutines.launch
 
+internal val selectableDefaultVideoQualities: Array<Resolution>
+    get() = Resolution.entries
+        .filterNot { it == Resolution.R720P60 }
+        .toTypedArray()
+
 @Composable
 fun AudioVideoSetting(
     modifier: Modifier = Modifier
@@ -167,7 +172,7 @@ fun AudioVideoSetting(
     // 弹窗复用组件
     if (showResolutionDialog) {
         OptionDialog(
-            options = Resolution.entries.toTypedArray(),
+            options = selectableDefaultVideoQualities,
             selectedOption = selectedResolution,
             onDismiss = { showResolutionDialog = false },
             onSelect = {

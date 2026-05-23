@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.util
 
 import dev.aaa1115910.bv.component.PersonalTopNavItem
+import dev.aaa1115910.bv.component.controllers.LiveDanmakuSourceMode
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -16,6 +17,7 @@ class PrefDefaultValuesTest {
         assertEquals(LiveDefaultQuality.Dolby, PrefDefaultValues.defaultLiveQuality)
         assertEquals(VideoCodec.HEVC, PrefDefaultValues.defaultVideoCodec)
         assertEquals(Audio.AHiRes, PrefDefaultValues.defaultAudio)
+        assertEquals(LiveDanmakuSourceMode.HistoryOnly, PrefDefaultValues.defaultLiveDanmakuSourceMode)
         assertTrue(PrefDefaultValues.enableFfmpegAudioRenderer)
     }
 
