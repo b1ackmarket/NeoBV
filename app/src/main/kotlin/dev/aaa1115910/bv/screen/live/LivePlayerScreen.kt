@@ -83,6 +83,9 @@ import dev.aaa1115910.bv.repository.LiveJumpModeQueue
 import dev.aaa1115910.bv.repository.LiveJumpModeRepository
 import dev.aaa1115910.bv.repository.LiveRepository
 import dev.aaa1115910.bv.repository.LiveRoomContext
+import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
+import dev.aaa1115910.bv.telemetry.TelemetryErrorType
+import dev.aaa1115910.bv.telemetry.TelemetryScreen
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toWanString
@@ -416,6 +419,11 @@ fun LivePlayerScreen() {
         player.setPlayerEventListener(
             object : VideoPlayerListener {
                 override fun onError(error: Exception) {
+                    FirebaseTelemetry.reportLiveError(
+                        type = TelemetryErrorType.DecodeError,
+                        throwable = error,
+                        extras = mapOf("stage" to "player_error")
+                    )
                     errorMessage = error.message ?: "直播播放失败"
                     isLoading = false
                 }
@@ -450,6 +458,7 @@ fun LivePlayerScreen() {
     }
 
     LaunchedEffect(Unit) {
+        FirebaseTelemetry.setLastScreen(TelemetryScreen.LivePlayer)
         liveJumpModeQueue = liveJumpModeRepository.consumeQueueFor(roomId)
     }
 
@@ -460,6 +469,11 @@ fun LivePlayerScreen() {
         result
             .onSuccess { roomContext = it }
             .onFailure {
+                FirebaseTelemetry.reportLiveError(
+                    type = FirebaseTelemetry.classifyThrowable(it),
+                    throwable = it,
+                    extras = mapOf("stage" to "resolve_room")
+                )
                 errorMessage = resolveLivePlaybackErrorMessage(
                     liveStatus = null,
                     source = null,
@@ -532,6 +546,11 @@ fun LivePlayerScreen() {
                         }
 
                         is LiveDataWebSocketDebugEvent.Error -> {
+                            FirebaseTelemetry.reportDanmakuError(
+                                type = TelemetryErrorType.NetworkError,
+                                throwable = IllegalStateException("live danmaku connection failed"),
+                                extras = mapOf("stage" to "websocket")
+                            )
                             updateLiveDanmakuDebugStats {
                                 it.copy(wsError = debugEvent.reason)
                             }
@@ -661,6 +680,11 @@ fun LivePlayerScreen() {
             }
         }
         val (resolvedSource, historyDanmaku) = playbackResult.getOrElse {
+            FirebaseTelemetry.reportLiveError(
+                type = FirebaseTelemetry.classifyThrowable(it),
+                throwable = it,
+                extras = mapOf("stage" to "resolve_play_url")
+            )
             errorMessage = resolveLivePlaybackErrorMessage(
                 liveStatus = roomContext?.liveStatus,
                 source = null,
@@ -670,6 +694,11 @@ fun LivePlayerScreen() {
             return@LaunchedEffect
         }
         if (resolvedSource == null) {
+            FirebaseTelemetry.reportLiveError(
+                type = TelemetryErrorType.EmptyPlayUrl,
+                throwable = IllegalStateException("live play url is empty"),
+                extras = mapOf("stage" to "resolve_play_url")
+            )
             errorMessage = resolveLivePlaybackErrorMessage(
                 liveStatus = roomContext?.liveStatus,
                 source = null

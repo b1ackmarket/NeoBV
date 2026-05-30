@@ -12,6 +12,7 @@ class TelemetrySanitizerTest {
             mapOf(
                 "uid" to 1000L,
                 "bvid" to "BV1xx",
+                "room_id" to 1000,
                 "search_keyword" to "private",
                 "cookie" to "SESSDATA=value",
                 "error_type" to "timeout"
@@ -33,6 +34,7 @@ class TelemetrySanitizerTest {
     @Test
     fun `api endpoint rejects non path values`() {
         assertNull(TelemetrySanitizer.sanitizeValue("api_endpoint", "https://api.bilibili.com/x"))
+        assertNull(TelemetrySanitizer.sanitizeValue("api_endpoint", "/x//unsafe"))
     }
 
     @Test
@@ -43,5 +45,21 @@ class TelemetrySanitizerTest {
 
         assertEquals(100, sanitized.length)
         assertFalse(sanitized.contains("b"))
+    }
+
+    @Test
+    fun `event params allow coarse screen name but drop unsafe keys`() {
+        val sanitized = TelemetrySanitizer.sanitizeEventParams(
+            mapOf(
+                "screen_name" to "video_player",
+                "title" to "private title",
+                "source" to "foreground"
+            )
+        )
+
+        assertEquals(
+            mapOf("screen_name" to "video_player", "source" to "foreground"),
+            sanitized
+        )
     }
 }

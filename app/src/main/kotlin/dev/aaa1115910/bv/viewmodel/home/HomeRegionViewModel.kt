@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.repositories.UgcRepository
 import dev.aaa1115910.bv.component.HomeTopNavItem
+import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -45,6 +46,10 @@ class HomeRegionViewModel(
                 state.hasMore = feedData.items.isNotEmpty()
             }.onFailure {
                 logger.warn(it) { "Load home region ${item.name} failed" }
+                FirebaseTelemetry.reportApiError(
+                    throwable = it,
+                    endpoint = "/x/web-interface/wbi/index/top/rcmd"
+                )
             }
             state.updating = false
         }

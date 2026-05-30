@@ -176,6 +176,17 @@ composeCompiler {
     )
 }
 
+val enableCrashlyticsMappingUpload = providers
+    .gradleProperty("enableCrashlyticsMappingUpload")
+    .map { it.toBoolean() }
+    .orElse(false)
+
+tasks.configureEach {
+    if (name.startsWith("uploadCrashlyticsMappingFile") && !enableCrashlyticsMappingUpload.get()) {
+        enabled = false
+    }
+}
+
 java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(17))

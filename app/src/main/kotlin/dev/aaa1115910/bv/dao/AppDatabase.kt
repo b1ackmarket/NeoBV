@@ -10,6 +10,7 @@ import androidx.room.TypeConverters
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.entity.db.SearchHistoryDB
 import dev.aaa1115910.bv.entity.db.UserDB
+import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.Date
 import java.util.concurrent.Executors
@@ -40,18 +41,22 @@ abstract class AppDatabase : RoomDatabase() {
         @Synchronized
         fun getDatabase(context: Context): AppDatabase {
             instance?.let { return it }
-            return Room.databaseBuilder(
-                context.applicationContext,
-                AppDatabase::class.java,
-                "AppDatabase.db"
-            )
-                .setQueryCallback(object : QueryCallback {
-                    override fun onQuery(sqlQuery: String, bindArgs: List<Any?>) {
-                        if (BuildConfig.DEBUG) logger.info { "SQL Query: $sqlQuery SQL Args: $bindArgs" }
-                    }
-                }, Executors.newSingleThreadExecutor())
-                .build()
-                .apply { instance = this }
+            return runCatching {
+                Room.databaseBuilder(
+                    context.applicationContext,
+                    AppDatabase::class.java,
+                    "AppDatabase.db"
+                )
+                    .setQueryCallback(object : QueryCallback {
+                        override fun onQuery(sqlQuery: String, bindArgs: List<Any?>) {
+                            if (BuildConfig.DEBUG) logger.info { "SQL Query: $sqlQuery SQL Args: $bindArgs" }
+                        }
+                    }, Executors.newSingleThreadExecutor())
+                    .build()
+                    .apply { instance = this }
+            }.onFailure {
+                FirebaseTelemetry.reportDatabaseError(it, extras = mapOf("stage" to "open_database"))
+            }.getOrThrow()
         }
     }
 }

@@ -45,6 +45,8 @@ import dev.aaa1115910.bv.screen.settings.content.OtherSetting
 import dev.aaa1115910.bv.screen.settings.content.PlayerTypeSetting
 import dev.aaa1115910.bv.screen.settings.content.StorageSetting
 import dev.aaa1115910.bv.screen.settings.content.UISetting
+import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
+import dev.aaa1115910.bv.telemetry.TelemetryScreen
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.requestFocus
 
@@ -54,6 +56,10 @@ fun SettingsScreen(
 ) {
     var currentMenu by remember { mutableStateOf(SettingsMenuNavItem.AudioVideo) }
     var focusInNav by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        FirebaseTelemetry.setLastScreen(TelemetryScreen.Settings)
+    }
 
     Scaffold(
         modifier = modifier,

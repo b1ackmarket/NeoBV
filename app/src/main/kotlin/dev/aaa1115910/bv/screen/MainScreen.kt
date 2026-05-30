@@ -43,6 +43,8 @@ import dev.aaa1115910.bv.screen.main.PgcContent
 import dev.aaa1115910.bv.screen.main.home.DynamicsScreen
 import dev.aaa1115910.bv.screen.main.live.LiveContent
 import dev.aaa1115910.bv.screen.search.SearchInputScreen
+import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
+import dev.aaa1115910.bv.telemetry.TelemetryScreen
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
@@ -109,6 +111,19 @@ fun MainScreen(
         }.onFailure {
             logger.fException(it) { "request default focus requester failed" }
         }
+    }
+
+    LaunchedEffect(selectedDrawerItem) {
+        FirebaseTelemetry.setLastScreen(
+            when (selectedDrawerItem) {
+                LeftNaviItem.Home -> TelemetryScreen.Home
+                LeftNaviItem.PGC -> TelemetryScreen.Pgc
+                LeftNaviItem.Search -> TelemetryScreen.Search
+                LeftNaviItem.Personal -> TelemetryScreen.Personal
+                LeftNaviItem.Dynamic -> TelemetryScreen.Dynamic
+                LeftNaviItem.Live -> TelemetryScreen.Live
+            }
+        )
     }
 
     LaunchedEffect(userViewModel.isLogin) {

@@ -107,6 +107,8 @@ import dev.aaa1115910.bv.component.controllers.resolvePlaybackVideoList
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
+import dev.aaa1115910.bv.telemetry.TelemetryScreen
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -226,6 +228,7 @@ fun VideoInfoScreen(
     }
 
     LaunchedEffect(Unit) {
+        FirebaseTelemetry.setLastScreen(TelemetryScreen.VideoDetail)
         videoDetailViewModel.uiEvent.collect { event ->
             when (event) {
                 is VideoDetailUiEffect.ShowToast -> event.message.toast(context)

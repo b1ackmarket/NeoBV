@@ -9,6 +9,7 @@ import dev.aaa1115910.biliapi.entity.rank.PopularVideoPage
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
 import dev.aaa1115910.biliapi.repositories.RecommendVideoRepository
 import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.addAllWithMainContext
 import dev.aaa1115910.bv.util.fError
@@ -54,6 +55,10 @@ class PopularViewModel(
             popularVideoList.addAllWithMainContext(popularVideoData.list)
         }.onFailure {
             logger.fError { "Load popular video list failed: ${it.stackTraceToString()}" }
+            FirebaseTelemetry.reportApiError(
+                throwable = it,
+                endpoint = "/x/web-interface/popular"
+            )
             withContext(Dispatchers.Main) {
                 "加载热门视频失败: ${it.localizedMessage}".toast(BVApp.context)
             }

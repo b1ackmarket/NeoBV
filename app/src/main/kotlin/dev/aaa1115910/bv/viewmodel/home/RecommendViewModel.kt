@@ -9,6 +9,7 @@ import dev.aaa1115910.biliapi.entity.home.RecommendPage
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
 import dev.aaa1115910.biliapi.repositories.RecommendVideoRepository
 import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.addAllWithMainContext
 import dev.aaa1115910.bv.util.fError
@@ -67,6 +68,10 @@ class RecommendViewModel(
             recommendVideoList.addAllWithMainContext(recommendData.items)
         }.onFailure {
             logger.fError { "Load recommend video list failed: ${it.stackTraceToString()}" }
+            FirebaseTelemetry.reportApiError(
+                throwable = it,
+                endpoint = "/x/web-interface/index/top/feed/rcmd"
+            )
             withContext(Dispatchers.Main) {
                 "加载推荐视频失败: ${it.localizedMessage}".toast(BVApp.context)
             }

@@ -1,12 +1,23 @@
 package dev.aaa1115910.bv.telemetry
 
+import android.app.Activity
 import android.app.Application
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
+import android.os.Bundle
+import dev.aaa1115910.biliapi.http.entity.AuthFailureException
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.util.Prefs
+import io.ktor.client.plugins.ResponseException
+import java.io.IOException
 import java.time.LocalDate
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.TimeoutException
+import kotlin.coroutines.cancellation.CancellationException
 
 object FirebaseTelemetry {
     private val nonFatalLastReportMs = ConcurrentHashMap<String, Long>()
@@ -14,13 +25,18 @@ object FirebaseTelemetry {
 
     private var initialized = false
     private var lastDailyActiveDate = ""
+    private var applicationContext: Context? = null
+    private val startedActivityCount = AtomicInteger(0)
 
     fun initialize(application: Application) {
         if (initialized) return
         initialized = true
+        applicationContext = application.applicationContext
         FirebaseTelemetryBridge.initialize(application)
         applyConsent()
         setBaseKeys()
+        setAppInForeground(false)
+        registerForegroundTracking(application)
         setLastScreen(TelemetryScreen.AppStart)
         logAppOpen()
         logDailyActive("app_start")
@@ -40,19 +56,14 @@ object FirebaseTelemetry {
         Prefs.enableAnonymousUsageCollection = enabled
         FirebaseTelemetryBridge.setAnalyticsCollectionEnabled(enabled)
         if (enabled) {
-            setLastEvent(TelemetryEvent.TelemetryConsentEnabled)
-            FirebaseTelemetryBridge.logEvent(
-                TelemetryEvent.TelemetryConsentEnabled.key,
-                mapOf("source" to "settings")
-            )
-            logDailyActive("settings_consent")
+            logDailyActive("foreground")
         }
     }
 
     fun setLastScreen(screen: TelemetryScreen) {
         FirebaseTelemetryBridge.setCustomKey("last_screen", screen.key)
         if (Prefs.enableAnonymousUsageCollection) {
-            FirebaseTelemetryBridge.logEvent("screen_view", mapOf("screen_name" to screen.key))
+            logEvent("screen_view", mapOf("screen_name" to screen.key))
         }
     }
 
@@ -91,19 +102,127 @@ object FirebaseTelemetry {
         FirebaseTelemetryBridge.recordException(throwable, params)
     }
 
+    fun reportVideoError(
+        type: TelemetryErrorType,
+        throwable: Throwable,
+        extras: Map<String, Any?> = emptyMap()
+    ) {
+        if (throwable is CancellationException) return
+        reportNonFatal(
+            domain = TelemetryErrorDomain.Video,
+            type = type,
+            throwable = throwable,
+            extras = extras
+        )
+        logVideoError(
+            errorType = type,
+            playerType = Prefs.playerType.name,
+            networkType = detectNetworkType()
+        )
+    }
+
+    fun reportLiveError(
+        type: TelemetryErrorType,
+        throwable: Throwable,
+        extras: Map<String, Any?> = emptyMap()
+    ) {
+        if (throwable is CancellationException) return
+        reportNonFatal(
+            domain = TelemetryErrorDomain.Live,
+            type = type,
+            throwable = throwable,
+            extras = extras
+        )
+        logLiveError(
+            errorType = type,
+            networkType = detectNetworkType()
+        )
+    }
+
+    fun reportDanmakuError(
+        type: TelemetryErrorType,
+        throwable: Throwable,
+        extras: Map<String, Any?> = emptyMap()
+    ) {
+        if (throwable is CancellationException) return
+        reportNonFatal(
+            domain = TelemetryErrorDomain.Danmaku,
+            type = type,
+            throwable = throwable,
+            extras = extras
+        )
+    }
+
+    fun reportApiError(
+        throwable: Throwable,
+        endpoint: String,
+        httpCode: Int? = null,
+        extras: Map<String, Any?> = emptyMap()
+    ) {
+        if (throwable is CancellationException) return
+        val type = classifyThrowable(throwable)
+        reportNonFatal(
+            domain = TelemetryErrorDomain.Api,
+            type = type,
+            throwable = throwable,
+            extras = buildMap {
+                put("api_endpoint", endpoint)
+                httpCode?.let { put("http_code", it) }
+                putAll(extras)
+            }
+        )
+    }
+
+    fun reportDatabaseError(
+        throwable: Throwable,
+        extras: Map<String, Any?> = emptyMap()
+    ) {
+        if (throwable is CancellationException) return
+        reportNonFatal(
+            domain = TelemetryErrorDomain.Database,
+            type = classifyThrowable(throwable),
+            throwable = throwable,
+            extras = extras
+        )
+    }
+
+    fun classifyThrowable(throwable: Throwable): TelemetryErrorType {
+        return when (throwable) {
+            is AuthFailureException -> TelemetryErrorType.AuthExpired
+            is ResponseException -> {
+                when (throwable.response.status.value) {
+                    401, 403 -> TelemetryErrorType.AuthExpired
+                    else -> TelemetryErrorType.NetworkError
+                }
+            }
+
+            is IOException -> TelemetryErrorType.NetworkError
+            is TimeoutException -> TelemetryErrorType.Timeout
+            is IllegalArgumentException -> TelemetryErrorType.ParseError
+            else -> when (throwable.cause) {
+                null -> TelemetryErrorType.Unknown
+                else -> classifyThrowable(throwable.cause!!)
+            }
+        }
+    }
+
     fun logDailyActive(source: String) {
         if (!Prefs.enableAnonymousUsageCollection) return
         val today = LocalDate.now().toString()
         if (lastDailyActiveDate == today) return
         lastDailyActiveDate = today
+        val safeSource = when (source) {
+            "app_start", "foreground" -> source
+            else -> "foreground"
+        }
         setLastEvent(TelemetryEvent.DailyActive)
-        FirebaseTelemetryBridge.logEvent(
+        logEvent(
             TelemetryEvent.DailyActive.key,
             mapOf(
                 "app_version" to BuildConfig.VERSION_NAME,
                 "build_type" to BuildConfig.BUILD_TYPE,
                 "local_date" to today,
-                "source" to source.take(32)
+                "source" to safeSource
             )
         )
     }
@@ -115,7 +234,7 @@ object FirebaseTelemetry {
     ) {
         if (!Prefs.enableAnonymousUsageCollection) return
         setLastEvent(TelemetryEvent.VideoError)
-        FirebaseTelemetryBridge.logEvent(
+        logEvent(
             TelemetryEvent.VideoError.key,
             mapOf(
                 "error_type" to errorType.key,
@@ -128,7 +247,7 @@ object FirebaseTelemetry {
     fun logLiveError(errorType: TelemetryErrorType, networkType: TelemetryNetworkType) {
         if (!Prefs.enableAnonymousUsageCollection) return
         setLastEvent(TelemetryEvent.LiveError)
-        FirebaseTelemetryBridge.logEvent(
+        logEvent(
             TelemetryEvent.LiveError.key,
             mapOf(
                 "error_type" to errorType.key,
@@ -140,7 +259,7 @@ object FirebaseTelemetry {
     private fun logAppOpen() {
         if (!Prefs.enableAnonymousUsageCollection) return
         setLastEvent(TelemetryEvent.AppOpen)
-        FirebaseTelemetryBridge.logEvent(TelemetryEvent.AppOpen.key, emptyMap())
+        logEvent(TelemetryEvent.AppOpen.key, emptyMap())
     }
 
     private fun setBaseKeys() {
@@ -160,5 +279,51 @@ object FirebaseTelemetry {
         FirebaseTelemetryBridge.setCustomKey("danmaku_enabled", Prefs.defaultDanmakuTypes.isNotEmpty())
         FirebaseTelemetryBridge.setCustomKey("proxy_enabled", Prefs.enableProxy)
         FirebaseTelemetryBridge.setCustomKey("incognito_mode", Prefs.incognitoMode)
+    }
+
+    private fun logEvent(name: String, params: Map<String, Any?>) {
+        FirebaseTelemetryBridge.logEvent(name, TelemetrySanitizer.sanitizeEventParams(params))
+    }
+
+    private fun setAppInForeground(value: Boolean) {
+        FirebaseTelemetryBridge.setCustomKey("app_in_foreground", value)
+    }
+
+    private fun registerForegroundTracking(application: Application) {
+        application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityStarted(activity: Activity) {
+                if (startedActivityCount.getAndIncrement() == 0) {
+                    setAppInForeground(true)
+                    logDailyActive("foreground")
+                }
+            }
+
+            override fun onActivityStopped(activity: Activity) {
+                if (startedActivityCount.decrementAndGet().coerceAtLeast(0) == 0) {
+                    startedActivityCount.set(0)
+                    setAppInForeground(false)
+                }
+            }
+
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+            override fun onActivityResumed(activity: Activity) = Unit
+            override fun onActivityPaused(activity: Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+            override fun onActivityDestroyed(activity: Activity) = Unit
+        })
+    }
+
+    private fun detectNetworkType(): TelemetryNetworkType {
+        val context = applicationContext ?: return TelemetryNetworkType.Unknown
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return TelemetryNetworkType.Unknown
+        val network = connectivityManager.activeNetwork ?: return TelemetryNetworkType.Unknown
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return TelemetryNetworkType.Unknown
+        return when {
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> TelemetryNetworkType.Wifi
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> TelemetryNetworkType.Cellular
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> TelemetryNetworkType.Ethernet
+            else -> TelemetryNetworkType.Unknown
+        }
     }
 }
