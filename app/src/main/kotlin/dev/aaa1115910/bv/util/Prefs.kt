@@ -152,7 +152,7 @@ object Prefs {
     var enableSoftwareVideoDecoder by pref(PrefKeys.prefEnableSoftwareVideoDecoder, false)
     var actionAfterPlay by pref(
         PrefKeys.prefActionAfterPlayKey,
-        ActionAfterPlayItems.PlayNext,
+        ActionAfterPlayItems.AutoNextOrRelated,
         save = { it.code },
         restore = { ActionAfterPlayItems.fromCode(it) }
     )
@@ -296,6 +296,8 @@ object Prefs {
         restore = { PersonalTopNavItem.entries.getOrElse(it) { PersonalTopNavItem.ToView } }
     )
     var showHotword by pref(PrefKeys.prefShowHotwordKey, true)
+    var enableFocusPreview by pref(PrefKeys.prefEnableFocusPreviewKey, true)
+    var enableFocusPreviewMuted by pref(PrefKeys.prefEnableFocusPreviewMutedKey, true)
 
     // =========================================================================
     // 隐私
@@ -485,6 +487,8 @@ private object PrefKeys {
     val prefFirstHomeTopNavItemKey = intPreferencesKey("first_home_top_nav")
     val prefFirstPersonalTopNavItemKey = intPreferencesKey("first_personal_top_nav")
     val prefShowHotwordKey = booleanPreferencesKey("shw")
+    val prefEnableFocusPreviewKey = booleanPreferencesKey("enable_focus_preview")
+    val prefEnableFocusPreviewMutedKey = booleanPreferencesKey("enable_focus_preview_muted")
 
     // 隐身模式
     val prefIncognitoModeKey = booleanPreferencesKey("im")

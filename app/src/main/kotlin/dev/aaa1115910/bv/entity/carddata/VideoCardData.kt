@@ -12,5 +12,6 @@ data class VideoCardData(
     val danmakuString: String =  "",
     val timeString: String =  "",
     val jumpToSeason: Boolean = false,
-    val pubTime: String? = null
+    val pubTime: String? = null,
+    val badges: List<String> = emptyList()
 )

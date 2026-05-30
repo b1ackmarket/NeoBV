@@ -67,6 +67,8 @@ fun UISetting(
 
     var showVideoInfo by remember { mutableStateOf(Prefs.showVideoInfo) }
     var showPersistentSeek by remember { mutableStateOf(Prefs.showPersistentSeek) }
+    var enableFocusPreview by remember { mutableStateOf(Prefs.enableFocusPreview) }
+    var enableFocusPreviewMuted by remember { mutableStateOf(Prefs.enableFocusPreviewMuted) }
 
     val density by Prefs.densityFlow.collectAsState(context.resources.displayMetrics.widthPixels / 960f)
     val densityDialogState = remember { UIDensityDialogState(density) }
@@ -130,6 +132,28 @@ fun UISetting(
                         onCheckedChange = {
                             showPersistentSeek = it
                             Prefs.showPersistentSeek = it
+                        }
+                    )
+                }
+                item {
+                    SettingSwitchListItem(
+                        title = "焦点视频自动预览",
+                        supportText = "视频卡片获得焦点 1 秒后预览，预览不会计入播放历史",
+                        checked = enableFocusPreview,
+                        onCheckedChange = {
+                            enableFocusPreview = it
+                            Prefs.enableFocusPreview = it
+                        }
+                    )
+                }
+                item {
+                    SettingSwitchListItem(
+                        title = "预览静音",
+                        supportText = "开启后焦点预览默认静音",
+                        checked = enableFocusPreviewMuted,
+                        onCheckedChange = {
+                            enableFocusPreviewMuted = it
+                            Prefs.enableFocusPreviewMuted = it
                         }
                     )
                 }

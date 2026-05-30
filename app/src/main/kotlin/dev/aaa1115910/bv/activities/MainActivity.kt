@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.activities
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,7 +17,7 @@ import dev.aaa1115910.bv.util.Prefs
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.android.ext.android.inject
 
-class MainActivity : ComponentActivity() {
+class MainActivity : PreviewAwareComponentActivity() {
 
     private val userRepository: UserRepository by inject()
     private val logger = KotlinLogging.logger {}

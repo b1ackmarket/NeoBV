@@ -3,15 +3,15 @@ package dev.aaa1115910.bv.activities.video
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import dev.aaa1115910.bv.activities.PreviewAwareComponentActivity
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.screen.VideoInfoScreen
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.viewmodel.video.VideoDetailViewModel
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
-class VideoInfoActivity : ComponentActivity() {
+class VideoInfoActivity : PreviewAwareComponentActivity() {
     companion object {
         fun actionStart(
             context: Context,

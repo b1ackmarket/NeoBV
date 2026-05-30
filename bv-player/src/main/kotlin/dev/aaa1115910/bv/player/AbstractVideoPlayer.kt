@@ -58,6 +58,9 @@ abstract class AbstractVideoPlayer {
     /** 播放速度 */
     abstract var speed: Float
 
+    /** 播放音量，0f 为静音，1f 为原始音量 */
+    abstract var volume: Float
+
     /** 当前实时网络传输速度，单位 bits/second */
     abstract val tcpSpeed: Long
 

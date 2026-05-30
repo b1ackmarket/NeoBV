@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +32,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -48,10 +50,21 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.player.AbstractVideoPlayer
+import dev.aaa1115910.bv.player.BvVideoPlayer
+import dev.aaa1115910.bv.player.VideoPlayerOptions
+import dev.aaa1115910.bv.player.impl.exo.ExoPlayerFactory
+import dev.aaa1115910.bv.repository.FocusPreviewManager
+import dev.aaa1115910.bv.repository.VideoPreviewRepository
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.ImageSize
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.util.touchClick
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import org.koin.compose.getKoin
 
 
 @Composable
@@ -59,18 +72,27 @@ fun SmallVideoCard(
     modifier: Modifier = Modifier,
     data: VideoCardData,
     delToView: Boolean = false,
+    enableFocusPreview: Boolean = true,
     onClick: () -> Unit,
     onAddWatchLater: (() -> Unit)? = null,
     onGoToDetailPage: (() -> Unit)? = null,
     onGoToUpPage: (() -> Unit)? = null,
 ) {
     var showActions by remember { mutableStateOf(false) }
+    var focused by remember { mutableStateOf(false) }
+    var previewPlayer by remember(data.avid, data.cid) { mutableStateOf<AbstractVideoPlayer?>(null) }
     // 解决长按卡片松开会导致一次按钮触发的问题
     var releaseLongPress by remember { mutableStateOf(false) }
     val firstButtonRequester = remember { FocusRequester() }
 
     // 判断是否有任何操作按钮
     val hasAnyAction = onAddWatchLater != null || onGoToDetailPage != null || onGoToUpPage != null
+    val stopPreviewAndRun: (() -> Unit) -> Unit = { action ->
+        FocusPreviewManager.stop()
+        previewPlayer?.release()
+        previewPlayer = null
+        action()
+    }
 
     LaunchedEffect(showActions) {
         if (showActions && hasAnyAction) {
@@ -82,7 +104,7 @@ fun SmallVideoCard(
 
     Column(modifier = modifier.fillMaxWidth()) {
         Card(
-            onClick = { if (!showActions) onClick() },
+            onClick = { if (!showActions) stopPreviewAndRun(onClick) },
             onLongClick = {
                 if (hasAnyAction) showActions = true
 
@@ -90,9 +112,14 @@ fun SmallVideoCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1.6f)
-                .touchClick { if (!showActions) onClick() }
+                .touchClick { if (!showActions) stopPreviewAndRun(onClick) }
                 .onFocusChanged { focusState ->
-                    if (!focusState.hasFocus) showActions = false
+                    focused = focusState.hasFocus
+                    if (!focusState.hasFocus) {
+                        showActions = false
+                        FocusPreviewManager.stop()
+                        previewPlayer = null
+                    }
                 },
             shape = CardDefaults.shape(MaterialTheme.shapes.large),
             border = CardDefaults.border(
@@ -117,7 +144,7 @@ fun SmallVideoCard(
                                     releaseLongPress = true
                                     return@IconButton
                                 }
-                                it()
+                                stopPreviewAndRun(it)
                             },
                             modifier = Modifier.focusRequester(firstButtonRequester)
                         ) {
@@ -134,7 +161,7 @@ fun SmallVideoCard(
                     }
 
                     onGoToDetailPage?.let {
-                        IconButton(onClick = { it() }) {
+                        IconButton(onClick = { stopPreviewAndRun(it) }) {
                             Icon(
                                 painter = painterResource(id = R.drawable.info_24px),
                                 contentDescription = "Video Detail"
@@ -143,7 +170,7 @@ fun SmallVideoCard(
                     }
 
                     onGoToUpPage?.let {
-                        IconButton(onClick = { it() }) {
+                        IconButton(onClick = { stopPreviewAndRun(it) }) {
                             Icon(
                                 painter = painterResource(id = R.drawable.contact_page_24px),
                                 contentDescription = "Up Page"
@@ -152,11 +179,12 @@ fun SmallVideoCard(
                     }
                 }
             } else {
-                CardCover(
-                    cover = data.cover,
-                    play = data.playString,
-                    danmaku = data.danmakuString,
-                    time = data.timeString
+                FocusPreviewCover(
+                    focused = focused,
+                    data = data,
+                    enabled = enableFocusPreview && Prefs.enableFocusPreview,
+                    previewPlayer = previewPlayer,
+                    onPlayerChanged = { previewPlayer = it }
                 )
             }
         }
@@ -170,6 +198,75 @@ fun SmallVideoCard(
     }
 }
 
+@Composable
+private fun FocusPreviewCover(
+    focused: Boolean,
+    data: VideoCardData,
+    enabled: Boolean,
+    previewPlayer: AbstractVideoPlayer?,
+    onPlayerChanged: (AbstractVideoPlayer?) -> Unit
+) {
+    val context = LocalContext.current
+    val previewRepository = getKoin().get<VideoPreviewRepository>()
+
+    DisposableEffect(previewPlayer) {
+        onDispose {
+            FocusPreviewManager.detach(previewPlayer)
+            previewPlayer?.release()
+        }
+    }
+
+    LaunchedEffect(focused, enabled, data.avid, data.cid) {
+        FocusPreviewManager.detach(previewPlayer)
+        previewPlayer?.release()
+        onPlayerChanged(null)
+        if (!focused || !enabled || data.avid <= 0) return@LaunchedEffect
+        delay(1000)
+        if (!focused) return@LaunchedEffect
+        val urls = withContext(Dispatchers.IO) {
+            runCatching {
+                previewRepository.resolvePreviewUrls(data.avid, data.cid)
+            }.getOrNull()
+        } ?: return@LaunchedEffect
+        val player = ExoPlayerFactory().create(
+            context = context,
+            options = VideoPlayerOptions(
+                userAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36",
+                referer = "https://www.bilibili.com",
+                enableFfmpegAudioRenderer = Prefs.enableFfmpegAudioRenderer,
+                enableSoftwareVideoDecoder = Prefs.enableSoftwareVideoDecoder,
+                enableVolumeNormalization = Prefs.enableVolumeNormalization
+            )
+        )
+        player.volume = if (Prefs.enableFocusPreviewMuted) 0f else 1f
+        player.playUrl(urls.videoUrl, urls.audioUrl)
+        player.prepare()
+        player.start()
+        FocusPreviewManager.attach(player)
+        onPlayerChanged(player)
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        val player = previewPlayer
+        if (player != null) {
+            BvVideoPlayer(
+                modifier = Modifier.fillMaxSize(),
+                videoPlayer = player
+            )
+        } else {
+            CardCover(
+                cover = data.cover,
+                play = data.playString,
+                danmaku = data.danmakuString,
+                time = data.timeString,
+                badges = data.badges
+            )
+        }
+    }
+}
+
 
 @Composable
 fun CardCover(
@@ -177,7 +274,8 @@ fun CardCover(
     cover: String,
     play: String,
     danmaku: String,
-    time: String
+    time: String,
+    badges: List<String> = emptyList()
 ) {
     Box(
         modifier = modifier
@@ -193,6 +291,32 @@ fun CardCover(
             contentDescription = null,
             contentScale = ContentScale.Crop
         )
+
+        if (badges.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                badges.take(2).forEach { badge ->
+                    Box(
+                        modifier = Modifier
+                            .clip(MaterialTheme.shapes.small)
+                            .background(Color.Black.copy(alpha = 0.62f))
+                    ) {
+                        Text(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            text = badge,
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
 
         // 渐变遮罩
         Box(
