@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -51,7 +52,10 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
@@ -77,6 +81,13 @@ import io.github.g0dkar.qrcode.QRCode
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import org.koin.androidx.compose.koinViewModel
+
+private val SearchKeywordDenseSlotHeight = 40.dp
+private val SearchHistoryListContentVerticalPadding = 4.dp
+private val SearchHistoryVisibleItemCount = 5
+
+private val SearchHistoryListHeight: Dp =
+    SearchKeywordDenseSlotHeight * SearchHistoryVisibleItemCount + SearchHistoryListContentVerticalPadding * 2
 
 @Composable
 fun SearchInputScreen(
@@ -217,8 +228,7 @@ private fun SearchInputScreenContent(
             ) {
                 SearchHistory(
                     modifier = Modifier
-                        .padding(end = 10.dp)
-                        .weight(1f),
+                        .padding(end = 10.dp),
                     histories = histories,
                     onSearch = onSearch,
                     onDelete = onDeleteHistory,
@@ -298,7 +308,6 @@ private fun SearchHotwords(
     Column(
         modifier = modifier
             .width(250.dp)
-            .fillMaxHeight()
             .focusGroup(),
     ) {
         Row(
@@ -346,7 +355,7 @@ private fun SearchHotwords(
                 modifier = Modifier,
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
-                itemsIndexed(hotwords) { index, hotword ->
+                itemsIndexed(hotwords) { _, hotword ->
                     SearchKeyword(
                         modifier = Modifier,
                         keyword = hotword.showName,
@@ -381,7 +390,7 @@ private fun SearchSuggestion(
             modifier = Modifier,
             contentPadding = PaddingValues(vertical = 4.dp)
         ) {
-            itemsIndexed(suggests) { index, suggest ->
+            itemsIndexed(suggests) { _, suggest ->
                 SearchKeyword(
                     modifier = Modifier,
                     keyword = suggest,
@@ -409,7 +418,6 @@ private fun SearchHistory(
     Column(
         modifier = modifier
             .width(250.dp)
-            .fillMaxHeight()
             .focusGroup(),
     ) {
         Row(
@@ -449,8 +457,8 @@ private fun SearchHistory(
         }
 
         LazyColumn(
-            modifier = Modifier,
-            contentPadding = PaddingValues(vertical = 4.dp)
+            modifier = Modifier.height(SearchHistoryListHeight),
+            contentPadding = PaddingValues(vertical = SearchHistoryListContentVerticalPadding)
         ) {
             itemsIndexed(histories) { index, searchHistory ->
                 SearchKeyword(
@@ -525,7 +533,7 @@ private fun SearchPhoneInputQr(
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
             text = "手机扫码输入",
@@ -535,7 +543,7 @@ private fun SearchPhoneInputQr(
         qrImage?.let { image ->
             Image(
                 modifier = Modifier
-                    .size(132.dp)
+                    .size(112.dp)
                     .background(MaterialTheme.colorScheme.onSurface)
                     .padding(8.dp),
                 bitmap = image,
@@ -543,8 +551,12 @@ private fun SearchPhoneInputQr(
             )
         }
         Text(
+            modifier = Modifier.padding(horizontal = 4.dp),
             text = url,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.46f),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodySmall
         )
     }
