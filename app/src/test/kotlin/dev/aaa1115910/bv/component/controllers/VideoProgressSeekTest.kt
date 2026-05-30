@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.component.controllers
 
 import dev.aaa1115910.bv.entity.ProgressSegmentMark
+import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -21,5 +22,11 @@ class VideoProgressSeekTest {
         assertEquals(0.2f, ranges[0].endFraction)
         assertEquals(0.8f, ranges[1].startFraction)
         assertEquals(1f, ranges[1].endFraction)
+    }
+
+    @Test
+    fun `subtitle bottom padding is lifted while bottom controller is visible`() {
+        assertEquals(12.dp, resolveSubtitleBottomPadding(basePadding = 12.dp, liftForBottomController = false))
+        assertEquals(108.dp, resolveSubtitleBottomPadding(basePadding = 12.dp, liftForBottomController = true))
     }
 }

@@ -264,15 +264,16 @@ fun AudioVideoSetting(
 
 enum class ActionAfterPlayItems (val code: Int, private val displayName: String){
     Pause(0, "暂停"),
-    PlayNext(1, "播放下一集"),
-    PlayRelated(3, "播放首个相关视频"),
-    ShowRelated(4, "显示推荐视频"),
+    AutoNextOrRelated(1, "自动播放下一集或推荐视频"),
     Exit(2, "退出播放器");
 
 
     companion object{
         fun fromCode(code: Int): ActionAfterPlayItems {
-            return ActionAfterPlayItems.entries.find { it.code == code } ?: Exit
+            return when (code) {
+                1, 3, 4 -> AutoNextOrRelated
+                else -> ActionAfterPlayItems.entries.find { it.code == code } ?: Exit
+            }
         }
     }
 

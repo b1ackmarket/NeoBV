@@ -23,6 +23,7 @@ import dev.aaa1115910.biliapi.entity.DashVideo
 import dev.aaa1115910.biliapi.entity.PlayData
 import dev.aaa1115910.biliapi.util.AvBvConverter
 import dev.aaa1115910.biliapi.entity.video.HeartbeatVideoType
+import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.biliapi.http.util.toSmartDate
 import dev.aaa1115910.biliapi.entity.user.SpaceVideoOrder
@@ -62,6 +63,8 @@ import dev.aaa1115910.bv.repository.JumpModeQueueItem
 import dev.aaa1115910.bv.repository.JumpModeRepository
 import dev.aaa1115910.bv.repository.VideoInfoRepository
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
+import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
+import dev.aaa1115910.bv.telemetry.TelemetryErrorType
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
 import dev.aaa1115910.bv.ui.state.DanmakuState
 import dev.aaa1115910.bv.ui.state.JumpModeState
@@ -69,6 +72,7 @@ import dev.aaa1115910.bv.ui.state.MediaProfileState
 import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
+import dev.aaa1115910.bv.ui.state.SubtitleMemory
 import dev.aaa1115910.bv.ui.state.SubtitleState
 import dev.aaa1115910.bv.util.PlayerUiTextFormatter
 import dev.aaa1115910.bv.util.Prefs
@@ -127,6 +131,128 @@ internal fun shouldApplyUpPanelLoadResult(
     currentOrder: SpaceVideoOrder
 ): Boolean {
     return requestedAuthorMid == currentAuthorMid && requestedOrder == currentOrder
+}
+
+internal sealed interface NextPlayTarget {
+    val title: String
+
+    data class UgcPage(val parentVideo: VideoListItem, val page: VideoPage) : NextPlayTarget {
+        override val title: String = page.title
+    }
+
+    data class VideoItem(val video: VideoListItem) : NextPlayTarget {
+        override val title: String = video.title
+    }
+}
+
+internal sealed interface AutoNextTarget {
+    val aid: Long
+    val cid: Long
+    val title: String
+
+    data class NextVideo(
+        override val aid: Long,
+        override val cid: Long,
+        override val title: String,
+        val epid: Int? = null,
+        val seasonId: Int? = null
+    ) : AutoNextTarget
+
+    data class RelatedVideo(
+        override val aid: Long,
+        override val cid: Long,
+        override val title: String
+    ) : AutoNextTarget
+}
+
+internal fun resolveAutoNextTarget(state: PlayerUiState): AutoNextTarget? {
+    val nextPlayTarget = resolveNextPlayTarget(state)
+    if (nextPlayTarget != null) {
+        return when (nextPlayTarget) {
+            is NextPlayTarget.UgcPage -> AutoNextTarget.NextVideo(
+                aid = nextPlayTarget.parentVideo.aid,
+                cid = nextPlayTarget.page.cid,
+                title = nextPlayTarget.title
+            )
+
+            is NextPlayTarget.VideoItem -> AutoNextTarget.NextVideo(
+                aid = nextPlayTarget.video.aid,
+                cid = nextPlayTarget.video.cid,
+                title = nextPlayTarget.title,
+                epid = nextPlayTarget.video.epid,
+                seasonId = nextPlayTarget.video.seasonId
+            )
+        }
+    }
+
+    return state.relatedVideos.firstOrNull { (it.cid ?: 0L) > 0L }?.let { related ->
+        AutoNextTarget.RelatedVideo(
+            aid = related.avid,
+            cid = related.cid!!,
+            title = related.title
+        )
+    }
+}
+
+internal fun resolveNextPlayTarget(state: PlayerUiState): NextPlayTarget? {
+    val videoList = state.availableVideoList
+    val currentCid = state.cid
+    val videoListIndex = videoList.indexOfFirst { it.aid == state.aid }
+    val currentVideoItem = videoList.getOrNull(videoListIndex)
+
+    if (currentVideoItem?.ugcPages?.isNotEmpty() == true) {
+        val currentInnerIndex = currentVideoItem.ugcPages.indexOfFirst { it.cid == currentCid }
+        if (currentInnerIndex != -1 && currentInnerIndex + 1 < currentVideoItem.ugcPages.size) {
+            return NextPlayTarget.UgcPage(
+                parentVideo = currentVideoItem,
+                page = currentVideoItem.ugcPages[currentInnerIndex + 1]
+            )
+        }
+    }
+
+    if (videoListIndex != -1 && videoListIndex + 1 < videoList.size) {
+        return NextPlayTarget.VideoItem(videoList[videoListIndex + 1])
+    }
+
+    return null
+}
+
+internal fun rememberSubtitleTrack(subtitle: Subtitle?): SubtitleMemory? {
+    if (subtitle == null || subtitle.id == -1L) return null
+    return SubtitleMemory(
+        id = subtitle.id,
+        lang = subtitle.lang,
+        langDoc = subtitle.langDoc
+    )
+}
+
+internal fun resolveRememberedSubtitleId(
+    memory: SubtitleMemory?,
+    tracks: List<Subtitle>
+): Long? {
+    if (memory == null) return null
+    return tracks.firstOrNull { it.id == memory.id }?.id
+        ?: tracks.firstOrNull { it.lang.isNotBlank() && it.lang == memory.lang }?.id
+        ?: tracks.firstOrNull { it.langDoc.isNotBlank() && it.langDoc == memory.langDoc }?.id
+        ?: tracks.firstOrNull { it.id != -1L }?.id
+}
+
+private fun AutoNextTarget.toVideoListItem(): VideoListItem {
+    return when (this) {
+        is AutoNextTarget.NextVideo -> VideoListItem(
+            aid = aid,
+            cid = cid,
+            title = title,
+            epid = epid,
+            seasonId = seasonId
+        )
+
+        is AutoNextTarget.RelatedVideo -> VideoListItem(
+            aid = aid,
+            cid = cid,
+            title = title
+        )
+    }
 }
 
 @KoinViewModel
@@ -213,6 +339,11 @@ class VideoPlayerV3ViewModel(
         override fun onError(error: Exception) {
             logger.info { "onError: $error" }
             if (tryFallbackPlayback(error)) return
+            FirebaseTelemetry.reportVideoError(
+                type = TelemetryErrorType.DecodeError,
+                throwable = error,
+                extras = mapOf("stage" to "player_error")
+            )
             _uiState.update {
                 it.copy(
                     playerState = PlayerState.Error(
@@ -460,6 +591,7 @@ class VideoPlayerV3ViewModel(
                 _uiState.update {
                     it.copy(
                         subtitleId = -1,
+                        subtitleMemory = null,
                         subtitleData = emptyList()
                     )
                 }
@@ -470,6 +602,7 @@ class VideoPlayerV3ViewModel(
                 val subtitle =
                     _uiState.value.subtitleList.find { it.id == id } ?: return@runCatching
                 subtitleName = subtitle.langDoc
+                val subtitleMemory = rememberSubtitleTrack(subtitle)
                 val subtitleUrl = normalizeSubtitleUrl(subtitle.url)
                 logger.info { "Subtitle url: $subtitleUrl" }
                 val client = HttpClient(OkHttp)
@@ -479,6 +612,7 @@ class VideoPlayerV3ViewModel(
                 _uiState.update {
                     it.copy(
                         subtitleId = id,
+                        subtitleMemory = subtitleMemory,
                         subtitleData = subtitleData
                     )
                 }
@@ -488,6 +622,24 @@ class VideoPlayerV3ViewModel(
                 logger.fInfo { "Load subtitle $subtitleName success" }
             }
         }
+    }
+
+    fun toggleSubtitle() {
+        val state = _uiState.value
+        if (state.subtitleId != -1L) {
+            loadSubtitle(-1L)
+            return
+        }
+
+        val targetSubtitleId = resolveRememberedSubtitleId(state.subtitleMemory, state.subtitleList)
+            ?: state.subtitleList.firstOrNull { it.id != -1L }?.id
+
+        if (targetSubtitleId == null) {
+            showToast("当前视频没有字幕")
+            return
+        }
+
+        loadSubtitle(targetSubtitleId)
     }
 
     fun updatePlaySpeed(
@@ -688,67 +840,20 @@ class VideoPlayerV3ViewModel(
                 return
             }
 
-            ActionAfterPlayItems.PlayRelated -> {
-                val firstRelatedVideo = _uiState.value.relatedVideos.firstOrNull()
-                firstRelatedVideo?.cid?.let {
-                    val nextVideo = VideoListItem(
-                        aid = firstRelatedVideo.avid,
-                        cid = firstRelatedVideo.cid,
-                        title = firstRelatedVideo.title
-                    )
-                    playNewVideo(newVideo = nextVideo)
-
-                    // 因为番剧无相关视频，需要继续播放，所以在这里return
-                    return
-                }
-            }
-
-            ActionAfterPlayItems.ShowRelated -> {
-                if (_uiState.value.relatedVideos.isNotEmpty()) {
-                    viewModelScope.launch {
-                        _uiEffect.emit(PlayerUiEffect.ShowRecommendedVideos)
-                    }
-                    return
-                }
-            }
-
-            ActionAfterPlayItems.PlayNext -> {
+            ActionAfterPlayItems.AutoNextOrRelated -> {
                 /* 继续执行 */
             }
         }
 
-        val currentState = _uiState.value
-        val videoList = currentState.availableVideoList
-        val currentCid = currentState.cid
-
-        // 1. 查找当前视频在列表中的位置
-        val videoListIndex = videoList.indexOfFirst { it.aid == currentState.aid }
-        val currentVideoItem = videoList.getOrNull(videoListIndex)
-
-        // 2. 预计算下一个播放项 (NextTarget)
-        var nextTarget: NextPlayTarget? = null
-
-        // 逻辑 A: 检查是否有下一个分 P (UGC Page)
-        if (currentVideoItem?.ugcPages?.isNotEmpty() == true) {
-            val currentInnerIndex = currentVideoItem.ugcPages.indexOfFirst { it.cid == currentCid }
-            if (currentInnerIndex != -1 && currentInnerIndex + 1 < currentVideoItem.ugcPages.size) {
-                val nextPage = currentVideoItem.ugcPages[currentInnerIndex + 1]
-                nextTarget = NextPlayTarget.UgcPage(currentVideoItem, nextPage)
+        when (val target = resolveAutoNextTarget(_uiState.value)) {
+            is AutoNextTarget.NextVideo -> startNextEpisodeCountdown(target.toVideoListItem())
+            is AutoNextTarget.RelatedVideo -> {
+                viewModelScope.launch {
+                    _uiEffect.emit(PlayerUiEffect.ShowRecommendedVideos)
+                }
             }
-        }
 
-        // 逻辑 B: 如果没有分 P，检查是否有下一个视频
-        if (nextTarget == null && videoListIndex + 1 < videoList.size) {
-            val nextVideo = videoList[videoListIndex + 1]
-            nextTarget = NextPlayTarget.VideoItem(nextVideo)
-        }
-
-        // 3. 根据查找结果执行操作
-        if (nextTarget != null) {
-            startNextEpisodeCountdown(nextTarget)
-        } else {
-            // 没有下一集了，发送事件关闭页面
-            viewModelScope.launch {
+            null -> viewModelScope.launch {
                 _uiEffect.emit(PlayerUiEffect.FinishActivity)
             }
         }
@@ -1154,11 +1259,6 @@ class VideoPlayerV3ViewModel(
 
                 launch {
                     updateSubtitle()
-                    val lastPlayEnabledSubtitle = _uiState.value.subtitleId != -1L
-                    if (lastPlayEnabledSubtitle) {
-                        logger.info { "Subtitle is enabled, auto-enabling first subtitle..." }
-                        enableFirstSubtitle()
-                    }
                 }
                 launch { loadDanmaku(cid) }
                 launch { updateDanmakuMask() }
@@ -1170,6 +1270,11 @@ class VideoPlayerV3ViewModel(
                 throw e // 让结构化并发正常取消，不作为播放错误处理
             } catch (e: Exception) {
                 logger.error(e) { "Loading video data error: $e" }
+                FirebaseTelemetry.reportVideoError(
+                    type = FirebaseTelemetry.classifyThrowable(e),
+                    throwable = e,
+                    extras = mapOf("stage" to "load_video")
+                )
 
                 _uiState.update {
                     it.copy(playerState = PlayerState.Error(e.message ?: "未知错误"))
@@ -1190,6 +1295,11 @@ class VideoPlayerV3ViewModel(
             throw e // 重新抛出，让结构化并发正常传播取消信号
         } catch (e: Exception) {
             logger.error(e) { "Failed to load media: ${e.message}" }
+            FirebaseTelemetry.reportVideoError(
+                type = FirebaseTelemetry.classifyThrowable(e),
+                throwable = e,
+                extras = mapOf("stage" to "resolve_play_url")
+            )
             // 保留原始异常作为 cause，上层 catch 可通过 e.cause 获取根因
             throw IllegalStateException("${e.message}", e)
         }
@@ -1601,22 +1711,12 @@ class VideoPlayerV3ViewModel(
                 )
             }
             logger.fInfo { "Update subtitle size: ${subtitleList.size}" }
+            resolveRememberedSubtitleId(_uiState.value.subtitleMemory, subtitleList)?.let { subtitleId ->
+                logger.info { "Restore remembered subtitle: $subtitleId" }
+                loadSubtitle(subtitleId)
+            }
         }.onFailure {
             logger.fWarn { "Update subtitle failed: ${it.stackTraceToString()}" }
-        }
-    }
-
-    private fun enableFirstSubtitle() {
-        runCatching {
-            logger.info { "Load first subtitle" }
-            logger.info { "availableSubtitle: ${_uiState.value.subtitleList.toList()}" }
-            loadSubtitle(
-                _uiState.value.subtitleList
-                    .firstOrNull { it.id != -1L }?.id
-                    ?: throw IllegalStateException("No available subtitle")
-            )
-        }.onFailure {
-            logger.error { "Load first subtitle failed: ${it.stackTraceToString()}" }
         }
     }
 
@@ -1824,7 +1924,7 @@ class VideoPlayerV3ViewModel(
         danmakuPlayer?.setDanmakuRollingSpeed(factor)
     }
 
-    private fun startNextEpisodeCountdown(target: NextPlayTarget) {
+    private fun startNextEpisodeCountdown(target: VideoListItem) {
         playNextCountdownJob?.cancel()
 
         playNextCountdownJob = viewModelScope.launch {
@@ -1835,7 +1935,7 @@ class VideoPlayerV3ViewModel(
             }
             delay(5000)
 
-            playNextTarget(target)
+            playNewVideo(target)
             _uiState.update { it.copy(showSkipToNextEp = false) }
         }
     }
@@ -1852,34 +1952,6 @@ class VideoPlayerV3ViewModel(
 
             _uiState.update {
                 it.copy(showPreviewTip = false)
-            }
-        }
-    }
-
-    private fun playNextTarget(target: NextPlayTarget) {
-        when (target) {
-            is NextPlayTarget.UgcPage -> {
-                logger.info { "Play next UGC page: ${target.page.title}" }
-                playNewVideo(
-                    VideoListItem(
-                        aid = target.parentVideo.aid,
-                        cid = target.page.cid,
-                        title = target.title
-                    )
-                )
-            }
-
-            is NextPlayTarget.VideoItem -> {
-                logger.info { "Play next video item: ${target.video.title}" }
-                playNewVideo(
-                    VideoListItem(
-                        aid = target.video.aid,
-                        cid = target.video.cid,
-                        title = target.title,
-                        epid = target.video.epid,
-                        seasonId = target.video.seasonId,
-                    )
-                )
             }
         }
     }
@@ -2147,18 +2219,6 @@ class VideoPlayerV3ViewModel(
             .toString()
     }
 
-    private sealed interface NextPlayTarget {
-        val title: String
-
-        data class UgcPage(val parentVideo: VideoListItem, val page: VideoPage) : NextPlayTarget {
-            override val title: String = page.title
-        }
-
-        data class VideoItem(val video: VideoListItem) : NextPlayTarget {
-            override val title: String = video.title
-        }
-    }
-
     private data class PlaybackConfig(
         val qn: Int,           // 画质 ID
         val codec: VideoCodec?,     // 编码格式
@@ -2176,6 +2236,12 @@ internal fun PlayerUiState.copyForVideoSwitch(
     newVideo: VideoListItem,
     clearDetailMetadata: Boolean
 ): PlayerUiState {
+    val nextSubtitleMemory = if (subtitleId != -1L) {
+        rememberSubtitleTrack(subtitleList.firstOrNull { it.id == subtitleId }) ?: subtitleMemory
+    } else {
+        null
+    }
+
     return copy(
         aid = newVideo.aid,
         bvid = AvBvConverter.av2bv(newVideo.aid),
@@ -2193,6 +2259,7 @@ internal fun PlayerUiState.copyForVideoSwitch(
         playCountText = if (clearDetailMetadata) "" else playCountText,
         danmakuMask = null,
         subtitleId = -1L,
+        subtitleMemory = nextSubtitleMemory,
         subtitleList = emptyList(),
         subtitleData = emptyList(),
         relatedVideos = emptyList(),

@@ -5,9 +5,9 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -129,6 +129,7 @@ fun VideoPlayerController(
     setShowPlayerStats: (Boolean) -> Unit,
     onDanmakuSettingChange: (DanmakuSettingAction) -> Unit,
     onSubtitleChange: (Subtitle) -> Unit,
+    onSubtitleSwitchChange: () -> Unit,
     onSubtitleSettingChange: (SubtitleSettingAction) -> Unit,
     onRelatedVideoClicked: (VideoCardData) -> Unit,
     confirmPendingPluginAction: () -> Unit,
@@ -571,7 +572,10 @@ fun VideoPlayerController(
                 currentTime = currentTime,
                 fontSize = uiState.subtitleState.fontSize,
                 opacity = uiState.subtitleState.opacity,
-                padding = uiState.subtitleState.bottomPadding,
+                padding = resolveSubtitleBottomPadding(
+                    basePadding = uiState.subtitleState.bottomPadding,
+                    liftForBottomController = showPrimaryInfoController
+                ),
             )
         }
 
@@ -620,6 +624,8 @@ fun VideoPlayerController(
             videoShotCache = videoShotCache,
             fromSeason = fromSeason,
             danmakuEnabled = uiState.danmakuState.enabledTypes.isNotEmpty(),
+            subtitleEnabled = uiState.subtitleId != -1L,
+            subtitleAvailable = uiState.subtitleList.any { it.id != -1L },
             jumpModeState = uiState.jumpModeState,
             isLooping = isLooping,
             onDirectionLeft = { onDirectionLeft() },
@@ -633,6 +639,7 @@ fun VideoPlayerController(
             onDanmakuSwitchChange = {
                 onDanmakuSettingChange(DanmakuSettingAction.ToggleEnabled)
             },
+            onSubtitleSwitchChange = onSubtitleSwitchChange,
             onShowSettings = {
                 showInfoSeekController = false
                 showMenuController = true

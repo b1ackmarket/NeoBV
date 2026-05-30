@@ -23,6 +23,13 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bilisubtitle.entity.SubtitleItem
 import dev.aaa1115910.bv.BuildConfig
 
+internal fun resolveSubtitleBottomPadding(
+    basePadding: Dp,
+    liftForBottomController: Boolean
+): Dp {
+    return basePadding + if (liftForBottomController) 96.dp else 0.dp
+}
+
 @Composable
 fun BottomSubtitle(
     modifier: Modifier = Modifier,

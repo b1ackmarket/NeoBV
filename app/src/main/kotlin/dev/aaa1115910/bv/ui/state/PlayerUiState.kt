@@ -90,6 +90,7 @@ data class PlayerUiState(
     // 字幕状态
     val subtitleState: SubtitleState = SubtitleState(),
     val subtitleId: Long = -1L,
+    val subtitleMemory: SubtitleMemory? = null,
     val subtitleData: List<SubtitleItem> = emptyList(),
     val subtitleList: List<Subtitle> = emptyList(),
 )
@@ -130,6 +131,12 @@ data class SubtitleState(
     val fontSize: TextUnit = 0.sp,
     val opacity: Float = 0f,
     val bottomPadding: Dp = 0.dp
+)
+
+data class SubtitleMemory(
+    val id: Long,
+    val lang: String,
+    val langDoc: String
 )
 
 data class MediaProfileState(

@@ -7,6 +7,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.util.UnstableApi
@@ -141,6 +142,7 @@ class ExoMediaPlayer(
             .Builder(context)
             .setRenderersFactory(renderersFactory)
             .setBandwidthMeter(bandwidthMeter)
+            .setVideoChangeFrameRateStrategy(C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF)
             .setSeekForwardIncrementMs(1000 * 10)
             .setSeekBackIncrementMs(1000 * 5)
             .build()
@@ -237,6 +239,11 @@ class ExoMediaPlayer(
         get() = mPlayer?.playbackParameters?.speed ?: 1f
         set(value) {
             mPlayer?.setPlaybackSpeed(value)
+        }
+    override var volume: Float
+        get() = mPlayer?.volume ?: 1f
+        set(value) {
+            mPlayer?.volume = value.coerceIn(0f, 1f)
         }
     override val tcpSpeed: Long
         get() = getRealtimeNetworkSpeed()

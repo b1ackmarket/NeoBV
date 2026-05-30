@@ -2,6 +2,12 @@ package dev.aaa1115910.bv.viewmodel.player
 
 import dev.aaa1115910.biliapi.entity.DashAudio
 import dev.aaa1115910.biliapi.entity.DashVideo
+import dev.aaa1115910.biliapi.entity.video.Dimension
+import dev.aaa1115910.biliapi.entity.video.Subtitle
+import dev.aaa1115910.biliapi.entity.video.SubtitleAiStatus
+import dev.aaa1115910.biliapi.entity.video.SubtitleAiType
+import dev.aaa1115910.biliapi.entity.video.SubtitleType
+import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.biliapi.http.entity.reply.ReplyContent
 import dev.aaa1115910.biliapi.http.entity.reply.ReplyItem
 import dev.aaa1115910.biliapi.http.entity.reply.ReplyMember
@@ -10,9 +16,11 @@ import dev.aaa1115910.biliapi.http.entity.reply.ReplyControl
 import dev.aaa1115910.biliapi.http.entity.reply.ReplyVip
 import dev.aaa1115910.bv.entity.PlayerCommentSort
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.repository.JumpModeQueueItem
 import dev.aaa1115910.bv.ui.state.JumpModeState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
+import dev.aaa1115910.bv.ui.state.SubtitleMemory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -90,6 +98,119 @@ class VideoPlayerV3ViewModelMetadataTest {
         assertTrue(nextState.subtitleList.isEmpty())
         assertEquals(null, nextState.onlineCountText)
         assertEquals("", nextState.mediaStatsInfo)
+    }
+
+    @Test
+    fun `video switch preserves subtitle memory while clearing loaded subtitle data`() {
+        val currentState = PlayerUiState(
+            aid = 100L,
+            cid = 10L,
+            title = "Old",
+            subtitleId = 42L,
+            subtitleList = listOf(subtitle(id = 42L, lang = "zh-CN", langDoc = "中文"))
+        )
+
+        val nextState = currentState.copyForVideoSwitch(
+            newVideo = VideoListItem(
+                aid = 100L,
+                cid = 20L,
+                title = "P2"
+            ),
+            clearDetailMetadata = false
+        )
+
+        assertEquals(42L, nextState.subtitleMemory?.id)
+        assertEquals("zh-CN", nextState.subtitleMemory?.lang)
+        assertEquals("中文", nextState.subtitleMemory?.langDoc)
+        assertEquals(-1L, nextState.subtitleId)
+        assertTrue(nextState.subtitleData.isEmpty())
+        assertTrue(nextState.subtitleList.isEmpty())
+    }
+
+    @Test
+    fun `video switch preserves current play speed`() {
+        val currentState = PlayerUiState(
+            aid = 100L,
+            cid = 10L,
+            title = "Old",
+            playSpeed = 1.5f
+        )
+
+        val nextState = currentState.copyForVideoSwitch(
+            newVideo = VideoListItem(
+                aid = 100L,
+                cid = 20L,
+                title = "P2"
+            ),
+            clearDetailMetadata = false
+        )
+
+        assertEquals(1.5f, nextState.playSpeed)
+    }
+
+    @Test
+    fun `subtitle memory prefers same language over first available subtitle`() {
+        val remembered = SubtitleMemory(id = 11L, lang = "zh-CN", langDoc = "中文")
+        val tracks = listOf(
+            subtitle(id = 21L, lang = "en", langDoc = "English"),
+            subtitle(id = 22L, lang = "zh-CN", langDoc = "中文（自动生成）")
+        )
+
+        assertEquals(22L, resolveRememberedSubtitleId(remembered, tracks))
+    }
+
+    @Test
+    fun `subtitle memory falls back to first subtitle when language is unavailable`() {
+        val remembered = SubtitleMemory(id = 11L, lang = "zh-CN", langDoc = "中文")
+        val tracks = listOf(
+            subtitle(id = 21L, lang = "en", langDoc = "English"),
+            subtitle(id = 22L, lang = "ja", langDoc = "日语")
+        )
+
+        assertEquals(21L, resolveRememberedSubtitleId(remembered, tracks))
+    }
+
+    @Test
+    fun `next play target prefers ugc page before collection video`() {
+        val currentState = PlayerUiState(
+            aid = 100L,
+            cid = 10L,
+            title = "P1",
+            availableVideoList = listOf(
+                VideoListItem(
+                    aid = 100L,
+                    cid = 10L,
+                    title = "合集视频一",
+                    ugcPages = listOf(
+                        VideoPage(cid = 10L, index = 1, title = "P1", duration = 60, dimension = Dimension(1920, 1080)),
+                        VideoPage(cid = 20L, index = 2, title = "P2", duration = 60, dimension = Dimension(1920, 1080))
+                    )
+                ),
+                VideoListItem(aid = 200L, cid = 30L, title = "合集视频二")
+            )
+        )
+
+        val target = resolveAutoNextTarget(currentState)
+
+        assertEquals(AutoNextTarget.NextVideo(aid = 100L, cid = 20L, title = "P2"), target)
+    }
+
+    @Test
+    fun `auto next target falls back to first related video`() {
+        val currentState = PlayerUiState(
+            aid = 100L,
+            cid = 10L,
+            title = "Last",
+            availableVideoList = listOf(VideoListItem(aid = 100L, cid = 10L, title = "Last")),
+            relatedVideos = listOf(
+                VideoCardData(avid = 200L, cid = null, title = "无 cid 相关视频", cover = "", upName = ""),
+                VideoCardData(avid = 300L, cid = 40L, title = "相关视频", cover = "", upName = "")
+            )
+        )
+
+        val target = resolveAutoNextTarget(currentState)
+
+        assertEquals(AutoNextTarget.RelatedVideo(aid = 300L, cid = 40L, title = "相关视频"), target)
     }
 
     @Test
@@ -256,4 +377,17 @@ class VideoPlayerV3ViewModelMetadataTest {
         assertEquals("1.2万条", formatCommentTotalCount(12_000))
     }
 
+    private fun subtitle(
+        id: Long,
+        lang: String,
+        langDoc: String
+    ) = Subtitle(
+        id = id,
+        lang = lang,
+        langDoc = langDoc,
+        url = "https://example.com/$id.json",
+        type = SubtitleType.CC,
+        aiType = SubtitleAiType.Normal,
+        aiStatus = SubtitleAiStatus.None
+    )
 }

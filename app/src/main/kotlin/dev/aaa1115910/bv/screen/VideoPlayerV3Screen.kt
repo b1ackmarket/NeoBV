@@ -32,6 +32,8 @@ import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.BvVideoPlayer
+import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
+import dev.aaa1115910.bv.telemetry.TelemetryScreen
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
 import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.util.DanmakuMaskFinder
@@ -107,6 +109,7 @@ fun VideoPlayerV3Screen(
     val videoShotCache by remember(uiState.videoShot) { mutableStateOf(VideoShotImageCache()) }
 
     LaunchedEffect(Unit) {
+        FirebaseTelemetry.setLastScreen(TelemetryScreen.VideoPlayer)
         playerViewModel.uiEffect.collect { effect ->
             when (effect) {
                 PlayerUiEffect.FinishActivity -> {
@@ -316,6 +319,9 @@ fun VideoPlayerV3Screen(
         },
         onSubtitleChange = { subtitle ->
             playerViewModel.loadSubtitle(subtitle.id)
+        },
+        onSubtitleSwitchChange = {
+            playerViewModel.toggleSubtitle()
         },
         onSubtitleSettingChange = { action ->
             logger.info { "On subtitle config change" }
