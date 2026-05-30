@@ -5,9 +5,16 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,10 +35,14 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Icon
+import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.activities.live.LivePlayerActivity
+import dev.aaa1115910.bv.component.SelectableItemPopup
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
@@ -93,6 +104,8 @@ fun LiveContent(
     val liveColumns = 4
     val gridState = rememberLazyGridState()
     var isRoomGridFocused by remember { mutableStateOf(false) }
+    var isSubCategoryRowFocused by remember { mutableStateOf(false) }
+    var showSubCategoryPopup by remember { mutableStateOf(false) }
     val loginFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(liveViewModel.isLogin) {
@@ -102,6 +115,8 @@ fun LiveContent(
     LaunchedEffect(liveViewModel.selectedCategoryIndex) {
         gridState.scrollToItem(0)
         isRoomGridFocused = false
+        isSubCategoryRowFocused = false
+        showSubCategoryPopup = false
     }
 
     LaunchedEffect(gridState, liveViewModel.rooms.size) {
@@ -119,8 +134,8 @@ fun LiveContent(
             .onPreviewKeyEvent { event ->
                 if (event.type == KeyEventType.KeyUp) return@onPreviewKeyEvent false
                 if (event.key != Key.Menu) return@onPreviewKeyEvent false
-                if (!shouldHandleLiveMenuKey(isRoomGridFocused)) return@onPreviewKeyEvent false
-                if (shouldResetLiveRoomGridOnMenu(isRoomGridFocused)) {
+                if (!shouldHandleLiveMenuKey(isRoomGridFocused || isSubCategoryRowFocused)) return@onPreviewKeyEvent false
+                if (shouldResetLiveRoomGridOnMenu(isRoomGridFocused || isSubCategoryRowFocused)) {
                     scope.launch {
                         gridState.scrollToItem(0)
                         navFocusRequester.requestFocus()
@@ -131,6 +146,10 @@ fun LiveContent(
     ) {
         val selectedCategory = liveViewModel.categories.getOrNull(liveViewModel.selectedCategoryIndex)
         val showLoginPlaceholder = shouldShowLiveLoginPlaceholder(liveViewModel.isLogin, selectedCategory)
+        val childCategories = selectedCategory
+            ?.takeIf { it.type == LiveCategoryType.Partition }
+            ?.children
+            .orEmpty()
         if (liveViewModel.categories.isNotEmpty()) {
             TopNav(
                 modifier = Modifier
@@ -139,6 +158,7 @@ fun LiveContent(
                     .onFocusChanged {
                         if (it.hasFocus) {
                             isRoomGridFocused = false
+                            isSubCategoryRowFocused = false
                         }
                     },
                 items = liveViewModel.categories,
@@ -176,17 +196,36 @@ fun LiveContent(
                 horizontalArrangement = Arrangement.spacedBy(24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                if (childCategories.isNotEmpty()) {
+                    item(span = { GridItemSpan(liveColumns) }) {
+                        LiveSubCategoryRow(
+                            modifier = Modifier.onFocusChanged {
+                                if (it.hasFocus) {
+                                    isSubCategoryRowFocused = true
+                                    isRoomGridFocused = false
+                                }
+                            },
+                            selectedSubCategory = liveViewModel.selectedSubCategory,
+                            categories = childCategories,
+                            onShowSelector = { showSubCategoryPopup = true },
+                            onSelect = { liveViewModel.selectSubCategory(it) }
+                        )
+                    }
+                }
+
                 itemsIndexed(liveViewModel.rooms, key = { _, room -> room.roomId }) { index, room ->
                     SmallVideoCard(
                         modifier = Modifier
                             .onFocusChanged {
                                 if (it.hasFocus) {
                                     isRoomGridFocused = true
+                                    isSubCategoryRowFocused = false
                                     liveViewModel.loadMoreIfNeeded(index)
                                 }
                             }
                             .ifElse(
-                                shouldRouteLiveRoomUpToCategory(index = index, columns = liveColumns),
+                                childCategories.isEmpty() &&
+                                    shouldRouteLiveRoomUpToCategory(index = index, columns = liveColumns),
                                 Modifier.focusProperties { up = navFocusRequester }
                             )
                             .ifElse(
@@ -201,7 +240,8 @@ fun LiveContent(
                             cover = room.cover,
                             upName = room.upName,
                             playString = room.online.toString(),
-                            danmakuString = room.areaName
+                            danmakuString = room.areaName,
+                            badges = room.badges
                         ),
                         onClick = {
                             liveJumpModeRepository.setPendingQueue(
@@ -227,6 +267,59 @@ fun LiveContent(
                 ) {
                     Text(text = "暂无直播内容")
                 }
+            }
+
+            val allCategory = childCategories.firstOrNull { it.areaId == 0 } ?: childCategories.firstOrNull()
+            SelectableItemPopup(
+                show = showSubCategoryPopup,
+                title = selectedCategory?.label ?: "选择直播分区",
+                items = childCategories,
+                selectedItem = liveViewModel.selectedSubCategory ?: allCategory,
+                label = { it.label },
+                onDismiss = { showSubCategoryPopup = false },
+                onSelect = { category ->
+                    liveViewModel.selectSubCategory(category.takeUnless { it.areaId == 0 })
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun LiveSubCategoryRow(
+    modifier: Modifier = Modifier,
+    selectedSubCategory: LiveCategory?,
+    categories: List<LiveCategory>,
+    onShowSelector: () -> Unit,
+    onSelect: (LiveCategory?) -> Unit
+) {
+    val allCategory = categories.firstOrNull { it.areaId == 0 } ?: categories.firstOrNull()
+
+    LazyRow(
+        modifier = modifier,
+        contentPadding = PaddingValues(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            OutlinedButton(onClick = onShowSelector) {
+                Icon(
+                    modifier = Modifier.size(18.dp),
+                    imageVector = Icons.Rounded.Tune,
+                    contentDescription = null
+                )
+                Text(text = selectedSubCategory?.label ?: allCategory?.label ?: "全部")
+            }
+        }
+        items(categories, key = { it.key }) { category ->
+            OutlinedButton(
+                modifier = Modifier.widthIn(max = 160.dp),
+                onClick = { onSelect(category.takeUnless { it.areaId == 0 }) }
+            ) {
+                Text(
+                    text = category.label,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }

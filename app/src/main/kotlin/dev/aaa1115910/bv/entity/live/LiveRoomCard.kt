@@ -10,7 +10,8 @@ data class LiveRoomCard(
     val cover: String,
     val upName: String,
     val online: Int,
-    val areaName: String = ""
+    val areaName: String = "",
+    val badges: List<String> = emptyList()
 )
 
 data class LiveCategory(
@@ -18,7 +19,8 @@ data class LiveCategory(
     val label: String,
     val type: LiveCategoryType,
     val parentAreaId: Int? = null,
-    val areaId: Int = 0
+    val areaId: Int = 0,
+    val children: List<LiveCategory> = emptyList()
 ) : TopNavItem {
     override fun getDisplayName(context: Context): String = label
 }

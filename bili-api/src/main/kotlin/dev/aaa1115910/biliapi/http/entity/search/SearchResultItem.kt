@@ -101,6 +101,25 @@ data class SearchBiliUserResult(
     val isSeniorMember: Int
 ) : SearchResultItem()
 
+@Serializable
+data class SearchLiveResult(
+    val type: String = "live_room",
+    @SerialName("roomid")
+    val roomId: Int = 0,
+    val title: String = "",
+    val cover: String = "",
+    @SerialName("user_cover")
+    val userCover: String = "",
+    val uface: String = "",
+    val uid: Long = 0,
+    val uname: String = "",
+    val online: Int = 0,
+    @SerialName("cate_name")
+    val cateName: String = "",
+    @SerialName("live_status")
+    val liveStatus: Int = 0
+) : SearchResultItem()
+
 /**
  * 番剧(media_bangumi) 影视(mdeia_ft)
  *

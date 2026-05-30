@@ -9,6 +9,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,7 +48,6 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 
 @Composable
 fun HomeContent(
@@ -82,7 +82,10 @@ fun HomeContent(
     }
     val regionGridStates = remember {
         HomeTopNavItem.entries
-            .filter { it != HomeTopNavItem.Recommend && it != HomeTopNavItem.Popular }
+            .filter {
+                it != HomeTopNavItem.Recommend &&
+                    it != HomeTopNavItem.Popular
+            }
             .associateWith { LazyGridState() }
     }
 
@@ -113,8 +116,7 @@ fun HomeContent(
     Scaffold(
         topBar = {
             TopNav(
-                modifier = Modifier
-                    .focusRequester(navFocusRequester),
+                modifier = Modifier.focusRequester(navFocusRequester),
                 items = reorderedItems,
                 isLargePadding = !focusOnContent,
                 onSelectedChanged = { nav ->
@@ -254,5 +256,6 @@ private fun HomeTopNavItem.toUgcType() = when (this) {
     HomeTopNavItem.Fashion -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Fashion
     HomeTopNavItem.Sports -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Sports
     HomeTopNavItem.Animal -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Animal
-    HomeTopNavItem.Recommend, HomeTopNavItem.Popular -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Douga
+    HomeTopNavItem.Recommend,
+    HomeTopNavItem.Popular -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Douga
 }

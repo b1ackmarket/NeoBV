@@ -114,4 +114,14 @@ class SearchResultUpdateTriggerTest {
 
         assertFalse(shouldRequestSearchResult(requestedTriggers, videoTrigger))
     }
+
+    @Test
+    fun `search load more ignores empty result lists`() {
+        assertFalse(shouldLoadMoreSearchResults(lastVisibleIndex = 0, resultCount = 0))
+    }
+
+    @Test
+    fun `search load more triggers near the end of non-empty result lists`() {
+        assertTrue(shouldLoadMoreSearchResults(lastVisibleIndex = 30, resultCount = 40))
+    }
 }

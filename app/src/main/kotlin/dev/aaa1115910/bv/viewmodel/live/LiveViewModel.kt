@@ -32,6 +32,8 @@ class LiveViewModel(
     val isLogin get() = bvUserRepository.isLogin
     var selectedCategoryIndex by mutableStateOf(0)
         private set
+    var selectedSubCategory by mutableStateOf<LiveCategory?>(null)
+        private set
     var loading by mutableStateOf(false)
         private set
     private var nextPage = 1
@@ -66,7 +68,14 @@ class LiveViewModel(
     fun selectCategory(index: Int) {
         if (index == selectedCategoryIndex) return
         selectedCategoryIndex = index
+        selectedSubCategory = null
         loadCategory(index, append = false)
+    }
+
+    fun selectSubCategory(category: LiveCategory?) {
+        if (selectedSubCategory?.key == category?.key) return
+        selectedSubCategory = category
+        loadCategory(selectedCategoryIndex, append = false)
     }
 
     fun refresh() {
@@ -126,7 +135,7 @@ class LiveViewModel(
     }
 
     private fun loadCategory(index: Int, append: Boolean) {
-        val category = categories.getOrNull(index) ?: return
+        val category = selectedSubCategory ?: categories.getOrNull(index) ?: return
         if (!isLogin && category.type == LiveCategoryType.Following) {
             rooms.clear()
             nextPage = 1
@@ -149,7 +158,8 @@ class LiveViewModel(
                     pageSize = PageSize
                 )
                 withContext(Dispatchers.Main) {
-                    if (categories.getOrNull(selectedCategoryIndex)?.key != category.key) {
+                    val currentCategory = selectedSubCategory ?: categories.getOrNull(selectedCategoryIndex)
+                    if (currentCategory?.key != category.key) {
                         return@withContext
                     }
                     if (append) {

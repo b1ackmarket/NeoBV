@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -37,6 +38,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -50,6 +52,7 @@ import dev.aaa1115910.biliapi.repositories.SearchType
 import dev.aaa1115910.biliapi.repositories.SearchTypeResult
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.activities.live.LivePlayerActivity
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
@@ -118,6 +121,16 @@ internal fun shouldRequestSearchResult(
     }
 }
 
+internal fun shouldLoadMoreSearchResults(
+    lastVisibleIndex: Int?,
+    resultCount: Int,
+    preloadThreshold: Int = 20
+): Boolean {
+    return resultCount > 0 &&
+        lastVisibleIndex != null &&
+        lastVisibleIndex >= resultCount - preloadThreshold
+}
+
 internal sealed interface SearchResultRequestState {
     val trigger: SearchResultUpdateTrigger
 
@@ -148,12 +161,14 @@ fun SearchResultScreen(
         SearchType.Video -> searchResultViewModel.videoSearchResult
         SearchType.MediaBangumi -> searchResultViewModel.mediaBangumiSearchResult
         SearchType.MediaFt -> searchResultViewModel.mediaFtSearchResult
+        SearchType.Live -> searchResultViewModel.liveSearchResult
         SearchType.BiliUser -> searchResultViewModel.biliUserSearchResult
     }
     val searchResultItems = when (searchResult.type) {
         SearchType.Video -> searchResult.videos
         SearchType.MediaBangumi -> searchResult.mediaBangumis
         SearchType.MediaFt -> searchResult.mediaFts
+        SearchType.Live -> searchResult.lives
         SearchType.BiliUser -> searchResult.biliUsers
     }
     var showFilter by remember { mutableStateOf(false) }
@@ -197,6 +212,16 @@ fun SearchResultScreen(
                 )
             }
 
+            is SearchTypeResult.Live -> {
+                LivePlayerActivity.actionStart(
+                    context = context,
+                    roomId = resultItem.roomId,
+                    title = resultItem.title.removeHtmlTags(),
+                    upName = resultItem.upName.removeHtmlTags(),
+                    online = resultItem.online
+                )
+            }
+
             else -> {}
         }
     }
@@ -232,6 +257,7 @@ fun SearchResultScreen(
         rowSize = when (searchResultViewModel.searchType) {
             SearchType.Video -> 4
             SearchType.MediaBangumi, SearchType.MediaFt -> 6
+            SearchType.Live -> 4
             SearchType.BiliUser -> 3
         }
     }
@@ -273,7 +299,7 @@ fun SearchResultScreen(
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .distinctUntilChanged()
             .filter { index ->
-                index != null && index >= searchResult.count - 20
+                shouldLoadMoreSearchResults(index, searchResult.count)
             }
             .collect {
                 searchResultViewModel.loadMore(searchResult.type)
@@ -336,6 +362,9 @@ fun SearchResultScreen(
 
                         SearchTypeTopNavItem.MediaFt -> searchResultViewModel.searchType =
                             SearchType.MediaFt
+
+                        SearchTypeTopNavItem.Live -> searchResultViewModel.searchType =
+                            SearchType.Live
 
                         SearchTypeTopNavItem.BiliUser -> searchResultViewModel.searchType =
                             SearchType.BiliUser
@@ -445,6 +474,22 @@ private fun SearchResultListItem(
             )
         }
 
+        is SearchTypeResult.Live -> {
+            SmallVideoCard(
+                modifier = modifier,
+                enableFocusPreview = false,
+                data = VideoCardData(
+                    avid = searchResult.roomId.toLong(),
+                    title = searchResult.title.removeHtmlTags(),
+                    cover = searchResult.cover,
+                    playString = searchResult.online.toWanString(),
+                    danmakuString = searchResult.areaName,
+                    upName = searchResult.upName.removeHtmlTags()
+                ),
+                onClick = onClick
+            )
+        }
+
         is SearchTypeResult.User -> {
             UpCard(
                 modifier = modifier.focusedScale(0.95f),
@@ -466,5 +511,6 @@ fun SearchType.getDisplayName(context: Context) = when (this) {
     SearchType.Video -> context.getString(R.string.search_result_type_name_video)
     SearchType.MediaBangumi -> context.getString(R.string.search_result_type_name_media_bangumi)
     SearchType.MediaFt -> context.getString(R.string.search_result_type_name_media_ft)
+    SearchType.Live -> "直播"
     SearchType.BiliUser -> context.getString(R.string.search_result_type_name_bili_user)
 }

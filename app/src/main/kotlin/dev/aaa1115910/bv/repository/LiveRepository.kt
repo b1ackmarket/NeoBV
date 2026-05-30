@@ -73,11 +73,28 @@ class LiveRepository(
                 val obj = area.asJsonObjectOrNull() ?: return@mapNotNull null
                 val id = obj["id"]?.jsonPrimitive?.intOrNull ?: return@mapNotNull null
                 val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                val children = obj["list"].asJsonArrayOrNull()
+                    ?.mapNotNull { child -> child.toLiveCategory(parentId = id) }
+                    .orEmpty()
+                val childrenWithAll = if (children.any { it.areaId == 0 }) {
+                    children
+                } else {
+                    listOf(
+                        LiveCategory(
+                            key = "partition_${id}_all",
+                            label = "全部$name",
+                            type = LiveCategoryType.Partition,
+                            parentAreaId = id,
+                            areaId = 0
+                        )
+                    ) + children
+                }
                 LiveCategory(
                     key = "partition_$id",
                     label = name,
                     type = LiveCategoryType.Partition,
-                    parentAreaId = id
+                    parentAreaId = id,
+                    children = childrenWithAll
                 )
             }
         )
@@ -160,15 +177,56 @@ private fun JsonElement.toLiveRoomCard(): LiveRoomCard? {
     val online = obj["online"]?.jsonPrimitive?.intOrNull
         ?: obj["text_small"]?.jsonPrimitive?.content?.filter { it.isDigit() }?.toIntOrNull()
         ?: 0
-    val areaName = obj["area_name"]?.jsonPrimitive?.content ?: ""
+    val areaName = obj["area_name"]?.jsonPrimitive?.contentOrNull
+        ?: obj["areaName"]?.jsonPrimitive?.contentOrNull
+        ?: obj["area_v2_name"]?.jsonPrimitive?.contentOrNull
+        ?: ""
     return LiveRoomCard(
         roomId = roomId,
         title = title,
         cover = cover,
         upName = upName,
         online = online,
-        areaName = areaName
+        areaName = areaName,
+        badges = obj.extractLiveBadges()
     )
+}
+
+private fun JsonElement.toLiveCategory(parentId: Int): LiveCategory? {
+    val obj = asJsonObjectOrNull() ?: return null
+    val id = obj["id"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: return null
+    val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: return null
+    return LiveCategory(
+        key = "partition_${parentId}_area_$id",
+        label = name,
+        type = LiveCategoryType.Partition,
+        parentAreaId = parentId,
+        areaId = id
+    )
+}
+
+private fun JsonObject.extractLiveBadges(): List<String> {
+    val badges = linkedSetOf<String>()
+    get("pendent_info").asJsonObjectOrNull()
+        ?.values
+        ?.mapNotNull { pendant ->
+            val obj = pendant.asJsonObjectOrNull() ?: return@mapNotNull null
+            obj["content"]?.jsonPrimitive?.contentOrNull
+                ?.takeIf { it.isNotBlank() }
+                ?: obj["name"]?.jsonPrimitive?.contentOrNull
+                    ?.takeIf { it.isNotBlank() }
+        }
+        ?.forEach { badges.add(it) }
+    get("rank_name")?.jsonPrimitive?.contentOrNull
+        ?.takeIf { it.isNotBlank() }
+        ?.let { badges.add(it) }
+    get("watched_show").asJsonObjectOrNull()
+        ?.get("text_large")
+        ?.jsonPrimitive
+        ?.contentOrNull
+        ?.takeIf { it.isNotBlank() && it.length <= 12 }
+        ?.let { badges.add(it) }
+    return badges.take(2)
 }
 
 internal fun JsonObject.toLiveRoomContext(

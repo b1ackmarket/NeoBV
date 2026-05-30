@@ -119,7 +119,7 @@ data class VideoInfo(
     @SerialName("is_ogv")
     val isOgv: Boolean = false,
     @SerialName("ogv_info")
-    val ogvInfo: String? = null,
+    val ogvInfo: JsonElement? = null,
     @SerialName("rcmd_reason")
     private val _rcmdReason: JsonElement? = null,
     var rcmdReason: RcmdReason? = null,

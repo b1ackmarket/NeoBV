@@ -176,6 +176,16 @@ object BiliHttpApi {
         header("Cookie", "SESSDATA=$sessData;")
     }.body()
 
+    suspend fun getPopularPreciousData(
+        pageNumber: Int = 1,
+        pageSize: Int = 20,
+        sessData: String = ""
+    ): BiliResponse<PopularVideoData> = client.get("/x/web-interface/popular/precious") {
+        parameter("page", pageNumber)
+        parameter("page_size", pageSize)
+        header("Cookie", "SESSDATA=$sessData;")
+    }.body()
+
     /**
      * 获取视频详细信息
      */
@@ -1504,7 +1514,8 @@ object BiliHttpApi {
         tid: Int? = null,
         order: String? = null,
         duration: Int? = null,
-        buvid3: String? = null
+        buvid3: String? = null,
+        sessData: String? = null
     ): BiliResponse<SearchResultData> = client.get("/x/web-interface/wbi/search/type") {
         parameter("keyword", keyword)
         parameter("search_type", type)
@@ -1522,7 +1533,10 @@ object BiliHttpApi {
         tid?.let { parameter("tids", it) }
         order?.let { parameter("order", it) }
         duration?.let { parameter("duration", it) }
-        header("Cookie", "buvid3=$buvid3;")
+        val cookieParts = mutableListOf<String>()
+        buvid3?.takeIf { it.isNotBlank() }?.let { cookieParts.add("buvid3=$it") }
+        sessData?.takeIf { it.isNotBlank() }?.let { cookieParts.add("SESSDATA=$it") }
+        if (cookieParts.isNotEmpty()) header("Cookie", cookieParts.joinToString("; "))
         header("referer", "https://search.bilibili.com/")
     }.body()
 

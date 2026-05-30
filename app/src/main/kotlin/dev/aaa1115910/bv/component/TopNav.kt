@@ -116,9 +116,10 @@ private fun TabRowScope.NavItemTab(
     val context = LocalContext.current
 
     Tab(
-        modifier = modifier.focusProperties {
-            down = downFocusRequester
-        },
+        modifier = modifier
+            .focusProperties {
+                down = downFocusRequester
+            },
         selected = selected,
         onFocus = onFocus,
         onClick = onClick
@@ -238,12 +239,14 @@ enum class SearchTypeTopNavItem: TopNavItem {
     Video,
     MediaBangumi,
     MediaFt,
+    Live,
     BiliUser;
     override fun getDisplayName(context: Context): String {
         return when (this) {
             Video -> "视频"
             MediaBangumi -> "番剧"
             MediaFt -> "影视"
+            Live -> "直播"
             BiliUser -> "用户"
         }
     }

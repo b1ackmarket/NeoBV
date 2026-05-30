@@ -4,7 +4,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -45,7 +47,7 @@ data class SearchResultData(
     val inBlackKey: Int,
     @SerialName("in_white_key")
     val inWhiteKey: Int,
-    val result: List<JsonElement> = emptyList(),
+    val result: JsonElement? = null,
     @Transient
     val searchAllResults: MutableList<SearchResult<SearchResultItem>> = mutableListOf(),
     @Transient
@@ -54,7 +56,16 @@ data class SearchResultData(
     val isSearchPageGrayed: Int? = null
 ) {
     init {
-        result.forEach { searchResultJsonElement ->
+        val resultElements = when (val currentResult = result) {
+            is JsonArray -> currentResult
+            is JsonObject -> buildList {
+                currentResult["live_room"]?.jsonArray?.let { addAll(it) }
+                currentResult["live_user"]?.jsonArray?.let { addAll(it) }
+            }
+
+            else -> emptyList()
+        }
+        resultElements.forEach { searchResultJsonElement ->
             val searchResultJsonObject = searchResultJsonElement.jsonObject
             var resultType = searchResultJsonObject["result_type"]?.jsonPrimitive?.content
             val json = Json {
@@ -104,8 +115,9 @@ data class SearchResultData(
                         searchResultJsonObject
                     )
 
-                    // TODO live search result
-                    "live" -> return@forEach
+                    "live", "live_room", "live_user" -> json.decodeFromJsonElement<SearchLiveResult>(
+                        searchResultJsonObject
+                    )
 
                     "media_bangumi", "media_ft" -> json.decodeFromJsonElement<SearchMediaResult>(
                         searchResultJsonObject

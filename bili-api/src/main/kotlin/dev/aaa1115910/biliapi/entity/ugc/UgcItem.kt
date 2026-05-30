@@ -67,6 +67,7 @@ data class UgcItem(
         fun fromVideoInfo(videoInfo: dev.aaa1115910.biliapi.http.entity.video.VideoInfo) =
             UgcItem(
                 aid = videoInfo.aid,
+                bvid = videoInfo.bvid,
                 title = videoInfo.title,
                 duration = videoInfo.duration,
                 author = videoInfo.owner.name,

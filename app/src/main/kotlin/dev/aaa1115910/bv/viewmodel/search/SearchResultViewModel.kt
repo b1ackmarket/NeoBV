@@ -10,6 +10,7 @@ import dev.aaa1115910.biliapi.repositories.SearchRepository
 import dev.aaa1115910.biliapi.repositories.SearchType
 import dev.aaa1115910.biliapi.repositories.SearchTypePage
 import dev.aaa1115910.biliapi.repositories.SearchTypeResult
+import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import dev.aaa1115910.bv.util.Partition
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
@@ -35,6 +36,7 @@ class SearchResultViewModel(
     var videoSearchResult by mutableStateOf(SearchResult(SearchType.Video))
     var mediaBangumiSearchResult by mutableStateOf(SearchResult(SearchType.MediaBangumi))
     var mediaFtSearchResult by mutableStateOf(SearchResult(SearchType.MediaFt))
+    var liveSearchResult by mutableStateOf(SearchResult(SearchType.Live))
     var biliUserSearchResult by mutableStateOf(SearchResult(SearchType.BiliUser))
 
     var selectedOrder by mutableStateOf(SearchFilterOrderType.ComprehensiveSort)
@@ -55,6 +57,11 @@ class SearchResultViewModel(
             SearchType.MediaBangumi,
             SearchType.MediaFt -> SearchResultAccumulator<SearchTypeResult.Pgc, SearchTypePage>(
                 itemKey = { it.seasonId },
+                initialCursor = SearchTypePage()
+            )
+
+            SearchType.Live -> SearchResultAccumulator<SearchTypeResult.Live, SearchTypePage>(
+                itemKey = { it.roomId },
                 initialCursor = SearchTypePage()
             )
 
@@ -93,6 +100,11 @@ class SearchResultViewModel(
                 mediaFtSearchResult = mediaFtSearchResult.resetPage()
             }
 
+            SearchType.Live -> {
+                accumulators.getValue(searchType).live().clear(SearchTypePage())
+                liveSearchResult = liveSearchResult.resetPage()
+            }
+
             SearchType.BiliUser -> {
                 accumulators.getValue(searchType).user().clear(SearchTypePage())
                 biliUserSearchResult = biliUserSearchResult.resetPage()
@@ -105,6 +117,7 @@ class SearchResultViewModel(
             SearchType.Video -> videoSearchResult = videoSearchResult.clear()
             SearchType.MediaBangumi -> mediaBangumiSearchResult = mediaBangumiSearchResult.clear()
             SearchType.MediaFt -> mediaFtSearchResult = mediaFtSearchResult.clear()
+            SearchType.Live -> liveSearchResult = liveSearchResult.clear()
             SearchType.BiliUser -> biliUserSearchResult = biliUserSearchResult.clear()
         }
     }
@@ -130,6 +143,7 @@ class SearchResultViewModel(
             SearchType.Video -> videoSearchResult.page
             SearchType.MediaBangumi -> mediaBangumiSearchResult.page
             SearchType.MediaFt -> mediaFtSearchResult.page
+            SearchType.Live -> liveSearchResult.page
             SearchType.BiliUser -> biliUserSearchResult.page
         }
 
@@ -179,6 +193,15 @@ class SearchResultViewModel(
                         )
                     }
 
+                    SearchType.Live -> {
+                        val accumulator = accumulators.getValue(searchType).live()
+                        accumulator.append(searchResultResponse.page, searchResultResponse.lives)
+                        liveSearchResult = liveSearchResult.copy(
+                            lives = accumulator.items,
+                            page = accumulator.cursor
+                        )
+                    }
+
                     SearchType.BiliUser -> {
                         val accumulator = accumulators.getValue(searchType).user()
                         accumulator.append(searchResultResponse.page, searchResultResponse.users)
@@ -194,6 +217,10 @@ class SearchResultViewModel(
             throw e
         } catch (e: Throwable) {
             logger.fException(e) { "Failed to load search result" }
+            FirebaseTelemetry.reportApiError(
+                throwable = e,
+                endpoint = "/x/web-interface/search/type"
+            )
             false
         } finally {
             if (loadGenerations.getValue(searchType) == generation) {
@@ -209,10 +236,11 @@ class SearchResultViewModel(
         val videos: List<SearchTypeResult.Video> = emptyList(),
         val mediaBangumis: List<SearchTypeResult.Pgc> = emptyList(),
         val mediaFts: List<SearchTypeResult.Pgc> = emptyList(),
+        val lives: List<SearchTypeResult.Live> = emptyList(),
         val biliUsers: List<SearchTypeResult.User> = emptyList(),
         val page: SearchTypePage = SearchTypePage()
     ) {
-        val count get() = videos.size + mediaBangumis.size + mediaFts.size + biliUsers.size
+        val count get() = videos.size + mediaBangumis.size + mediaFts.size + lives.size + biliUsers.size
 
         fun resetPage() = copy(page = SearchTypePage())
 
@@ -220,6 +248,7 @@ class SearchResultViewModel(
             videos = emptyList(),
             mediaBangumis = emptyList(),
             mediaFts = emptyList(),
+            lives = emptyList(),
             biliUsers = emptyList(),
             page = SearchTypePage()
         )
@@ -232,6 +261,9 @@ private fun SearchResultAccumulator<*, *>.video() =
 
 private fun SearchResultAccumulator<*, *>.pgc() =
     this as SearchResultAccumulator<SearchTypeResult.Pgc, SearchTypePage>
+
+private fun SearchResultAccumulator<*, *>.live() =
+    this as SearchResultAccumulator<SearchTypeResult.Live, SearchTypePage>
 
 private fun SearchResultAccumulator<*, *>.user() =
     this as SearchResultAccumulator<SearchTypeResult.User, SearchTypePage>

@@ -9,6 +9,10 @@ import dev.aaa1115910.biliapi.entity.search.Hotword
 import dev.aaa1115910.biliapi.grpc.utils.handleGrpcException
 import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.http.BiliHttpProxyApi
+import dev.aaa1115910.biliapi.http.entity.search.SearchLiveResult
+import dev.aaa1115910.biliapi.http.entity.search.SearchMediaResult
+import dev.aaa1115910.biliapi.http.entity.search.SearchVideoResult
+import dev.aaa1115910.biliapi.http.entity.search.SearchBiliUserResult
 import org.koin.core.annotation.Single
 import dev.aaa1115910.biliapi.http.util.smartDate
 
@@ -139,33 +143,39 @@ class SearchRepository(
                         ?: throw IllegalStateException("Search result stub is not initialized")
                 }
             }.onFailure { handleGrpcException(it) }.getOrThrow()
-            return SearchTypeResult.fromSearchTypeResult(searchTypeReply)
+            return SearchTypeResult.fromSearchTypeResult(searchTypeReply, preferredType = type)
         }
 
         suspend fun searchByWeb(): SearchTypeResult {
             return runCatching {
+                val webSearchType = when (type) {
+                    SearchType.Live -> "live_room"
+                    else -> type.httpTypeParam
+                }
                 val response = if (enableProxy) {
                     BiliHttpProxyApi.searchType(
                         keyword = keyword,
-                        type = type.httpTypeParam,
+                        type = webSearchType,
                         page = page.nextPageForWeb,
                         tid = tid,
                         order = order.httpOrderParam,
                         duration = duration.httpDurationParam,
                         buvid3 = authRepository.buvid3 ?: "",
+                        sessData = authRepository.sessionData ?: "",
                     )
                 } else {
                     BiliHttpApi.searchType(
                         keyword = keyword,
-                        type = type.httpTypeParam,
+                        type = webSearchType,
                         page = page.nextPageForWeb,
                         tid = tid,
                         order = order.httpOrderParam,
                         duration = duration.httpDurationParam,
                         buvid3 = authRepository.buvid3 ?: "",
+                        sessData = authRepository.sessionData ?: "",
                     )
                 }.getResponseData()
-                SearchTypeResult.fromSearchTypeResult(response)
+                SearchTypeResult.fromSearchTypeResult(response, preferredType = type)
             }.getOrElse { webError ->
                 if (type == SearchType.Video || preferApiType == ApiType.Web) {
                     runCatching { searchByApp() }.getOrElse { throw webError }
@@ -178,8 +188,19 @@ class SearchRepository(
         return when (preferApiType) {
             ApiType.Web -> searchByWeb()
             ApiType.App -> runCatching { searchByApp() }
-                .getOrElse { appError ->
-                    if (type == SearchType.Video) searchByWeb() else throw appError
+                .let { appResult ->
+                    val result = appResult.getOrNull()
+                    if (type == SearchType.Live && result != null && result.lives.isEmpty()) {
+                        searchByWeb()
+                    } else {
+                        appResult.getOrElse { appError ->
+                            if (type == SearchType.Video || type == SearchType.Live) {
+                                searchByWeb()
+                            } else {
+                                throw appError
+                            }
+                        }
+                    }
                 }
         }
     }
@@ -197,8 +218,8 @@ enum class SearchType(
     Video(httpTypeParam = "video", grpcTypeParam = 10),
     MediaBangumi(httpTypeParam = "media_bangumi", grpcTypeParam = 7),
     MediaFt(httpTypeParam = "media_ft", grpcTypeParam = 8),
+    Live(httpTypeParam = "live", grpcTypeParam = 4),
     BiliUser(httpTypeParam = "bili_user", grpcTypeParam = 2),
-    //Live grpcTypeParam = 4/5
     //Article grpcTypeParam = 6
 }
 
@@ -257,67 +278,153 @@ enum class SearchFilterDuration(
 data class SearchTypeResult(
     val videos: List<Video> = emptyList(),
     val pgcs: List<Pgc> = emptyList(),
+    val lives: List<Live> = emptyList(),
     val users: List<User> = emptyList(),
     val page: SearchTypePage
 ) {
     companion object {
-        fun fromSearchTypeResult(result: dev.aaa1115910.biliapi.http.entity.search.SearchResultData): SearchTypeResult {
-            return when (result.searchTypeResults.firstOrNull()) {
-                is dev.aaa1115910.biliapi.http.entity.search.SearchVideoResult -> {
+        fun fromSearchTypeResult(
+            result: dev.aaa1115910.biliapi.http.entity.search.SearchResultData,
+            preferredType: SearchType? = null
+        ): SearchTypeResult {
+            val page = SearchTypePage(nextPageForWeb = result.page + 1)
+            val videos = result.searchTypeResults.filterIsInstance<SearchVideoResult>()
+                .map { Video.fromSearchVideoResult(it) }
+            val pgcs = result.searchTypeResults.filterIsInstance<SearchMediaResult>()
+                .map { Pgc.fromSearchPgcResult(it) }
+            val lives = result.searchTypeResults.filterIsInstance<SearchLiveResult>()
+                .mapNotNull { Live.fromSearchLiveResult(it) }
+            val users = result.searchTypeResults.filterIsInstance<SearchBiliUserResult>()
+                .map { User.fromSearchUserResult(it) }
+
+            preferredType?.let { type ->
+                return when (type) {
+                    SearchType.Video -> SearchTypeResult(videos = videos, page = page)
+                    SearchType.MediaBangumi,
+                    SearchType.MediaFt -> SearchTypeResult(pgcs = pgcs, page = page)
+                    SearchType.Live -> SearchTypeResult(lives = lives, page = page)
+                    SearchType.BiliUser -> SearchTypeResult(users = users, page = page)
+                }
+            }
+
+            return when (result.searchTypeResults.firstOrNull { it is SearchVideoResult || it is SearchMediaResult || it is SearchLiveResult || it is SearchBiliUserResult }) {
+                is SearchVideoResult -> {
                     SearchTypeResult(
-                        videos = result.searchTypeResults.map { Video.fromSearchVideoResult(it as dev.aaa1115910.biliapi.http.entity.search.SearchVideoResult) },
-                        page = SearchTypePage(nextPageForWeb = result.page + 1)
+                        videos = videos,
+                        page = page
                     )
                 }
 
-                is dev.aaa1115910.biliapi.http.entity.search.SearchMediaResult -> {
+                is SearchMediaResult -> {
                     SearchTypeResult(
-                        pgcs = result.searchTypeResults.map { Pgc.fromSearchPgcResult(it as dev.aaa1115910.biliapi.http.entity.search.SearchMediaResult) },
-                        page = SearchTypePage(nextPageForWeb = result.page + 1)
+                        pgcs = pgcs,
+                        page = page
                     )
                 }
 
-                is dev.aaa1115910.biliapi.http.entity.search.SearchBiliUserResult -> {
+                is SearchLiveResult -> {
                     SearchTypeResult(
-                        users = result.searchTypeResults.map { User.fromSearchUserResult(it as dev.aaa1115910.biliapi.http.entity.search.SearchBiliUserResult) },
-                        page = SearchTypePage(nextPageForWeb = result.page + 1)
+                        lives = lives,
+                        page = page
+                    )
+                }
+
+                is SearchBiliUserResult -> {
+                    SearchTypeResult(
+                        users = users,
+                        page = page
                     )
                 }
 
                 else -> {
-                    SearchTypeResult(page = SearchTypePage(nextPageForWeb = result.page + 1))
+                    SearchTypeResult(page = page)
                 }
             }
         }
 
-        fun fromSearchTypeResult(result: bilibili.polymer.app.search.v1.SearchByTypeResponse): SearchTypeResult {
-            return when (result.itemsList.firstOrNull()?.cardItemCase) {
+        fun fromSearchTypeResult(
+            result: bilibili.polymer.app.search.v1.SearchByTypeResponse,
+            preferredType: SearchType? = null
+        ): SearchTypeResult {
+            val page = SearchTypePage(nextPageForApp = result.pagination.next)
+            val videos = result.itemsList
+                .filter { it.cardItemCase == bilibili.polymer.app.search.v1.Item.CardItemCase.AV }
+                .map { Video.fromSearchVideoCard(it) }
+            val pgcs = result.itemsList
+                .filter { it.cardItemCase == bilibili.polymer.app.search.v1.Item.CardItemCase.BANGUMI }
+                .map { Pgc.fromSearchPgcCard(it) }
+            val users = result.itemsList
+                .filter { it.cardItemCase == bilibili.polymer.app.search.v1.Item.CardItemCase.AUTHOR }
+                .map { User.fromSearchUserCard(it) }
+            val lives = result.itemsList.mapNotNull { item ->
+                when (item.cardItemCase) {
+                    bilibili.polymer.app.search.v1.Item.CardItemCase.LIVE -> Live.fromSearchLiveCard(item)
+                    bilibili.polymer.app.search.v1.Item.CardItemCase.LIVE_INLINE -> Live.fromSearchLiveInlineCard(item)
+                    else -> null
+                }
+            }
+
+            preferredType?.let { type ->
+                return when (type) {
+                    SearchType.Video -> SearchTypeResult(videos = videos, page = page)
+                    SearchType.MediaBangumi,
+                    SearchType.MediaFt -> SearchTypeResult(pgcs = pgcs, page = page)
+                    SearchType.Live -> SearchTypeResult(lives = lives, page = page)
+                    SearchType.BiliUser -> SearchTypeResult(users = users, page = page)
+                }
+            }
+
+            return when (result.itemsList.firstOrNull {
+                it.cardItemCase in resultCardTypes
+            }?.cardItemCase) {
                 bilibili.polymer.app.search.v1.Item.CardItemCase.AV -> {
                     SearchTypeResult(
-                        videos = result.itemsList.map { Video.fromSearchVideoCard(it) },
-                        page = SearchTypePage(nextPageForApp = result.pagination.next)
+                        videos = videos,
+                        page = page
                     )
                 }
 
                 bilibili.polymer.app.search.v1.Item.CardItemCase.BANGUMI -> {
                     SearchTypeResult(
-                        pgcs = result.itemsList.map { Pgc.fromSearchPgcCard(it) },
-                        page = SearchTypePage(nextPageForApp = result.pagination.next)
+                        pgcs = pgcs,
+                        page = page
                     )
                 }
 
                 bilibili.polymer.app.search.v1.Item.CardItemCase.AUTHOR -> {
                     SearchTypeResult(
-                        users = result.itemsList.map { User.fromSearchUserCard(it) },
-                        page = SearchTypePage(nextPageForApp = result.pagination.next)
+                        users = users,
+                        page = page
+                    )
+                }
+
+                bilibili.polymer.app.search.v1.Item.CardItemCase.LIVE -> {
+                    SearchTypeResult(
+                        lives = lives,
+                        page = page
+                    )
+                }
+
+                bilibili.polymer.app.search.v1.Item.CardItemCase.LIVE_INLINE -> {
+                    SearchTypeResult(
+                        lives = lives,
+                        page = page
                     )
                 }
 
                 else -> {
-                    SearchTypeResult(page = SearchTypePage(nextPageForApp = result.pagination.next))
+                    SearchTypeResult(page = page)
                 }
             }
         }
+
+        private val resultCardTypes = listOf(
+            bilibili.polymer.app.search.v1.Item.CardItemCase.AV,
+            bilibili.polymer.app.search.v1.Item.CardItemCase.BANGUMI,
+            bilibili.polymer.app.search.v1.Item.CardItemCase.AUTHOR,
+            bilibili.polymer.app.search.v1.Item.CardItemCase.LIVE,
+            bilibili.polymer.app.search.v1.Item.CardItemCase.LIVE_INLINE
+        )
     }
 
     interface SearchTypeResultItem
@@ -389,6 +496,58 @@ data class SearchTypeResult(
         }
     }
 
+    data class Live(
+        val roomId: Int,
+        val title: String,
+        val cover: String,
+        val upName: String,
+        val online: Int,
+        val areaName: String = ""
+    ) : SearchTypeResultItem {
+        companion object {
+            fun fromSearchLiveResult(live: dev.aaa1115910.biliapi.http.entity.search.SearchLiveResult): Live? {
+                val roomId = live.roomId.takeIf { it > 0 } ?: return null
+                return Live(
+                    roomId = roomId,
+                    title = live.title,
+                    cover = normalizeProtocolUrl(live.cover.ifBlank { live.userCover }),
+                    upName = live.uname,
+                    online = live.online,
+                    areaName = live.cateName
+                )
+            }
+
+            fun fromSearchLiveCard(item: bilibili.polymer.app.search.v1.Item): Live? {
+                val roomId = item.param.toIntOrNull()
+                    ?: item.uri.substringAfter("live.bilibili.com/", "")
+                        .takeWhile { it.isDigit() }
+                        .toIntOrNull()
+                    ?: return null
+                return Live(
+                    roomId = roomId,
+                    title = item.live.title,
+                    cover = item.live.cover,
+                    upName = item.live.name,
+                    online = item.live.online,
+                    areaName = item.live.badge
+                )
+            }
+
+            fun fromSearchLiveInlineCard(item: bilibili.polymer.app.search.v1.Item): Live? {
+                val roomId = item.liveInline.roomid.takeIf { it > 0 }?.toInt()
+                    ?: item.param.toIntOrNull()
+                    ?: return null
+                return Live(
+                    roomId = roomId,
+                    title = item.liveInline.title,
+                    cover = item.liveInline.cover,
+                    upName = "",
+                    online = 0
+                )
+            }
+        }
+    }
+
     data class User(
         val mid: Long,
         val name: String,
@@ -412,6 +571,13 @@ data class SearchTypeResult(
                     sign = user.author.sign
                 )
         }
+    }
+}
+
+private fun normalizeProtocolUrl(url: String): String {
+    return when {
+        url.startsWith("//") -> "https:$url"
+        else -> url
     }
 }
 
