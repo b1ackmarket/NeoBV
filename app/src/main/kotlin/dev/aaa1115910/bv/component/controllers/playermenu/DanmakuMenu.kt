@@ -240,13 +240,21 @@ fun DanmakuMenuList(
             contentPadding = PaddingValues(8.dp)
         ) {
             itemsIndexed(VideoPlayerDanmakuMenuItem.entries) { index, item ->
+                val selectItem = {
+                    val result = resolveParentMenuTouch(
+                        current = selectedDanmakuMenuItem,
+                        touched = item
+                    )
+                    selectedDanmakuMenuItem = result.selectedItem
+                    onFocusStateChange(result.focusState)
+                }
                 MenuListItem(
                     modifier = Modifier
                         .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
                         .focusRequester(menuItemRequesters[index]),
                     text = item.getDisplayName(context),
                     selected = selectedDanmakuMenuItem == item,
-                    onClick = {},
+                    onClick = selectItem,
                     onFocus = { selectedDanmakuMenuItem = item },
                 )
             }

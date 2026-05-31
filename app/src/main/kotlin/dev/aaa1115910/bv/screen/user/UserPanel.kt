@@ -51,6 +51,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.touchClick
 
 private val lineHeight = 80.dp
 
@@ -262,6 +263,7 @@ private fun UserPanelSmallItem(
     Surface(
         modifier = modifier
             .padding(4.dp)
+            .touchClick(onClick)
             .height(lineHeight),
         onClick = onClick,
         colors = ClickableSurfaceDefaults.colors(

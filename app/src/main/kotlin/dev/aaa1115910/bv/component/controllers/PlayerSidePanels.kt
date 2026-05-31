@@ -59,6 +59,8 @@ import dev.aaa1115910.bv.entity.PlayerCommentItem
 import dev.aaa1115910.bv.entity.PlayerCommentSort
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
+import dev.aaa1115910.bv.util.touchClick
+import dev.aaa1115910.bv.util.touchLongClick
 import dev.aaa1115910.bv.viewmodel.player.PlayerSidePanel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -461,6 +463,7 @@ private fun PlayerCommentListItem(
         onLongClick = onOpenActions,
         modifier = modifier
             .fillMaxWidth()
+            .touchLongClick(onClick = onClick, onLongClick = onOpenActions)
             .onFocusChanged { isFocused = it.isFocused },
         shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
         colors = ClickableSurfaceDefaults.colors(
@@ -795,7 +798,9 @@ private fun PlayerUpSpacePanel(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     onClick = { onOpenUpPage(state.upMid, state.upName) },
-                    modifier = Modifier.size(50.dp),
+                    modifier = Modifier
+                        .size(50.dp)
+                        .touchClick { onOpenUpPage(state.upMid, state.upName) },
                     shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.large),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = Color.Transparent,
@@ -885,6 +890,7 @@ private fun PlayerSidePanelVideoItem(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
+            .touchClick(onClick)
             .onFocusChanged { isFocused = it.isFocused },
         shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
         colors = ClickableSurfaceDefaults.colors(
@@ -949,6 +955,7 @@ private fun PlayerPanelChip(
     Surface(
         onClick = onClick,
         modifier = modifier
+            .touchClick(onClick)
             .onFocusChanged {
                 isFocused = it.hasFocus
                 onFocusChanged(it.hasFocus)

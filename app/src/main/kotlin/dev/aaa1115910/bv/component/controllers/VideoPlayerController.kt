@@ -319,6 +319,50 @@ fun VideoPlayerController(
         if (isPlaying) onPause() else onPlay()
     }
 
+    fun closeSecondaryOverlays() {
+        showMenuController = false
+        showListController = false
+        showRelatedVideosController = false
+        overlayState = overlayState.closePanel()
+    }
+
+    fun startTouchSeek(startPositionMs: Long) {
+        if (!isSeeking) {
+            resumeAfterSeekPreview = isPlaying
+            if (resumeAfterSeekPreview) onPause()
+        }
+        goTime = startPositionMs.coerceIn(0L, seekerState.value.totalDuration.coerceAtLeast(0L))
+        isSeeking = true
+        showInfoSeekController = true
+    }
+
+    fun updateTouchSeekPreview(positionMs: Long) {
+        goTime = positionMs.coerceIn(0L, seekerState.value.totalDuration.coerceAtLeast(0L))
+        isSeeking = true
+        showInfoSeekController = true
+    }
+
+    fun finishTouchSeek(commit: Boolean) {
+        if (commit) {
+            onSeekGoTime()
+        } else {
+            cancelSeekPreview()
+        }
+    }
+
+    fun startTouchTempSpeed() {
+        if (!tempSpeedHoldState.isHoldingSpeed) {
+            tempSpeedHoldState.onLongPressTriggered(uiState.playSpeed)
+            onPlaySpeedChange(tempSpeedHoldState.temporarySpeed)
+        }
+    }
+
+    fun stopTouchTempSpeed() {
+        if (tempSpeedHoldState.isHoldingSpeed) {
+            onPlaySpeedChange(tempSpeedHoldState.onKeyReleased())
+        }
+    }
+
     fun handleKeyEvent(event: KeyEvent): Boolean {
         if (overlayState.activePanel != PlayerSidePanel.None) {
             return false
@@ -550,6 +594,31 @@ fun VideoPlayerController(
             }
         }
         content()
+        PlayerTouchGestureOverlay(
+            isPlaying = isPlaying,
+            controlsVisible = showClickableControllers || showJumpModePausedInfoController,
+            hasSecondaryOverlay = hasSecondaryOverlayOpen,
+            currentPositionMs = seekerState.value.currentTime,
+            durationMs = seekerState.value.totalDuration,
+            seekStepMs = seekStepMs,
+            onShowControls = {
+                showInfoSeekController = true
+            },
+            onHideControls = {
+                showInfoSeekController = false
+            },
+            onCloseSecondaryOverlay = {
+                closeSecondaryOverlays()
+                showInfoSeekController = false
+            },
+            onPlayPause = { onPlayPause() },
+            onSeekTo = { time -> onGoTime(time) },
+            onSeekPreviewStart = { start -> startTouchSeek(start) },
+            onSeekPreview = { preview -> updateTouchSeekPreview(preview) },
+            onSeekPreviewEnd = { commit -> finishTouchSeek(commit) },
+            onTempSpeedStart = { startTouchTempSpeed() },
+            onTempSpeedEnd = { stopTouchTempSpeed() }
+        )
         if (BuildConfig.DEBUG || uiState.showPlayerStats) {
             Box(
                 modifier = Modifier
@@ -587,6 +656,11 @@ fun VideoPlayerController(
                 (showInitialOnlineCountTip || showPrimaryInfoController),
             onlineCountText = uiState.onlineCountText?.let { PlayerUiTextFormatter.onlineCount(it) },
             pluginTipMessage = uiState.pluginTipMessage,
+            onPluginTipClick = if (uiState.pendingPluginAction != null) {
+                confirmPendingPluginAction
+            } else {
+                null
+            },
         )
 
         PlayStateTips(

@@ -175,13 +175,21 @@ fun ClosedCaptionMenuList(
             contentPadding = PaddingValues(8.dp)
         ) {
             itemsIndexed(VideoPlayerClosedCaptionMenuItem.entries) { index, item ->
+                val selectItem = {
+                    val result = resolveParentMenuTouch(
+                        current = selectedClosedCaptionMenuItem,
+                        touched = item
+                    )
+                    selectedClosedCaptionMenuItem = result.selectedItem
+                    onFocusStateChange(result.focusState)
+                }
                 MenuListItem(
                     modifier = Modifier
                         .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
                         .focusRequester(menuItemRequesters[index]),
                     text = item.getDisplayName(context),
                     selected = selectedClosedCaptionMenuItem == item,
-                    onClick = {},
+                    onClick = selectItem,
                     onFocus = { selectedClosedCaptionMenuItem = item },
                 )
             }

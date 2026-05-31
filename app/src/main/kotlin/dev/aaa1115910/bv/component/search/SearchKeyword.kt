@@ -18,6 +18,7 @@ import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
 import coil.size.Size
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun SearchKeyword(
@@ -48,7 +49,7 @@ fun SearchKeyword(
 
     if (leadingIcon != "" && painter.state is AsyncImagePainter.State.Success) {
         DenseListItem(
-            modifier = modifier,
+            modifier = modifier.touchClick(onClick),
             selected = false,
             onClick = onClick,
             headlineContent = {
@@ -69,7 +70,7 @@ fun SearchKeyword(
         )
     } else {
         DenseListItem(
-            modifier = modifier,
+            modifier = modifier.touchClick(onClick),
             selected = false,
             onClick = onClick,
             headlineContent = {

@@ -7,7 +7,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
@@ -119,6 +118,7 @@ import dev.aaa1115910.bv.util.formatPubTimeString
 import dev.aaa1115910.bv.util.launchPlayerActivity
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.swapListWithMainContext
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
@@ -542,6 +542,7 @@ fun VideoInfoData(
                 .focusRequester(defaultFocusRequester)
                 .weight(3f)
                 .aspectRatio(1.6f)
+                .touchClick(onClickCover)
                 .onGloballyPositioned { coordinates ->
                     heightIs = with(localDensity) { coordinates.size.height.toDp() }
                 },
@@ -678,7 +679,7 @@ private fun UpButton(
                 .background(Color.White.copy(alpha = 0.2f))
                 .focusedBorder(MaterialTheme.shapes.small)
                 .padding(4.dp)
-                .clickable { onClickUp() },
+                .touchClick(onClickUp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -692,7 +693,7 @@ private fun UpButton(
                     .background(Color.White.copy(alpha = 0.2f))
                     .focusedBorder(MaterialTheme.shapes.small)
                     .padding(horizontal = 4.dp, vertical = 3.dp)
-                    .clickable { if (followed) onDelFollow() else onAddFollow() }
+                    .touchClick { if (followed) onDelFollow() else onAddFollow() }
                     .animateContentSize()
             ) {
                 if (followed) {
@@ -747,7 +748,7 @@ fun VideoDescription(
                 .clip(MaterialTheme.shapes.medium)
                 .focusedBorder(MaterialTheme.shapes.medium)
                 .padding(8.dp)
-                .clickable {
+                .touchClick {
                     showDescriptionDialog = true
                 }
         ) {
@@ -805,7 +806,7 @@ fun VideoPartButton(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.touchClick(onClick),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
@@ -843,7 +844,9 @@ fun VideoPartRowButton(
     content: @Composable BoxScope.() -> Unit
 ) {
     Surface(
-        modifier = modifier.size(64.dp),
+        modifier = modifier
+            .size(64.dp)
+            .touchClick(onClick),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
@@ -1097,12 +1100,14 @@ private fun VideoPartListDialog(
                         separator = { Spacer(modifier = Modifier.width(12.dp)) },
                     ) {
                         for (i in 0 until tabCount) {
+                            val selectTab = { selectedTabIndex = i }
                             Tab(
-                                modifier = if (i == 0) Modifier.focusRequester(
+                                modifier = (if (i == 0) Modifier.focusRequester(
                                     tabRowFocusRequester
-                                ) else Modifier,
+                                ) else Modifier).touchClick(selectTab),
                                 selected = i == selectedTabIndex,
-                                onFocus = { selectedTabIndex = i },
+                                onFocus = selectTab,
+                                onClick = selectTab,
                             ) {
                                 Text(
                                     text = "P${i * 20 + 1}-${(i + 1) * 20}",
@@ -1204,12 +1209,14 @@ private fun VideoUgcListDialog(
                         separator = { Spacer(modifier = Modifier.width(12.dp)) },
                     ) {
                         for (i in 0 until tabCount) {
+                            val selectTab = { selectedTabIndex = i }
                             Tab(
-                                modifier = if (i == 0) Modifier.focusRequester(
+                                modifier = (if (i == 0) Modifier.focusRequester(
                                     tabRowFocusRequester
-                                ) else Modifier,
+                                ) else Modifier).touchClick(selectTab),
                                 selected = i == selectedTabIndex,
-                                onFocus = { selectedTabIndex = i },
+                                onFocus = selectTab,
+                                onClick = selectTab,
                             ) {
                                 Text(
                                     text = "P${i * 20 + 1}-${(i + 1) * 20}",

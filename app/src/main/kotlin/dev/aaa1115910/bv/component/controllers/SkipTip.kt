@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun SkipTips(
@@ -45,6 +46,7 @@ fun SkipTips(
     showOnlineCount: Boolean = false,
     onlineCountText: String? = null,
     pluginTipMessage: String? = null,
+    onPluginTipClick: (() -> Unit)? = null,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         Column(
@@ -62,6 +64,7 @@ fun SkipTips(
                 show = !pluginTipMessage.isNullOrBlank(),
                 text = pluginTipMessage.orEmpty(),
                 icon = Icons.Outlined.Info,
+                onClick = onPluginTipClick,
             )
             PlayerTip(
                 show = showSkipToNextEp,
@@ -96,6 +99,7 @@ fun PlayerTip(
     text: String,
     icon: ImageVector,
     anchoredEnd: Boolean = false,
+    onClick: (() -> Unit)? = null,
 ) {
     AnimatedVisibility(
         visible = show,
@@ -114,6 +118,7 @@ fun PlayerTip(
         Row(
             modifier = Modifier
                 .height(IntrinsicSize.Min)
+                .then(if (onClick != null) Modifier.touchClick(onClick) else Modifier)
                 .clip(
                     if (anchoredEnd) {
                         RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp)

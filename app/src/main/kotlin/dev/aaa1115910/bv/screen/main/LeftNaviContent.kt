@@ -38,6 +38,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.isDpadRight
 import dev.aaa1115910.bv.util.isKeyDown
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun LeftNaviContent(
@@ -85,9 +86,17 @@ fun LeftNaviContent(
     ) {
         var userIsFocused by remember { mutableStateOf(false) }
         NavigationRailItem(
-            modifier = Modifier.onFocusChanged {
-                userIsFocused = it.hasFocus
-            },
+            modifier = Modifier
+                .touchClick {
+                    if (isLogin) {
+                        onShowUserPanel()
+                    } else {
+                        onLogin()
+                    }
+                }
+                .onFocusChanged {
+                    userIsFocused = it.hasFocus
+                },
             onClick = {
                 if (isLogin) {
                     onShowUserPanel()
@@ -155,9 +164,11 @@ fun LeftNaviContent(
         }
         var settingsIsFocused by remember { mutableStateOf(false) }
         NavigationRailItem(
-            modifier = Modifier.onFocusChanged {
-                settingsIsFocused = it.hasFocus
-            },
+            modifier = Modifier
+                .touchClick(onOpenSettings)
+                .onFocusChanged {
+                    settingsIsFocused = it.hasFocus
+                },
             onClick = onOpenSettings,
             selected = settingsIsFocused,
             icon = {
@@ -215,6 +226,7 @@ private fun RailItem(
 
     NavigationRailItem(
         modifier = Modifier
+            .touchClick { onLeftNaviItemChanged(item) }
             .onFocusChanged { isFocused = it.hasFocus }
             .selectionIndicator(indicatorColor),
         onClick = { onLeftNaviItemChanged(item) },

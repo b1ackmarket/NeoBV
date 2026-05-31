@@ -2,7 +2,6 @@ package dev.aaa1115910.bv.component.videocard
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +40,7 @@ import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.focusedBorder
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun LargeVideoCard(
@@ -70,7 +70,7 @@ fun LargeVideoCard(
             .scale(scale)
             .onFocusChanged { hasFocus = it.isFocused }
             .focusedBorder(MaterialTheme.shapes.medium)
-            .clickable { onClick() },
+            .touchClick(onClick),
         shape = MaterialTheme.shapes.large
     ) {
         Row(

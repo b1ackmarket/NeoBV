@@ -48,6 +48,7 @@ import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.viewmodel.user.FollowViewModel
 import org.koin.androidx.compose.koinViewModel
 
@@ -162,6 +163,7 @@ fun UpCard(
 ) {
     Surface(
         modifier = modifier
+            .touchClick(onClick)
             .onFocusChanged { onFocusChange(it.hasFocus) }
             .size(280.dp, 80.dp),
         colors = ClickableSurfaceDefaults.colors(

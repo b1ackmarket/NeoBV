@@ -30,6 +30,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 internal fun VideoListController(
@@ -132,6 +133,7 @@ fun MenuListItem(
 ) {
     DenseListItem(
         modifier = modifier
+            .touchClick(onClick)
             .onFocusChanged { if (it.hasFocus) onFocus() },
         selected = selected,
         onClick = onClick,

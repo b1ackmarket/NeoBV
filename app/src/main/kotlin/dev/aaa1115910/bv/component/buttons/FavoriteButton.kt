@@ -39,6 +39,7 @@ import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.swapList
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun FavoriteButton(
@@ -52,7 +53,14 @@ fun FavoriteButton(
     var showFavoriteDialog by remember { mutableStateOf(false) }
 
     Button(
-        modifier = modifier,
+        modifier = modifier.touchClick {
+            if (showFavoriteDialog) return@touchClick
+            if (isFavorite) {
+                showFavoriteDialog = true
+            } else {
+                onAddToDefaultFavoriteFolder()
+            }
+        },
         onClick = {
             if (showFavoriteDialog) return@Button
             if (isFavorite) {

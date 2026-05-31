@@ -31,6 +31,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.OutlinedButtonDefaults
+import dev.aaa1115910.bv.util.touchLongClick
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -56,32 +57,34 @@ fun LikeButton(
         )
     )
     Button(
-        modifier = modifier.onPreviewKeyEvent {
-            when (it.key) {
-                Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
-                    if (it.type == KeyEventType.KeyDown) {
-                        if (!isPressed) {
-                            coroutineScope.launch {
-                                repeat(20) { index ->
-                                    if (!isPressed) return@launch
-                                    progress = index / 20f
-                                    delay(100)
-                                }
-                                if (progress >= 0.95f) {
-                                    onLongClick()
-                                    Log.d("LikeButton", "onKeyEvent: LongClick")
+        modifier = modifier
+            .touchLongClick(onClick = onClick, onLongClick = onLongClick)
+            .onPreviewKeyEvent {
+                when (it.key) {
+                    Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
+                        if (it.type == KeyEventType.KeyDown) {
+                            if (!isPressed) {
+                                coroutineScope.launch {
+                                    repeat(20) { index ->
+                                        if (!isPressed) return@launch
+                                        progress = index / 20f
+                                        delay(100)
+                                    }
+                                    if (progress >= 0.95f) {
+                                        onLongClick()
+                                        Log.d("LikeButton", "onKeyEvent: LongClick")
+                                    }
                                 }
                             }
+                            isPressed = true
+                        } else {
+                            isPressed = false
+                            if (progress < 0.95f) onClick()
                         }
-                        isPressed = true
-                    } else {
-                        isPressed = false
-                        if (progress < 0.95f) onClick()
                     }
                 }
-            }
-            false
-        },
+                false
+            },
         colors = ButtonDefaults.colors(pressedContainerColor = animatedColor.value),
         onClick = {}
     ) {

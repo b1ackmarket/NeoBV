@@ -61,6 +61,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.getDisplayName
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun IndexFilter(
@@ -229,7 +230,7 @@ private fun IndexFilterChip(
     label: String
 ) {
     FilterChip(
-        modifier = modifier,
+        modifier = modifier.touchClick(onClick),
         selected = selected,
         onClick = onClick
     ) {

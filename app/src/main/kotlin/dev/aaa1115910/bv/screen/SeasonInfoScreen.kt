@@ -8,7 +8,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -118,6 +117,7 @@ import dev.aaa1115910.bv.util.launchPlayerActivity
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.util.swapList
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
@@ -507,7 +507,9 @@ fun SeasonCover(
     )
 
     Card(
-        modifier = modifier.onFocusChanged { hasFocus = it.hasFocus },
+        modifier = modifier
+            .touchClick(onClick)
+            .onFocusChanged { hasFocus = it.hasFocus },
         onClick = onClick,
         shape = CardDefaults.shape(shape = MaterialTheme.shapes.large),
         glow = CardDefaults.glow(
@@ -748,7 +750,7 @@ fun SeasonEpisodeButton(
     val isPreview = LocalInspectionMode.current
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.touchClick(onClick),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
@@ -876,12 +878,14 @@ fun SeasonEpisodesDialog(
                             separator = { Spacer(modifier = Modifier.width(12.dp)) },
                         ) {
                             for (i in 0 until tabCount) {
+                                val selectTab = { selectedTabIndex = i }
                                 Tab(
-                                    modifier = if (i == 0) Modifier.focusRequester(
+                                    modifier = (if (i == 0) Modifier.focusRequester(
                                         tabRowFocusRequester
-                                    ) else Modifier,
+                                    ) else Modifier).touchClick(selectTab),
                                     selected = i == selectedTabIndex,
-                                    onFocus = { selectedTabIndex = i },
+                                    onFocus = selectTab,
+                                    onClick = selectTab,
                                 ) {
                                     Text(
                                         text = "P${i * 20 + 1}-${(i + 1) * 20}",
@@ -984,7 +988,9 @@ fun SeasonEpisodeRow(
         ) {
             item {
                 Surface(
-                    modifier = modifier.size(60.dp, 80.dp),
+                    modifier = modifier
+                        .size(60.dp, 80.dp)
+                        .touchClick { showEpisodesDialog = true },
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
@@ -1194,11 +1200,12 @@ private fun SeasonSelectorContent(
                     horizontalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
                     itemsIndexed(items = seasons) { index, season ->
-                        Card(
-                            modifier = Modifier
-                                .onFocusChanged {
-                                    if (it.hasFocus) currentSeasonIndex = index
-                                }
+                            Card(
+                                modifier = Modifier
+                                    .touchClick { onClickSeason(season.seasonId) }
+                                    .onFocusChanged {
+                                        if (it.hasFocus) currentSeasonIndex = index
+                                    }
                                 .ifElse(
                                     season.seasonId == currentSeasonId,
                                     Modifier.focusRequester(currentSeasonFocusRequester)

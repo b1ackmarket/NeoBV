@@ -1,5 +1,7 @@
 package dev.aaa1115910.bv.component.controllers.playermenu
 
+import dev.aaa1115910.bv.component.controllers.MenuFocusState
+import dev.aaa1115910.bv.component.controllers.VideoPlayerPictureMenuItem
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -18,5 +20,16 @@ class MenuFocusRequestTest {
             0,
             resolveParentMenuFocusIndex(selectedIndex = 9, itemCount = 3)
         )
+    }
+
+    @Test
+    fun `touching parent menu item selects it and opens tertiary items`() {
+        val result = resolveParentMenuTouch(
+            current = VideoPlayerPictureMenuItem.Resolution,
+            touched = VideoPlayerPictureMenuItem.Audio
+        )
+
+        assertEquals(VideoPlayerPictureMenuItem.Audio, result.selectedItem)
+        assertEquals(MenuFocusState.Items, result.focusState)
     }
 }

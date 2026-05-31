@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.tv.material3.Button
 import androidx.tv.material3.Icon
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun CoinButton(
@@ -16,7 +17,7 @@ fun CoinButton(
     onClick: () -> Unit
 ) {
     Button(
-        modifier = modifier,
+        modifier = modifier.touchClick(onClick),
         onClick = onClick,
     ) {
         Icon(

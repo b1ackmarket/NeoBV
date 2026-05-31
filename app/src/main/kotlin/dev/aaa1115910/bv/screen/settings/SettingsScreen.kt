@@ -49,6 +49,7 @@ import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import dev.aaa1115910.bv.telemetry.TelemetryScreen
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun SettingsScreen(
@@ -121,14 +122,17 @@ fun SettingsNav(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val focusRequester = remember { FocusRequester() }
+    val menuItems = remember { SettingsMenuNavItem.entries - SettingsMenuNavItem.PlayerType }
+    val itemFocusRequesters = remember(menuItems) {
+        menuItems.associateWith { FocusRequester() }
+    }
 
     LaunchedEffect(isFocusing) {
-        if (isFocusing) focusRequester.requestFocus(scope)
+        if (isFocusing) itemFocusRequesters[currentMenu]?.requestFocus(scope)
     }
 
     LaunchedEffect(Unit) {
-        focusRequester.requestFocus(scope)
+        itemFocusRequesters[currentMenu]?.requestFocus(scope)
     }
 
     LazyColumn(
@@ -136,17 +140,20 @@ fun SettingsNav(
         contentPadding = PaddingValues(24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        for (item in SettingsMenuNavItem.entries - listOf(SettingsMenuNavItem.PlayerType)) {
-            val buttonModifier = if (currentMenu == item) Modifier
-                .focusRequester(focusRequester)
-                .fillMaxWidth()
-            else Modifier.fillMaxWidth()
+        for (item in menuItems) {
+            val focusRequester = itemFocusRequesters.getValue(item)
             item {
                 SettingsMenuButton(
-                    modifier = buttonModifier,
+                    modifier = Modifier
+                        .focusRequester(focusRequester)
+                        .fillMaxWidth(),
                     text = item.getDisplayName(context),
                     selected = currentMenu == item,
                     onFocus = {
+                        onMenuChanged(item)
+                    },
+                    onClick = {
+                        focusRequester.requestFocus(scope)
                         onMenuChanged(item)
                     }
                 )
@@ -209,6 +216,7 @@ fun SettingsMenuButton(
 ) {
     ListItem(
         modifier = modifier
+            .touchClick(onClick)
             .onFocusChanged { if (it.hasFocus) onFocus() else onLoseFocus() },
         selected = selected,
         onClick = onClick,

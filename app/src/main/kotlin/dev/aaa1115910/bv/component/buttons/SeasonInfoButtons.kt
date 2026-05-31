@@ -20,6 +20,7 @@ import androidx.tv.material3.IconButton
 import androidx.tv.material3.OutlinedButtonDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun SeasonInfoButtons(
@@ -38,7 +39,10 @@ fun SeasonInfoButtons(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         if (isPublished) {
-            Button(onClick = onPlay) {
+            Button(
+                modifier = Modifier.touchClick(onPlay),
+                onClick = onPlay
+            ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -70,7 +74,7 @@ fun FollowSeasonButton(
     onClick: (follow: Boolean) -> Unit
 ) {
     IconButton(
-        modifier = modifier,
+        modifier = modifier.touchClick { onClick(!following) },
         onClick = { onClick(!following) },
         colors = OutlinedButtonDefaults.colors(),
         border = OutlinedButtonDefaults.border()

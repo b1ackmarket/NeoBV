@@ -65,6 +65,7 @@ import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.formatHourMinSec
+import dev.aaa1115910.bv.util.touchClick
 import kotlinx.coroutines.delay
 
 @Composable
@@ -416,6 +417,13 @@ fun ControllerVideoInfoBottom(
                 )
                 .focusable()
                 .focusRequester(seekFocusRequester)
+                .touchClick {
+                    if (isSeeking) {
+                        onSeekGoTime()
+                    } else {
+                        onPlayPause()
+                    }
+                }
                 .onKeyEvent {
                     when (it.key) {
                         Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
@@ -518,6 +526,11 @@ fun ControllerVideoInfoBottom(
                 contentDescription = "循环播放",
                 onClick = onToggleLoop
             ),
+            ControllerInfoButton(
+                iconRes = R.drawable.settings_24px,
+                contentDescription = "播放设置",
+                onClick = onShowSettings
+            ),
         )
 
         Row(
@@ -537,8 +550,10 @@ fun ControllerVideoInfoBottom(
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
         ) {
             icons.forEach { button ->
+                val clickButton = { if (button.enabled) button.onClick() }
                 Surface(
-                    onClick = button.onClick,
+                    modifier = Modifier.touchClick(clickButton),
+                    onClick = clickButton,
                     shape = ClickableSurfaceDefaults.shape(
                         shape = MaterialTheme.shapes.small,
                     ),

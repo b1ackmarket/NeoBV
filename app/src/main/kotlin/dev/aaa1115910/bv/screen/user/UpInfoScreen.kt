@@ -423,11 +423,14 @@ private fun UpTabs(
         separator = { Spacer(modifier = Modifier.width(16.dp)) }
     ) {
         tabs.forEachIndexed { index, tab ->
+            val selectTab = { onSelect(tab) }
             Tab(
-                modifier = Modifier.focusRequester(tabFocusRequesters[index]),
+                modifier = Modifier
+                    .focusRequester(tabFocusRequesters[index])
+                    .touchClick(selectTab),
                 selected = tab == selectedTab,
-                onFocus = { onSelect(tab) },
-                onClick = { onSelect(tab) }
+                onFocus = selectTab,
+                onClick = selectTab
             ) {
                 Text(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),

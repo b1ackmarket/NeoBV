@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -32,6 +33,7 @@ import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.util.getDisplayName
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun TopNav(
@@ -43,6 +45,11 @@ fun TopNav(
     onClick: (TopNavItem) -> Unit = {}
 ) {
     val focusRequester = remember { FocusRequester() }
+    val itemFocusRequesters = remember(items) {
+        mutableStateListOf<FocusRequester>().apply {
+            addAll(items.map { FocusRequester() })
+        }
+    }
 
     var selectedNav by remember { mutableStateOf(items.first()) }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
@@ -66,7 +73,8 @@ fun TopNav(
             items.forEachIndexed { index, tab ->
                 NavItemTab(
                     modifier = Modifier
-                        .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
+                        .ifElse(index == 0, Modifier.focusRequester(focusRequester))
+                        .focusRequester(itemFocusRequesters[index]),
                     topNavItem = tab,
                     downFocusRequester = downFocusRequester,
                     selected = index == selectedTabIndex,
@@ -79,7 +87,10 @@ fun TopNav(
                         val clickResult = resolveTopNavClick(items = items, clicked = tab)
                         selectedNav = clickResult.selectedItem
                         selectedTabIndex = clickResult.selectedIndex
-                        onSelectedChanged(tab)
+                        runCatching {
+                            itemFocusRequesters[clickResult.selectedIndex].requestFocus()
+                        }
+                        onSelectedChanged(clickResult.selectedItem)
                         onClick(tab)
                     }
                 )
@@ -117,6 +128,7 @@ private fun TabRowScope.NavItemTab(
 
     Tab(
         modifier = modifier
+            .touchClick(onClick)
             .focusProperties {
                 down = downFocusRequester
             },

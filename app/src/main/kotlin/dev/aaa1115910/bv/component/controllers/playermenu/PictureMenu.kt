@@ -169,13 +169,21 @@ fun PictureMenuList(
             contentPadding = PaddingValues(8.dp)
         ) {
             itemsIndexed(VideoPlayerPictureMenuItem.entries.toMutableList()) { index, item ->
+                val selectItem = {
+                    val result = resolveParentMenuTouch(
+                        current = selectedPictureMenuItem,
+                        touched = item
+                    )
+                    selectedPictureMenuItem = result.selectedItem
+                    onFocusStateChange(result.focusState)
+                }
                 MenuListItem(
                     modifier = Modifier
                         .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
                         .focusRequester(menuItemRequesters[index]),
                     text = item.getDisplayName(context),
                     selected = selectedPictureMenuItem == item,
-                    onClick = {},
+                    onClick = selectItem,
                     onFocus = { selectedPictureMenuItem = item },
                 )
             }

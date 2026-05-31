@@ -68,6 +68,7 @@ import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.resizedImageUrl
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.pgc.FeedListType
 import dev.aaa1115910.bv.viewmodel.pgc.PgcViewModel
@@ -389,7 +390,7 @@ fun PgcFeatureButton(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.touchClick(onClick),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
@@ -424,7 +425,7 @@ fun PgcFeatureButton(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.touchClick(onClick),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
