@@ -14,6 +14,7 @@ import dev.aaa1115910.biliapi.http.entity.home.RcmdTopData
 import dev.aaa1115910.biliapi.http.entity.index.IndexResultData
 import dev.aaa1115910.biliapi.http.entity.pgc.PgcFeedData
 import dev.aaa1115910.biliapi.http.entity.pgc.PgcFeedV3Data
+import dev.aaa1115910.biliapi.http.entity.pgc.PgcCinemaTabData
 import dev.aaa1115910.biliapi.http.entity.pgc.PgcRankData
 import dev.aaa1115910.biliapi.http.entity.pgc.PgcRankResult
 import dev.aaa1115910.biliapi.http.entity.pgc.PgcWebInitialStateData
@@ -1635,6 +1636,15 @@ object BiliHttpApi {
         parameter("name", name)
         parameter("coursor", cursor)
         parameter("new_cursor_status", true)
+    }.body()
+
+    suspend fun getPgcCinemaTab(
+        cursor: String? = null
+    ): BiliResponse<PgcCinemaTabData> = client.get("/pgc/page/cinema/tab") {
+        parameter("mobi_app", "pc_web")
+        parameter("build", 1000000)
+        cursor?.takeIf { it.isNotBlank() }?.let { parameter("cursor", it) }
+        header("referer", "https://www.bilibili.com/")
     }.body()
 
     suspend fun getPgcRank(

@@ -219,7 +219,8 @@ enum class UgcTopNavItem(val ugcTypeV2: UgcTypeV2) : TopNavItem {
     }
 }
 
-enum class PgcTopNavItem(private val pgcType: PgcType) : TopNavItem {
+enum class PgcTopNavItem(private val pgcType: PgcType? = null, private val displayName: String? = null) : TopNavItem {
+    Cinema(displayName = "影视"),
     Anime(PgcType.Anime),
     GuoChuang(PgcType.GuoChuang),
     Movie(PgcType.Movie),
@@ -228,7 +229,7 @@ enum class PgcTopNavItem(private val pgcType: PgcType) : TopNavItem {
     Variety(PgcType.Variety);
 
     override fun getDisplayName(context: Context): String {
-        return pgcType.getDisplayName(context)
+        return displayName ?: pgcType?.getDisplayName(context).orEmpty()
     }
 }
 

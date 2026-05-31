@@ -30,12 +30,14 @@ import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.PgcTopNavItem
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.screen.main.pgc.AnimeContent
+import dev.aaa1115910.bv.screen.main.pgc.CinemaContent
 import dev.aaa1115910.bv.screen.main.pgc.DocumentaryContent
 import dev.aaa1115910.bv.screen.main.pgc.GuoChuangContent
 import dev.aaa1115910.bv.screen.main.pgc.MovieContent
 import dev.aaa1115910.bv.screen.main.pgc.TvContent
 import dev.aaa1115910.bv.screen.main.pgc.VarietyContent
 import dev.aaa1115910.bv.viewmodel.pgc.PgcAnimeViewModel
+import dev.aaa1115910.bv.viewmodel.pgc.PgcCinemaViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcDocumentaryViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcGuoChuangViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcMovieViewModel
@@ -46,6 +48,7 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun PgcContent(
     navFocusRequester: FocusRequester,
+    pgcCinemaViewModel: PgcCinemaViewModel = koinViewModel(),
     pgcAnimeViewModel: PgcAnimeViewModel = koinViewModel(),
     pgcGuoChuangViewModel: PgcGuoChuangViewModel = koinViewModel(),
     pgcMovieViewModel: PgcMovieViewModel = koinViewModel(),
@@ -53,6 +56,7 @@ fun PgcContent(
     pgcTvViewModel: PgcTvViewModel = koinViewModel(),
     pgcVarietyViewModel: PgcVarietyViewModel = koinViewModel()
 ) {
+    val cinemaState = rememberLazyListState()
     val animeState = rememberLazyListState()
     val guoChuangState = rememberLazyListState()
     val movieState = rememberLazyListState()
@@ -60,12 +64,13 @@ fun PgcContent(
     val tvState = rememberLazyListState()
     val varietyState = rememberLazyListState()
 
-    var selectedTab by remember { mutableStateOf(PgcTopNavItem.Anime) }
+    var selectedTab by remember { mutableStateOf(PgcTopNavItem.Cinema) }
     var focusOnContent by remember { mutableStateOf(false) }
     val currentListOnTop by remember {
         derivedStateOf {
             with(
                 when (selectedTab) {
+                    PgcTopNavItem.Cinema -> cinemaState
                     PgcTopNavItem.Anime -> animeState
                     PgcTopNavItem.GuoChuang -> guoChuangState
                     PgcTopNavItem.Movie -> movieState
@@ -98,6 +103,7 @@ fun PgcContent(
                 },
                 onClick = { nav ->
                     when (nav) {
+                        PgcTopNavItem.Cinema -> pgcCinemaViewModel.reloadAll()
                         PgcTopNavItem.Anime -> pgcAnimeViewModel.reloadAll()
                         PgcTopNavItem.GuoChuang -> pgcGuoChuangViewModel.reloadAll()
                         PgcTopNavItem.Movie -> pgcMovieViewModel.reloadAll()
@@ -137,6 +143,7 @@ fun PgcContent(
                 }
             ) { screen ->
                 when (screen) {
+                    PgcTopNavItem.Cinema -> CinemaContent(lazyListState = cinemaState)
                     PgcTopNavItem.Anime -> AnimeContent(lazyListState = animeState)
                     PgcTopNavItem.GuoChuang -> GuoChuangContent(lazyListState = guoChuangState)
                     PgcTopNavItem.Movie -> MovieContent(lazyListState = movieState)

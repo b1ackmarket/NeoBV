@@ -1,6 +1,7 @@
 package dev.aaa1115910.biliapi.repositories
 
 import dev.aaa1115910.biliapi.entity.CarouselData
+import dev.aaa1115910.biliapi.entity.pgc.PgcCinemaTabData
 import dev.aaa1115910.biliapi.entity.pgc.PgcFeedData
 import dev.aaa1115910.biliapi.entity.pgc.PgcItem
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
@@ -47,6 +48,12 @@ class PgcRepository {
             )
         }
         return data
+    }
+
+    suspend fun getCinemaTab(cursor: String? = null): PgcCinemaTabData {
+        return PgcCinemaTabData.fromHttpData(
+            BiliHttpApi.getPgcCinemaTab(cursor = cursor).getResponseData()
+        )
     }
 
     suspend fun getRank(pgcType: PgcType): PgcFeedData.FeedRank {

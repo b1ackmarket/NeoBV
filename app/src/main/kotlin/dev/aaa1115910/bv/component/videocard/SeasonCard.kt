@@ -100,7 +100,7 @@ fun SeasonCard(
                         },
                     model = data.cover,
                     contentDescription = null,
-                    contentScale = ContentScale.FillBounds
+                    contentScale = ContentScale.Crop
                 )
 
                 if (data.rating != null) {

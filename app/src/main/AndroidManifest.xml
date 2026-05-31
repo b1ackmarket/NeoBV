@@ -84,6 +84,12 @@
             android:screenOrientation="sensorLandscape"
             android:theme="@style/Theme.BV" />
         <activity
+            android:name=".activities.pgc.PgcCinemaTopicActivity"
+            android:exported="false"
+            android:label="影视专题"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/Theme.BV" />
+        <activity
             android:name=".activities.pgc.PgcRankActivity"
             android:exported="false"
             android:label="排行榜"
