@@ -54,10 +54,13 @@ import dev.aaa1115910.biliapi.http.entity.user.garb.EquipPart
 import dev.aaa1115910.biliapi.http.entity.video.AddCoin
 import dev.aaa1115910.biliapi.http.entity.video.CheckSentCoin
 import dev.aaa1115910.biliapi.http.entity.video.CheckVideoFavoured
+import dev.aaa1115910.biliapi.http.entity.video.MusicTopListData
+import dev.aaa1115910.biliapi.http.entity.video.MusicTopListPeriodData
 import dev.aaa1115910.biliapi.http.entity.video.OneClickTripleAction
 import dev.aaa1115910.biliapi.http.entity.video.PlayUrlData
 import dev.aaa1115910.biliapi.http.entity.video.PlayUrlV2Data
 import dev.aaa1115910.biliapi.http.entity.video.PopularVideoData
+import dev.aaa1115910.biliapi.http.entity.video.RankingV2Data
 import dev.aaa1115910.biliapi.http.entity.video.RelatedVideosResponse
 import dev.aaa1115910.biliapi.http.entity.video.SetVideoFavorite
 import dev.aaa1115910.biliapi.http.entity.video.Tag
@@ -70,6 +73,8 @@ import dev.aaa1115910.biliapi.http.entity.video.VideoInfo
 import dev.aaa1115910.biliapi.http.entity.video.VideoMoreInfo
 import dev.aaa1115910.biliapi.http.entity.video.VideoPbp
 import dev.aaa1115910.biliapi.http.entity.video.VideoShot
+import dev.aaa1115910.biliapi.http.entity.video.WeeklySeriesListData
+import dev.aaa1115910.biliapi.http.entity.video.WeeklySeriesOneData
 import dev.aaa1115910.biliapi.http.entity.web.NavResponseData
 import dev.aaa1115910.biliapi.http.plugins.BiliUserAgent
 import dev.aaa1115910.biliapi.http.util.BiliAppConf
@@ -185,6 +190,48 @@ object BiliHttpApi {
         parameter("page_size", pageSize)
         header("Cookie", "SESSDATA=$sessData;")
     }.body()
+
+    suspend fun getWeeklySeriesList(): BiliResponse<WeeklySeriesListData> =
+        client.get("/x/web-interface/popular/series/list") {
+            header("Referer", "https://www.bilibili.com/v/popular/weekly")
+        }.body()
+
+    suspend fun getWeeklySeriesOne(number: Int): BiliResponse<WeeklySeriesOneData> =
+        client.get("/x/web-interface/popular/series/one") {
+            parameter("number", number)
+            header("Referer", "https://www.bilibili.com/v/popular/weekly")
+        }.body()
+
+    suspend fun getPopularPreciousAllData(sessData: String = ""): BiliResponse<PopularVideoData> =
+        getPopularPreciousData(pageNumber = 1, pageSize = 100, sessData = sessData)
+
+    suspend fun getRankingV2(rid: Int): BiliResponse<RankingV2Data> =
+        client.get("/x/web-interface/ranking/v2") {
+            parameter("rid", rid)
+            parameter("type", "all")
+            header("Referer", "https://www.bilibili.com/v/popular/rank/all")
+        }.body()
+
+    suspend fun getMusicTopList(
+        listId: Int,
+        listType: Int,
+        periodId: Int? = null
+    ): BiliResponse<MusicTopListData> = client.get("/x/copyright-music-publicity/toplist/music_list") {
+        parameter("list_id", listId)
+        parameter("list_type", listType)
+        periodId?.let { parameter("version", it) }
+        header("Referer", "https://www.bilibili.com/v/popular/music")
+    }.body()
+
+    suspend fun getMusicTopListPeriods(
+        listId: Int,
+        listType: Int
+    ): BiliResponse<MusicTopListPeriodData> =
+        client.get("/x/copyright-music-publicity/toplist/all_period") {
+            parameter("list_id", listId)
+            parameter("list_type", listType)
+            header("Referer", "https://www.bilibili.com/v/popular/music")
+        }.body()
 
     /**
      * 获取视频详细信息

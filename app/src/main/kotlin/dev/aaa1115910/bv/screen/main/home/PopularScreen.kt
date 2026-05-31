@@ -4,10 +4,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -18,7 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
 import dev.aaa1115910.bv.BVApp
@@ -35,6 +40,7 @@ import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
+import dev.aaa1115910.bv.viewmodel.home.PopularRankCategory
 import dev.aaa1115910.bv.viewmodel.home.PopularViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import kotlinx.coroutines.Dispatchers
@@ -95,6 +101,17 @@ fun PopularScreen(
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            PopularCategoryRow(
+                onSelect = { category ->
+                    scope.launch(Dispatchers.IO) {
+                        popularViewModel.selectCategory(category)
+                        popularViewModel.loadMore()
+                    }
+                }
+            )
+        }
+
         itemsIndexed(
             items = popularViewModel.popularVideoList,
             key = { index, _ -> index }
@@ -149,6 +166,29 @@ fun PopularScreen(
                     textAlign = TextAlign.Center,
                     text = "没有更多了捏",
                     color = Color.White
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PopularCategoryRow(
+    onSelect: (PopularRankCategory) -> Unit
+) {
+    LazyRow(
+        contentPadding = PaddingValues(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(PopularRankCategory.entries, key = { it.name }) { category ->
+            OutlinedButton(
+                modifier = Modifier.widthIn(max = 152.dp),
+                onClick = { onSelect(category) }
+            ) {
+                Text(
+                    text = category.displayName,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }

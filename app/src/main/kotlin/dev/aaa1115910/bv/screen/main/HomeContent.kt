@@ -33,6 +33,7 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.TopNav
+import dev.aaa1115910.bv.screen.main.home.HomeRankingScreen
 import dev.aaa1115910.bv.screen.main.home.PopularScreen
 import dev.aaa1115910.bv.screen.main.home.RecommendScreen
 import dev.aaa1115910.bv.screen.main.ugc.UgcRegionScaffold
@@ -41,6 +42,7 @@ import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.home.HomeRegionState
 import dev.aaa1115910.bv.viewmodel.home.HomeRegionViewModel
+import dev.aaa1115910.bv.viewmodel.home.HomeRankingViewModel
 import dev.aaa1115910.bv.viewmodel.home.PopularViewModel
 import dev.aaa1115910.bv.viewmodel.home.RecommendViewModel
 import dev.aaa1115910.bv.viewmodel.player.HomeStartDestination
@@ -55,6 +57,7 @@ fun HomeContent(
     startupTab: HomeStartDestination = HomeStartDestination.Recommend,
     recommendViewModel: RecommendViewModel = koinViewModel(),
     popularViewModel: PopularViewModel = koinViewModel(),
+    rankingViewModel: HomeRankingViewModel = koinViewModel(),
     userViewModel: UserViewModel = koinViewModel(),
     homeRegionViewModel: HomeRegionViewModel = koinViewModel()
 ) {
@@ -71,20 +74,15 @@ fun HomeContent(
     var selectedTab by remember { mutableStateOf(firstTab) }
     var focusOnContent by remember { mutableStateOf(false) }
 
-    val getReorderedItems: (HomeTopNavItem) -> List<HomeTopNavItem> = { item ->
-        val allItems = HomeTopNavItem.entries
-        val startIndex = allItems.indexOf(item)
-        if (startIndex == -1) emptyList()
-        else allItems.drop(startIndex) + allItems.take(startIndex)
-    }
     val reorderedItems = remember {
-        getReorderedItems(firstTab)
+        resolveHomeTopNavOrder(firstTab)
     }
     val regionGridStates = remember {
         HomeTopNavItem.entries
             .filter {
                 it != HomeTopNavItem.Recommend &&
-                    it != HomeTopNavItem.Popular
+                    it != HomeTopNavItem.Popular &&
+                    it != HomeTopNavItem.Ranking
             }
             .associateWith { LazyGridState() }
     }
@@ -124,6 +122,7 @@ fun HomeContent(
                     when (nav) {
                         HomeTopNavItem.Recommend -> {}
                         HomeTopNavItem.Popular -> {}
+                        HomeTopNavItem.Ranking -> {}
                         else -> {
                             if (homeRegionViewModel.regionStateMap[nav] == null) {
                                 homeRegionViewModel.addState(
@@ -138,23 +137,27 @@ fun HomeContent(
                     }
                 },
                 onClick = { nav ->
-                    when (nav) {
-                        HomeTopNavItem.Recommend -> {
+                    when ((nav as HomeTopNavItem).toClickAction()) {
+                        HomeTabAction.RefreshRecommend -> {
                             logger.fInfo { "clear recommend data" }
                             recommendViewModel.clearData()
                             logger.fInfo { "reload recommend data" }
                             scope.launch(Dispatchers.IO) { recommendViewModel.loadMore() }
                         }
 
-                        HomeTopNavItem.Popular -> {
+                        HomeTabAction.RefreshPopular -> {
                             logger.fInfo { "clear popular data" }
                             popularViewModel.clearData()
                             logger.fInfo { "reload popular data" }
                             scope.launch(Dispatchers.IO) { popularViewModel.loadMore() }
                         }
 
-                        else -> {
-                            homeRegionViewModel.reloadAll(nav as HomeTopNavItem)
+                        HomeTabAction.RefreshRanking -> {
+                            scope.launch(Dispatchers.IO) { rankingViewModel.refresh() }
+                        }
+
+                        HomeTabAction.RefreshRegion -> {
+                            homeRegionViewModel.reloadAll(nav)
                         }
                     }
                 }
@@ -168,20 +171,23 @@ fun HomeContent(
                 .onPreviewKeyEvent {
                     if (it.key == Key.Menu) {
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                        when (selectedTab) {
-                            HomeTopNavItem.Recommend -> {
+                        when (resolveHomeMenuAction(selectedTab)) {
+                            HomeTabAction.RefreshRecommend -> {
                                 recommendViewModel.clearData()
                                 scope.launch(Dispatchers.IO) { recommendViewModel.loadMore() }
                             }
 
-                            HomeTopNavItem.Popular -> {
+                            HomeTabAction.RefreshPopular -> {
                                 popularViewModel.clearData()
                                 scope.launch(Dispatchers.IO) { popularViewModel.loadMore() }
                             }
 
-                            else -> {
+                            HomeTabAction.RefreshRegion -> {
                                 homeRegionViewModel.reloadAll(selectedTab)
                             }
+
+                            HomeTabAction.RefreshRanking,
+                            null -> {}
                         }
                         navFocusRequester.requestFocus()
                         return@onPreviewKeyEvent true
@@ -206,6 +212,7 @@ fun HomeContent(
                 when (screen) {
                     HomeTopNavItem.Recommend -> RecommendScreen()
                     HomeTopNavItem.Popular -> PopularScreen()
+                    HomeTopNavItem.Ranking -> HomeRankingScreen(rankingViewModel = rankingViewModel)
                     else -> {
                         val state = homeRegionViewModel.regionStateMap[screen]
                         if (state != null) {
@@ -257,5 +264,40 @@ private fun HomeTopNavItem.toUgcType() = when (this) {
     HomeTopNavItem.Sports -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Sports
     HomeTopNavItem.Animal -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Animal
     HomeTopNavItem.Recommend,
-    HomeTopNavItem.Popular -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Douga
+    HomeTopNavItem.Popular,
+    HomeTopNavItem.Ranking -> dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2.Douga
+}
+
+enum class HomeTabAction {
+    RefreshRecommend,
+    RefreshPopular,
+    RefreshRanking,
+    RefreshRegion
+}
+
+fun resolveHomeTopNavOrder(firstTab: HomeTopNavItem): List<HomeTopNavItem> {
+    val stableHead = listOf(HomeTopNavItem.Recommend, HomeTopNavItem.Popular, HomeTopNavItem.Ranking)
+    if (firstTab in stableHead) return stableHead + HomeTopNavItem.entries.filterNot { it in stableHead }
+
+    val allItems = HomeTopNavItem.entries
+    val startIndex = allItems.indexOf(firstTab)
+    return if (startIndex == -1) stableHead else {
+        allItems.drop(startIndex) + allItems.take(startIndex)
+    }
+}
+
+fun HomeTopNavItem.toClickAction(): HomeTabAction {
+    return when (this) {
+        HomeTopNavItem.Recommend -> HomeTabAction.RefreshRecommend
+        HomeTopNavItem.Popular -> HomeTabAction.RefreshPopular
+        HomeTopNavItem.Ranking -> HomeTabAction.RefreshRanking
+        else -> HomeTabAction.RefreshRegion
+    }
+}
+
+fun resolveHomeMenuAction(tab: HomeTopNavItem): HomeTabAction? {
+    return when (tab) {
+        HomeTopNavItem.Ranking -> null
+        else -> tab.toClickAction()
+    }
 }

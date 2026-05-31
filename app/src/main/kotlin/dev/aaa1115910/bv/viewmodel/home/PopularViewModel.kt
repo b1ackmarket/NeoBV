@@ -28,6 +28,8 @@ class PopularViewModel(
     val popularVideoList = mutableStateListOf<UgcItem>()
 
     private var nextPage = PopularVideoPage()
+    var selectedCategory by mutableStateOf(PopularRankCategory.All)
+        private set
     var refreshing by mutableStateOf(false)
     var loading by mutableStateOf(false)
 
@@ -45,19 +47,31 @@ class PopularViewModel(
         loading = true
         logger.fInfo { "Load more popular videos" }
         runCatching {
-            val popularVideoData = recommendVideoRepository.getPopularVideos(
-                page = nextPage,
-                preferApiType = Prefs.recommendationApiType.toRequestApiType(),
-                useAuth = Prefs.recommendationApiType.useAuth
-            )
-            beforeAppendData()
-            nextPage = popularVideoData.nextPage
-            popularVideoList.addAllWithMainContext(popularVideoData.list)
+            when (selectedCategory.feedSource) {
+                PopularFeedSource.Popular -> {
+                    val popularVideoData = recommendVideoRepository.getPopularVideos(
+                        page = nextPage,
+                        preferApiType = Prefs.recommendationApiType.toRequestApiType(),
+                        useAuth = Prefs.recommendationApiType.useAuth
+                    )
+                    beforeAppendData()
+                    nextPage = popularVideoData.nextPage
+                    popularVideoList.addAllWithMainContext(popularVideoData.list)
+                }
+
+                PopularFeedSource.Rank -> {
+                    if (popularVideoList.isNotEmpty()) return@runCatching
+                    val rankItems = recommendVideoRepository.getRankingVideos(selectedCategory.rid ?: 0)
+                    beforeAppendData()
+                    popularVideoList.addAllWithMainContext(rankItems)
+                }
+            }
         }.onFailure {
             logger.fError { "Load popular video list failed: ${it.stackTraceToString()}" }
             FirebaseTelemetry.reportApiError(
                 throwable = it,
-                endpoint = "/x/web-interface/popular"
+                endpoint = selectedCategory.slug?.let { slug -> "/v/popular/rank/$slug" }
+                    ?: "/x/web-interface/popular"
             )
             withContext(Dispatchers.Main) {
                 "加载热门视频失败: ${it.localizedMessage}".toast(BVApp.context)
@@ -75,5 +89,11 @@ class PopularViewModel(
     fun resetPage() {
         nextPage = PopularVideoPage()
         refreshing = true
+    }
+
+    fun selectCategory(category: PopularRankCategory) {
+        if (selectedCategory == category && popularVideoList.isNotEmpty()) return
+        selectedCategory = category
+        clearData()
     }
 }
