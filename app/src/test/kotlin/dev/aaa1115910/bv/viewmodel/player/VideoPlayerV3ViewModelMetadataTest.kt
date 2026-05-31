@@ -18,6 +18,8 @@ import dev.aaa1115910.bv.entity.PlayerCommentSort
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.repository.JumpModeQueueItem
+import dev.aaa1115910.bv.subtitle.SecondarySubtitleOption
+import dev.aaa1115910.bv.subtitle.translation.SubtitleTranslationConfig
 import dev.aaa1115910.bv.ui.state.JumpModeState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SubtitleMemory
@@ -333,6 +335,37 @@ class VideoPlayerV3ViewModelMetadataTest {
     fun `reply sort maps to bilibili api sort values`() {
         assertEquals(0, PlayerCommentSort.Latest.toReplyApiSort())
         assertEquals(1, PlayerCommentSort.Hot.toReplyApiSort())
+    }
+
+    @Test
+    fun `preferred main subtitle falls back to first available track`() {
+        val tracks = listOf(
+            subtitle(id = 2L, lang = "en", langDoc = "英语"),
+            subtitle(id = 1L, lang = "zh", langDoc = "中文")
+        )
+
+        assertEquals(2L, resolvePreferredMainSubtitleId(null, tracks))
+    }
+
+    @Test
+    fun `preferred secondary subtitle can choose custom translation`() {
+        val config = SubtitleTranslationConfig(targetLanguage = "en")
+            .let { it.copy(verifiedSignature = it.configSignature()) }
+        val tracks = listOf(
+            subtitle(id = 1L, lang = "zh", langDoc = "中文"),
+            subtitle(id = 2L, lang = "en", langDoc = "英语")
+        )
+
+        val option = resolvePreferredSecondarySubtitleOption(
+            tracks = tracks,
+            mainSubtitleId = 1L,
+            memory = null,
+            config = config,
+            preferCustom = true,
+            sourceSubtitleAvailable = true
+        )
+
+        assertEquals(SecondarySubtitleOption.CustomTranslation, option)
     }
 
     @Test

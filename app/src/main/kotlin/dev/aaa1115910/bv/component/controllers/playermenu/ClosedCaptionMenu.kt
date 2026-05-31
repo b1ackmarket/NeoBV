@@ -32,7 +32,10 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.aaa1115910.biliapi.entity.video.Subtitle
+import dev.aaa1115910.biliapi.entity.video.SubtitleAiStatus
+import dev.aaa1115910.biliapi.entity.video.SubtitleAiType
 import dev.aaa1115910.biliapi.entity.video.SubtitleType
+import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.LocalMenuFocusStateData
 import dev.aaa1115910.bv.component.controllers.MenuFocusState
 import dev.aaa1115910.bv.component.controllers.VideoPlayerClosedCaptionMenuItem
@@ -40,6 +43,11 @@ import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.RadioMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.component.StepLessMenuItem
 import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.subtitle.SecondarySubtitleOption
+import dev.aaa1115910.bv.subtitle.buildSecondarySubtitleOptions
+import dev.aaa1115910.bv.subtitle.translation.SubtitleTranslationConfig
+import dev.aaa1115910.bv.viewmodel.player.CustomSubtitleTrackId
+import dev.aaa1115910.bv.viewmodel.player.SubtitleRole
 import java.text.NumberFormat
 
 internal fun resolveSelectedSubtitleTrackIndex(
@@ -53,11 +61,16 @@ internal fun resolveSelectedSubtitleTrackIndex(
 fun ClosedCaptionMenuList(
     modifier: Modifier = Modifier,
     currentSubtitleId: Long,
+    currentSecondarySubtitleId: Long,
+    currentSecondarySubtitleCustom: Boolean = false,
     availableSubtitleTracks: List<Subtitle>,
     currentFontSize: TextUnit,
     currentOpacity: Float,
     currentPadding: Dp,
-    onSubtitleChange: (Subtitle) -> Unit,
+    bilingualSubtitleEnabled: Boolean,
+    subtitleTranslationConfig: SubtitleTranslationConfig,
+    preferCustomSecondarySubtitle: Boolean,
+    onSubtitleChange: (Subtitle, SubtitleRole) -> Unit,
     onSubtitleSizeChange: (TextUnit) -> Unit,
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
     onSubtitleBottomPadding: (Dp) -> Unit,
@@ -68,7 +81,7 @@ fun ClosedCaptionMenuList(
     val restorerFocusRequester = remember { FocusRequester() }
 
     val focusRequester = remember { FocusRequester() }
-    var selectedClosedCaptionMenuItem by remember { mutableStateOf(VideoPlayerClosedCaptionMenuItem.Switch) }
+    var selectedClosedCaptionMenuItem by remember { mutableStateOf(VideoPlayerClosedCaptionMenuItem.Main) }
     val menuItemRequesters = remember {
         mutableStateListOf<FocusRequester>().apply {
             addAll(VideoPlayerClosedCaptionMenuItem.entries.map { FocusRequester() })
@@ -79,6 +92,48 @@ fun ClosedCaptionMenuList(
         currentSubtitleId = currentSubtitleId,
         tracks = availableSubtitleTracks
     )
+    val sourceSubtitleAvailable = currentSubtitleId != -1L
+    val secondarySubtitleOptions = remember(
+        availableSubtitleTracks,
+        currentSubtitleId,
+        bilingualSubtitleEnabled,
+        subtitleTranslationConfig,
+        preferCustomSecondarySubtitle,
+        sourceSubtitleAvailable
+    ) {
+        if (!bilingualSubtitleEnabled) {
+            emptyList()
+        } else {
+            buildSecondarySubtitleOptions(
+                tracks = availableSubtitleTracks,
+                currentMainSubtitleId = currentSubtitleId,
+                config = subtitleTranslationConfig,
+                preferCustom = preferCustomSecondarySubtitle,
+                sourceSubtitleAvailable = sourceSubtitleAvailable
+            )
+        }
+    }
+    val secondarySubtitleMenuOptions = remember(secondarySubtitleOptions) {
+        buildSecondarySubtitleMenuOptions(secondarySubtitleOptions)
+    }
+    val secondarySubtitleItems = secondarySubtitleMenuOptions.map { it.toMenuName(context) }
+    val selectedSecondaryIndex = resolveSelectedSecondarySubtitleMenuIndex(
+        options = secondarySubtitleMenuOptions,
+        currentSecondarySubtitleId = currentSecondarySubtitleId,
+        currentSecondarySubtitleCustom = currentSecondarySubtitleCustom
+    )
+    val closedCaptionMenuItems = remember(bilingualSubtitleEnabled) {
+        VideoPlayerClosedCaptionMenuItem.entries.filter { item ->
+            bilingualSubtitleEnabled || item != VideoPlayerClosedCaptionMenuItem.Secondary
+        }
+    }
+
+    LaunchedEffect(bilingualSubtitleEnabled, selectedClosedCaptionMenuItem) {
+        if (!bilingualSubtitleEnabled && selectedClosedCaptionMenuItem == VideoPlayerClosedCaptionMenuItem.Secondary) {
+            selectedClosedCaptionMenuItem = VideoPlayerClosedCaptionMenuItem.Main
+            onFocusStateChange(MenuFocusState.Menu)
+        }
+    }
 
     LaunchedEffect(focusState.focusState, selectedClosedCaptionMenuItem) {
         if (focusState.focusState == MenuFocusState.Menu) {
@@ -99,17 +154,42 @@ fun ClosedCaptionMenuList(
             .padding(horizontal = 8.dp)
         AnimatedVisibility(visible = focusState.focusState != MenuFocusState.MenuNav) {
             when (selectedClosedCaptionMenuItem) {
-                VideoPlayerClosedCaptionMenuItem.Switch -> RadioMenuList(
+                VideoPlayerClosedCaptionMenuItem.Main -> RadioMenuList(
                     modifier = menuItemsModifier,
-                    items = availableSubtitleTracks.map {
-                        it.langDoc
-                            .replace("（自动生成）", "")
-                            .replace("（自动翻译）", "")
-                            .trim() + if (it.type == SubtitleType.AI) "(AI)" else ""
-                    },
+                    items = availableSubtitleTracks.map { it.toSubtitleMenuName() },
                     selected = selectedSubtitleIndex,
                     requestFocusWhen = shouldFocusItems,
-                    onSelectedChanged = { onSubtitleChange(availableSubtitleTracks[it]) },
+                    onSelectedChanged = { onSubtitleChange(availableSubtitleTracks[it], SubtitleRole.Main) },
+                    onFocusBackToParent = {
+                        onFocusStateChange(MenuFocusState.Menu)
+                    },
+                )
+
+                VideoPlayerClosedCaptionMenuItem.Secondary -> RadioMenuList(
+                    modifier = menuItemsModifier,
+                    items = secondarySubtitleItems,
+                    selected = selectedSecondaryIndex,
+                    requestFocusWhen = shouldFocusItems,
+                    onSelectedChanged = {
+                        when (val option = secondarySubtitleMenuOptions.getOrNull(it)) {
+                            SecondarySubtitleMenuOption.Off -> {
+                                onSubtitleChange(SubtitleOffTrack, SubtitleRole.Secondary)
+                            }
+
+                            is SecondarySubtitleMenuOption.Option -> when (val subtitleOption = option.option) {
+                                SecondarySubtitleOption.CustomTranslation -> {
+                                    onSubtitleChange(SubtitleCustomTrack, SubtitleRole.Secondary)
+                                }
+
+                                is SecondarySubtitleOption.BiliTrack -> {
+                                    val subtitle = subtitleOption.subtitle
+                                    onSubtitleChange(subtitle, SubtitleRole.Secondary)
+                                }
+                            }
+
+                            null -> Unit
+                        }
+                    },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
                     },
@@ -174,7 +254,7 @@ fun ClosedCaptionMenuList(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(8.dp)
         ) {
-            itemsIndexed(VideoPlayerClosedCaptionMenuItem.entries) { index, item ->
+            itemsIndexed(closedCaptionMenuItems) { index, item ->
                 val selectItem = {
                     val result = resolveParentMenuTouch(
                         current = selectedClosedCaptionMenuItem,
@@ -186,13 +266,91 @@ fun ClosedCaptionMenuList(
                 MenuListItem(
                     modifier = Modifier
                         .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
-                        .focusRequester(menuItemRequesters[index]),
-                    text = item.getDisplayName(context),
+                        .focusRequester(menuItemRequesters[item.ordinal]),
+                    text = item.getClosedCaptionDisplayName(bilingualSubtitleEnabled, context),
                     selected = selectedClosedCaptionMenuItem == item,
                     onClick = selectItem,
                     onFocus = { selectedClosedCaptionMenuItem = item },
                 )
             }
+        }
+    }
+}
+
+internal sealed interface SecondarySubtitleMenuOption {
+    data object Off : SecondarySubtitleMenuOption
+    data class Option(val option: SecondarySubtitleOption) : SecondarySubtitleMenuOption
+}
+
+internal fun buildSecondarySubtitleMenuOptions(
+    options: List<SecondarySubtitleOption>
+): List<SecondarySubtitleMenuOption> {
+    return listOf(SecondarySubtitleMenuOption.Off) +
+        options.map { SecondarySubtitleMenuOption.Option(it) }
+}
+
+internal fun resolveSelectedSecondarySubtitleMenuIndex(
+    options: List<SecondarySubtitleMenuOption>,
+    currentSecondarySubtitleId: Long,
+    currentSecondarySubtitleCustom: Boolean
+): Int {
+    return options.indexOfFirst { option ->
+        when (option) {
+            SecondarySubtitleMenuOption.Off ->
+                !currentSecondarySubtitleCustom && currentSecondarySubtitleId == -1L
+
+            is SecondarySubtitleMenuOption.Option -> when (val subtitleOption = option.option) {
+                SecondarySubtitleOption.CustomTranslation -> currentSecondarySubtitleCustom
+                is SecondarySubtitleOption.BiliTrack -> !currentSecondarySubtitleCustom &&
+                    subtitleOption.subtitle.id == currentSecondarySubtitleId
+            }
+        }
+    }.takeIf { it >= 0 } ?: 0
+}
+
+val SubtitleOffTrack = Subtitle(
+    id = -1L,
+    lang = "",
+    langDoc = "关闭",
+    url = "",
+    type = SubtitleType.CC,
+    aiType = SubtitleAiType.Normal,
+    aiStatus = SubtitleAiStatus.None
+)
+
+val SubtitleCustomTrack = Subtitle(
+    id = CustomSubtitleTrackId,
+    lang = "custom",
+    langDoc = "自定义",
+    url = "",
+    type = SubtitleType.CC,
+    aiType = SubtitleAiType.Normal,
+    aiStatus = SubtitleAiStatus.None
+)
+
+private fun VideoPlayerClosedCaptionMenuItem.getClosedCaptionDisplayName(
+    bilingualSubtitleEnabled: Boolean,
+    context: android.content.Context
+): String {
+    if (this == VideoPlayerClosedCaptionMenuItem.Main && !bilingualSubtitleEnabled) {
+        return context.getString(R.string.video_player_menu_subtitle_choose)
+    }
+    return getDisplayName(context)
+}
+
+private fun Subtitle.toSubtitleMenuName(): String {
+    return langDoc
+        .replace("（自动生成）", "")
+        .replace("（自动翻译）", "")
+        .trim() + if (type == SubtitleType.AI) "(AI)" else ""
+}
+
+private fun SecondarySubtitleMenuOption.toMenuName(context: android.content.Context): String {
+    return when (this) {
+        SecondarySubtitleMenuOption.Off -> "关闭"
+        is SecondarySubtitleMenuOption.Option -> when (option) {
+            SecondarySubtitleOption.CustomTranslation -> context.getString(R.string.video_player_menu_subtitle_custom)
+            is SecondarySubtitleOption.BiliTrack -> option.subtitle.toSubtitleMenuName()
         }
     }
 }

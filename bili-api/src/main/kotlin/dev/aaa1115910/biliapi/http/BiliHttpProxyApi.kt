@@ -78,6 +78,7 @@ object BiliHttpProxyApi {
         supportMultiAudio: Boolean? = null,
         drmTechType: Int? = null,
         fromClient: String? = null,
+        curLanguage: String? = null,
         sessData: String? = null,
         dedeUserID: Long? = null,
         buvid3: String? = null
@@ -96,6 +97,7 @@ object BiliHttpProxyApi {
         supportMultiAudio?.let { parameter("support_multi_audio", it) }
         drmTechType?.let { parameter("drm_tech_type", it) }
         fromClient?.let { parameter("from_client", it) }
+        curLanguage?.takeIf { it.isNotBlank() }?.let { parameter("cur_language", it) }
         val cookieParts = mutableListOf<String>()
         sessData?.let { cookieParts.add("SESSDATA=$it") }
         dedeUserID?.let { cookieParts.add("DedeUserID=$it") }
@@ -118,6 +120,7 @@ object BiliHttpProxyApi {
         supportMultiAudio: Boolean? = null,
         drmTechType: Int? = null,
         fromClient: String? = null,
+        curLanguage: String? = null,
         sessData: String? = null,
         buvid3: String? = null
     ): BiliResponse<PlayUrlV2Data> = client?.get("/pgc/player/web/v2/playurl") {
@@ -135,6 +138,7 @@ object BiliHttpProxyApi {
         supportMultiAudio?.let { parameter("support_multi_audio", it) }
         drmTechType?.let { parameter("drm_tech_type", it) }
         fromClient?.let { parameter("from_client", it) }
+        curLanguage?.takeIf { it.isNotBlank() }?.let { parameter("cur_language", it) }
         val cookieParts = mutableListOf<String>()
         sessData?.let { cookieParts.add("SESSDATA=$it") }
         buvid3?.let { cookieParts.add("buvid3=$it") }

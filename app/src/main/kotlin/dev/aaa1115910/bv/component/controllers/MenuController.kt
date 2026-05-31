@@ -55,9 +55,12 @@ import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedMenuList
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
+import dev.aaa1115910.bv.subtitle.translation.readSubtitleTranslationConfigFromPrefs
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.swapList
+import dev.aaa1115910.bv.viewmodel.player.SubtitleRole
 
 internal data class PlayerMenuNavState(
     val selectedNavItem: VideoPlayerMenuNavItem,
@@ -90,7 +93,8 @@ fun MenuController(
     onDanmakuSpeedFactorChange: (Float) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit = {},
-    onSubtitleChange: (Subtitle) -> Unit,
+    onSubtitleChange: (Subtitle, SubtitleRole) -> Unit,
+    onAiAudioTranslationChange: (String) -> Unit,
     onSubtitleSizeChange: (TextUnit) -> Unit,
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
     onSubtitleBottomPadding: (Dp) -> Unit
@@ -129,6 +133,7 @@ fun MenuController(
                     onDanmakuAreaChange = onDanmakuAreaChange,
                     onDanmakuMaskChange = onDanmakuMaskChange,
                     onSubtitleChange = onSubtitleChange,
+                    onAiAudioTranslationChange = onAiAudioTranslationChange,
                     onSubtitleSizeChange = onSubtitleSizeChange,
                     onSubtitleBackgroundOpacityChange = onSubtitleBackgroundOpacityChange,
                     onSubtitleBottomPadding = onSubtitleBottomPadding
@@ -154,7 +159,8 @@ fun MenuController(
     onDanmakuSpeedFactorChange: (Float) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit = {},
-    onSubtitleChange: (Subtitle) -> Unit,
+    onSubtitleChange: (Subtitle, SubtitleRole) -> Unit,
+    onAiAudioTranslationChange: (String) -> Unit,
     onSubtitleSizeChange: (TextUnit) -> Unit,
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
     onSubtitleBottomPadding: (Dp) -> Unit
@@ -197,6 +203,7 @@ fun MenuController(
                     onDanmakuMaskChange = onDanmakuMaskChange,
                     onFocusStateChange = { focusState = it },
                     onSubtitleChange = onSubtitleChange,
+                    onAiAudioTranslationChange = onAiAudioTranslationChange,
                     onSubtitleSizeChange = onSubtitleSizeChange,
                     onSubtitleBackgroundOpacityChange = onSubtitleBackgroundOpacityChange,
                     onSubtitleBottomPadding = onSubtitleBottomPadding
@@ -251,7 +258,8 @@ private fun MenuList(
     onDanmakuSpeedFactorChange: (Float) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit = {},
-    onSubtitleChange: (Subtitle) -> Unit,
+    onSubtitleChange: (Subtitle, SubtitleRole) -> Unit,
+    onAiAudioTranslationChange: (String) -> Unit,
     onSubtitleSizeChange: (TextUnit) -> Unit,
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
     onSubtitleBottomPadding: (Dp) -> Unit,
@@ -279,10 +287,13 @@ private fun MenuList(
                     currentVideoCodec = uiState.mediaProfileState.videoCodec,
                     currentVideoAspectRatio = uiState.aspectRatio,
                     currentAudio = uiState.mediaProfileState.audio,
+                    aiAudioTranslations = uiState.aiAudioTranslations,
+                    currentAiAudioLanguage = uiState.currentAiAudioLanguage,
                     onResolutionChange = onResolutionChange,
                     onCodecChange = onCodecChange,
                     onAspectRatioChange = onAspectRatioChange,
                     onAudioChange = onAudioChange,
+                    onAiAudioTranslationChange = onAiAudioTranslationChange,
                     onFocusStateChange = onFocusStateChange,
                 )
             }
@@ -316,6 +327,8 @@ private fun MenuList(
             VideoPlayerMenuNavItem.ClosedCaption -> {
                 ClosedCaptionMenuList(
                     currentSubtitleId = uiState.subtitleId,
+                    currentSecondarySubtitleId = uiState.secondarySubtitleId,
+                    currentSecondarySubtitleCustom = uiState.secondarySubtitleCustom,
                     availableSubtitleTracks = buildList {
                         add(
                             Subtitle(
@@ -334,6 +347,9 @@ private fun MenuList(
                     currentFontSize = uiState.subtitleState.fontSize,
                     currentOpacity = uiState.subtitleState.opacity,
                     currentPadding = uiState.subtitleState.bottomPadding,
+                    bilingualSubtitleEnabled = Prefs.enableBilingualSubtitle,
+                    subtitleTranslationConfig = readSubtitleTranslationConfigFromPrefs(),
+                    preferCustomSecondarySubtitle = Prefs.preferCustomSecondarySubtitle,
                     onSubtitleChange = onSubtitleChange,
                     onSubtitleSizeChange = onSubtitleSizeChange,
                     onSubtitleBackgroundOpacityChange = onSubtitleBackgroundOpacityChange,
@@ -362,7 +378,8 @@ enum class VideoPlayerPictureMenuItem(private val strRes: Int) {
     AspectRatio(R.string.video_player_menu_picture_aspect_ratio),
 
     //    PlaySpeed(R.string.video_player_menu_picture_play_speed),
-    Audio(R.string.video_player_menu_picture_audio);
+    Audio(R.string.video_player_menu_picture_audio),
+    AiAudioTranslation(R.string.video_player_menu_picture_ai_audio_translation);
 
     fun getDisplayName(context: Context) = context.getString(strRes)
 }
@@ -379,7 +396,8 @@ enum class VideoPlayerDanmakuMenuItem(private val strRes: Int) {
 }
 
 enum class VideoPlayerClosedCaptionMenuItem(private val strRes: Int) {
-    Switch(R.string.video_player_menu_subtitle_switch),
+    Main(R.string.video_player_menu_subtitle_main),
+    Secondary(R.string.video_player_menu_subtitle_secondary),
     Size(R.string.video_player_menu_subtitle_size),
     Opacity(R.string.video_player_menu_subtitle_background_opacity),
     Padding(R.string.video_player_menu_subtitle_bottom_padding);
@@ -493,7 +511,8 @@ fun MenuControllerPreview() {
                     onDanmakuSpeedFactorChange = { currentDanmakuSpeedFactor = it },
                     onDanmakuAreaChange = { currentDanmakuArea = it },
                     onDanmakuMaskChange = { currentDanmakuMask = it },
-                    onSubtitleChange = { currentSubtitleId = it.id },
+                    onSubtitleChange = { subtitle, _ -> currentSubtitleId = subtitle.id },
+                    onAiAudioTranslationChange = { },
                     onSubtitleSizeChange = { currentSubtitleFontSize = it },
                     onSubtitleBackgroundOpacityChange = {
                         currentSubtitleBackgroundOpacity = it

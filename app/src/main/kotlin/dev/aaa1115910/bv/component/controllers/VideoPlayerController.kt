@@ -50,6 +50,7 @@ import dev.aaa1115910.bv.viewmodel.player.PlayerSidePanel
 import dev.aaa1115910.bv.viewmodel.player.SeekDirection
 import dev.aaa1115910.bv.viewmodel.player.SeekTapAction
 import dev.aaa1115910.bv.viewmodel.player.SeekTapPreviewState
+import dev.aaa1115910.bv.viewmodel.player.SubtitleRole
 import dev.aaa1115910.bv.viewmodel.player.SubtitleSettingAction
 import dev.aaa1115910.bv.viewmodel.player.TempSpeedHoldState
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -128,8 +129,9 @@ fun VideoPlayerController(
     onPlaySpeedChange: (Float) -> Unit,
     setShowPlayerStats: (Boolean) -> Unit,
     onDanmakuSettingChange: (DanmakuSettingAction) -> Unit,
-    onSubtitleChange: (Subtitle) -> Unit,
+    onSubtitleChange: (Subtitle, SubtitleRole) -> Unit,
     onSubtitleSwitchChange: () -> Unit,
+    onAiAudioTranslationChange: (String) -> Unit,
     onSubtitleSettingChange: (SubtitleSettingAction) -> Unit,
     onRelatedVideoClicked: (VideoCardData) -> Unit,
     confirmPendingPluginAction: () -> Unit,
@@ -633,11 +635,12 @@ fun VideoPlayerController(
                 )
             }
         }
-        if (uiState.subtitleId != -1L) {
+        if (uiState.subtitleId != -1L || uiState.secondarySubtitleId != -1L) {
             val currentTime = seekerState.value.currentTime
 
             BottomSubtitle(
                 subtitleData = uiState.subtitleData,
+                secondarySubtitleData = uiState.secondarySubtitleData,
                 currentTime = currentTime,
                 fontSize = uiState.subtitleState.fontSize,
                 opacity = uiState.subtitleState.opacity,
@@ -698,7 +701,7 @@ fun VideoPlayerController(
             videoShotCache = videoShotCache,
             fromSeason = fromSeason,
             danmakuEnabled = uiState.danmakuState.enabledTypes.isNotEmpty(),
-            subtitleEnabled = uiState.subtitleId != -1L,
+            subtitleEnabled = uiState.subtitleId != -1L || uiState.secondarySubtitleId != -1L,
             subtitleAvailable = uiState.subtitleList.any { it.id != -1L },
             jumpModeState = uiState.jumpModeState,
             isLooping = isLooping,
@@ -806,6 +809,7 @@ fun VideoPlayerController(
                     MediaProfileSettingAction.SetAudio(audio)
                 )
             },
+            onAiAudioTranslationChange = onAiAudioTranslationChange,
             onAspectRatioChange = onAspectRatioChange,
             onPlaySpeedChange = onPlaySpeedChange,
             onShowPlayerStatsChange = setShowPlayerStats,

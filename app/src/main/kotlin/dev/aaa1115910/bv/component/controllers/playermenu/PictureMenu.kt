@@ -28,6 +28,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import dev.aaa1115910.biliapi.entity.AiAudioTranslation
 import dev.aaa1115910.bv.component.controllers.LocalMenuFocusStateData
 import dev.aaa1115910.bv.component.controllers.MenuFocusState
 import dev.aaa1115910.bv.component.controllers.VideoPlayerPictureMenuItem
@@ -49,10 +50,13 @@ fun PictureMenuList(
     currentVideoCodec: VideoCodec,
     currentVideoAspectRatio: VideoAspectRatio,
     currentAudio: Audio,
+    aiAudioTranslations: List<AiAudioTranslation>,
+    currentAiAudioLanguage: String,
     onResolutionChange: (Int) -> Unit,
     onCodecChange: (VideoCodec) -> Unit,
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
     onAudioChange: (Audio) -> Unit,
+    onAiAudioTranslationChange: (String) -> Unit,
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
     val context = LocalContext.current
@@ -72,6 +76,12 @@ fun PictureMenuList(
     }
     val audioList = remember(availableAudio) {
         availableAudio.sortedBy { it.ordinal }
+    }
+    val pictureMenuItems = remember(aiAudioTranslations) {
+        VideoPlayerPictureMenuItem.entries
+            .filter { item ->
+                item != VideoPlayerPictureMenuItem.AiAudioTranslation || aiAudioTranslations.isNotEmpty()
+            }
     }
     val shouldFocusItems = focusState.focusState == MenuFocusState.Items
 
@@ -143,6 +153,23 @@ fun PictureMenuList(
                         onFocusStateChange(MenuFocusState.Menu)
                     }
                 )
+
+                VideoPlayerPictureMenuItem.AiAudioTranslation -> {
+                    val translationItems = listOf(null) + aiAudioTranslations
+                    RadioMenuList(
+                        modifier = menuItemsModifier,
+                        items = translationItems.map { it?.title ?: "关闭" },
+                        selected = translationItems.indexOfFirst { it?.lang.orEmpty() == currentAiAudioLanguage }
+                            .takeIf { it >= 0 } ?: 0,
+                        requestFocusWhen = shouldFocusItems,
+                        onSelectedChanged = { index ->
+                            onAiAudioTranslationChange(translationItems[index]?.lang.orEmpty())
+                        },
+                        onFocusBackToParent = {
+                            onFocusStateChange(MenuFocusState.Menu)
+                        }
+                    )
+                }
             }
         }
 
@@ -168,7 +195,7 @@ fun PictureMenuList(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(8.dp)
         ) {
-            itemsIndexed(VideoPlayerPictureMenuItem.entries.toMutableList()) { index, item ->
+            itemsIndexed(pictureMenuItems) { index, item ->
                 val selectItem = {
                     val result = resolveParentMenuTouch(
                         current = selectedPictureMenuItem,
@@ -180,7 +207,7 @@ fun PictureMenuList(
                 MenuListItem(
                     modifier = Modifier
                         .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
-                        .focusRequester(menuItemRequesters[index]),
+                        .focusRequester(menuItemRequesters[item.ordinal]),
                     text = item.getDisplayName(context),
                     selected = selectedPictureMenuItem == item,
                     onClick = selectItem,

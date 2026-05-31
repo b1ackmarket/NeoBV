@@ -317,11 +317,14 @@ fun VideoPlayerV3Screen(
             playerViewModel.updateDanmakuState(action)
             logger.info { "On danmaku state change" }
         },
-        onSubtitleChange = { subtitle ->
-            playerViewModel.loadSubtitle(subtitle.id)
+        onSubtitleChange = { subtitle, role ->
+            playerViewModel.loadSubtitle(subtitle.id, role)
         },
         onSubtitleSwitchChange = {
             playerViewModel.toggleSubtitle()
+        },
+        onAiAudioTranslationChange = { language ->
+            playerViewModel.updateAiAudioTranslation(language)
         },
         onSubtitleSettingChange = { action ->
             logger.info { "On subtitle config change" }

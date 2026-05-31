@@ -91,7 +91,26 @@ data class PlayUrlData(
     @SerialName("clip_info_list")
     val clipInfoList: List<JsonElement> = emptyList(),
     @SerialName("record_info")
-    val recordInfo: RecordInfo? = null
+    val recordInfo: RecordInfo? = null,
+    val language: PlayUrlLanguage? = null,
+    @SerialName("cur_language")
+    val currentLanguage: String = ""
+)
+
+@Serializable
+data class PlayUrlLanguage(
+    val support: Boolean = false,
+    val items: List<PlayUrlLanguageItem> = emptyList(),
+    @SerialName("list_title")
+    val listTitle: String = ""
+)
+
+@Serializable
+data class PlayUrlLanguageItem(
+    val lang: String,
+    val title: String,
+    @SerialName("subtitle_lang")
+    val subtitleLang: String = ""
 )
 
 @Serializable

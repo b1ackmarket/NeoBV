@@ -4,6 +4,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.aaa1115910.biliapi.entity.AiAudioTranslation
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMask
 import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.biliapi.entity.video.VideoHeatmap
@@ -92,7 +93,15 @@ data class PlayerUiState(
     val subtitleId: Long = -1L,
     val subtitleMemory: SubtitleMemory? = null,
     val subtitleData: List<SubtitleItem> = emptyList(),
+    val secondarySubtitleId: Long = -1L,
+    val secondarySubtitleMemory: SubtitleMemory? = null,
+    val secondarySubtitleCustom: Boolean = false,
+    val secondarySubtitleData: List<SubtitleItem> = emptyList(),
     val subtitleList: List<Subtitle> = emptyList(),
+
+    // AI 原声翻译
+    val aiAudioTranslations: List<AiAudioTranslation> = emptyList(),
+    val currentAiAudioLanguage: String = "",
 )
 
 // 2. 播放器进度条状态 (高频更新)

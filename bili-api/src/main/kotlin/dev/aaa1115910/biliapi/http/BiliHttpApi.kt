@@ -259,6 +259,7 @@ object BiliHttpApi {
         otype: String = "json",
         type: String = "",
         platform: String = "oc",
+        curLanguage: String? = null,
         sessData: String? = null,
         dedeUserID: Long? = null
     ): BiliResponse<PlayUrlData> = client.get("/x/player/playurl") {
@@ -274,6 +275,8 @@ object BiliHttpApi {
         parameter("otype", otype)
         parameter("type", type)
         parameter("platform", platform)
+        parameter("support_multi_audio", true)
+        curLanguage?.takeIf { it.isNotBlank() }?.let { parameter("cur_language", it) }
         if (sessData.isNullOrEmpty()) {
             // parameter("voice_balance", 1)
             parameter("web_location", "1315873")
@@ -300,6 +303,7 @@ object BiliHttpApi {
         supportMultiAudio: Boolean? = null,
         drmTechType: Int? = null,
         fromClient: String? = null,
+        curLanguage: String? = null,
         sessData: String? = null,
         dedeUserID: Long? = null,
         buvid3: String? = null
@@ -318,6 +322,7 @@ object BiliHttpApi {
         supportMultiAudio?.let { parameter("support_multi_audio", it) }
         drmTechType?.let { parameter("drm_tech_type", it) }
         fromClient?.let { parameter("from_client", it) }
+        curLanguage?.takeIf { it.isNotBlank() }?.let { parameter("cur_language", it) }
         val cookieParts = mutableListOf<String>()
         sessData?.let { cookieParts.add("SESSDATA=$it") }
         dedeUserID?.let { cookieParts.add("DedeUserID=$it") }
@@ -343,6 +348,7 @@ object BiliHttpApi {
         supportMultiAudio: Boolean? = null,
         drmTechType: Int? = null,
         fromClient: String? = null,
+        curLanguage: String? = null,
         sessData: String? = null,
         buvid3: String? = null
     ): BiliResponse<PlayUrlV2Data> = client.get("/pgc/player/web/v2/playurl") {
@@ -358,6 +364,7 @@ object BiliHttpApi {
         supportMultiAudio?.let { parameter("support_multi_audio", it) }
         drmTechType?.let { parameter("drm_tech_type", it) }
         fromClient?.let { parameter("from_client", it) }
+        curLanguage?.takeIf { it.isNotBlank() }?.let { parameter("cur_language", it) }
         val cookieParts = mutableListOf<String>()
         sessData?.let { cookieParts.add("SESSDATA=$it") }
         buvid3?.let { cookieParts.add("buvid3=$it") }

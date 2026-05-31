@@ -5,7 +5,16 @@ import dev.aaa1115910.bv.plugin.impl.sponsorblock.PrefsSponsorBlockConfigStore
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.SkipPolicy
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.SponsorBlockCategoryStyle
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.SponsorBlockConfig
+import dev.aaa1115910.bv.subtitle.translation.DefaultSubtitleTranslationPrompt
+import dev.aaa1115910.bv.subtitle.translation.DefaultSubtitleTranslationTestSentence
+import dev.aaa1115910.bv.subtitle.translation.SubtitleLanguages
+import dev.aaa1115910.bv.subtitle.translation.SubtitleTranslationConfig
+import dev.aaa1115910.bv.subtitle.translation.SubtitleTranslationProviderType
+import dev.aaa1115910.bv.subtitle.translation.readSubtitleTranslationConfigFromPrefs
+import dev.aaa1115910.bv.subtitle.translation.testSubtitleTranslationConnection
+import dev.aaa1115910.bv.subtitle.translation.writeSubtitleTranslationConfigToPrefs
 import dev.aaa1115910.bv.util.LogCatcherUtil
+import dev.aaa1115910.bv.util.Prefs
 import io.ktor.http.Parameters
 import io.ktor.http.ContentDisposition
 import io.ktor.http.ContentType
@@ -32,9 +41,9 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -54,6 +63,7 @@ object HttpServer {
             logsUiStaticModule()
             logsApiModule()
             sponsorBlockModule()
+            subtitleModule()
         }
         try {
             newServer.start(wait = false)
@@ -537,6 +547,515 @@ object HttpServer {
         }
     }
 
+    private fun Application.subtitleModule() {
+        routing {
+            get("/api/subtitle/config") {
+                call.respondText(
+                    text = readSubtitleTranslationConfigFromPrefs().toJson(),
+                    contentType = ContentType.Application.Json
+                )
+            }
+
+            post("/api/subtitle/test") {
+                val body = call.receiveText()
+                val testConfig = parseSubtitleTranslationConfig(body) ?: return@post call.respondText(
+                    text = """{"error":"invalid config"}""",
+                    contentType = ContentType.Application.Json,
+                    status = HttpStatusCode.BadRequest
+                )
+                val testSentence = parseSubtitleTranslationTestSentence(body)
+                val result = testSubtitleTranslationConnection(testConfig, testSentence)
+                if (result.isSuccess) {
+                    call.respondText(
+                        text = """{"success":true,"signature":"${jsonEscape(testConfig.configSignature())}","translation":"${jsonEscape(result.getOrThrow())}"}""",
+                        contentType = ContentType.Application.Json
+                    )
+                } else {
+                    call.respondText(
+                        text = """{"success":false,"error":"${jsonEscape(result.exceptionOrNull()?.message ?: "test failed")}"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.BadRequest
+                    )
+                }
+            }
+
+            post("/api/subtitle/config") {
+                val body = call.receiveText()
+                val newConfig = parseSubtitleTranslationConfig(body) ?: return@post call.respondText(
+                    text = """{"error":"invalid config"}""",
+                    contentType = ContentType.Application.Json,
+                    status = HttpStatusCode.BadRequest
+                )
+                val currentConfig = readSubtitleTranslationConfigFromPrefs()
+                val serviceConfigUnchanged = newConfig.configSignature() == currentConfig.configSignature()
+                writeSubtitleBehaviorPrefs(body)
+                if (!newConfig.verified() && !serviceConfigUnchanged) {
+                    return@post call.respondText(
+                        text = """{"error":"请先测试连接"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.BadRequest
+                    )
+                }
+                if (newConfig.verified()) {
+                    writeSubtitleTranslationConfigToPrefs(newConfig)
+                }
+                call.respondText(
+                    text = """{"success":true}""",
+                    contentType = ContentType.Application.Json
+                )
+            }
+
+            get("/subtitle") {
+                call.respondText(
+                    text = subtitleConfigHtml(),
+                    contentType = ContentType.Text.Html.withCharset(Charsets.UTF_8)
+                )
+            }
+        }
+    }
+
+    private fun SubtitleTranslationConfig.toJson(): String {
+        return buildString {
+            append('{')
+            append("\"preferBilingualSubtitleOnOsd\":").append(Prefs.preferBilingualSubtitleOnOsd).append(',')
+            append("\"preferCustomSecondarySubtitle\":").append(Prefs.preferCustomSecondarySubtitle).append(',')
+            append("\"providerType\":\"").append(providerType.name).append("\",")
+            append("\"targetLanguage\":\"").append(jsonEscape(targetLanguage)).append("\",")
+            append("\"contextBefore\":").append(contextBefore).append(',')
+            append("\"contextAfter\":").append(contextAfter).append(',')
+            append("\"requestBatchSize\":").append(requestBatchSize).append(',')
+            append("\"preTranslateSeconds\":").append(preTranslateSeconds).append(',')
+            append("\"openAiBaseUrl\":\"").append(jsonEscape(openAiBaseUrl)).append("\",")
+            append("\"openAiApiKey\":\"").append(jsonEscape(openAiApiKey)).append("\",")
+            append("\"openAiModel\":\"").append(jsonEscape(openAiModel)).append("\",")
+            append("\"openAiPrompt\":\"").append(jsonEscape(openAiPrompt)).append("\",")
+            append("\"baiduAppId\":\"").append(jsonEscape(baiduAppId)).append("\",")
+            append("\"baiduAppKey\":\"").append(jsonEscape(baiduAppKey)).append("\",")
+            append("\"microsoftKey\":\"").append(jsonEscape(microsoftKey)).append("\",")
+            append("\"microsoftRegion\":\"").append(jsonEscape(microsoftRegion)).append("\",")
+            append("\"microsoftEndpoint\":\"").append(jsonEscape(microsoftEndpoint)).append("\",")
+            append("\"deepLApiKey\":\"").append(jsonEscape(deepLApiKey)).append("\",")
+            append("\"deepLEndpoint\":\"").append(jsonEscape(deepLEndpoint)).append("\",")
+            append("\"deepLXEndpoint\":\"").append(jsonEscape(deepLXEndpoint)).append("\",")
+            append("\"deepLXApiKey\":\"").append(jsonEscape(deepLXApiKey)).append("\",")
+            append("\"verifiedSignature\":\"").append(jsonEscape(verifiedSignature)).append("\",")
+            append("\"currentSignature\":\"").append(jsonEscape(configSignature())).append("\",")
+            append("\"verified\":").append(verified())
+            append('}')
+        }
+    }
+
+    private fun parseSubtitleTranslationConfig(body: String): SubtitleTranslationConfig? {
+        val parsed = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull() ?: return null
+        val current = readSubtitleTranslationConfigFromPrefs()
+        return SubtitleTranslationConfig(
+            providerType = parsed["providerType"]?.jsonPrimitive?.contentOrNull
+                ?.let(SubtitleTranslationProviderType::fromName)
+                ?: current.providerType,
+            targetLanguage = parsed["targetLanguage"]?.jsonPrimitive?.contentOrNull?.take(20)
+                ?: current.targetLanguage,
+            contextBefore = parsed["contextBefore"]?.jsonPrimitive?.intOrNull ?: current.contextBefore,
+            contextAfter = parsed["contextAfter"]?.jsonPrimitive?.intOrNull ?: current.contextAfter,
+            requestBatchSize = parsed["requestBatchSize"]?.jsonPrimitive?.intOrNull
+                ?: current.requestBatchSize,
+            preTranslateSeconds = parsed["preTranslateSeconds"]?.jsonPrimitive?.intOrNull
+                ?: current.preTranslateSeconds,
+            openAiBaseUrl = parsed["openAiBaseUrl"]?.jsonPrimitive?.contentOrNull?.take(500)
+                ?: current.openAiBaseUrl,
+            openAiApiKey = parsed["openAiApiKey"]?.jsonPrimitive?.contentOrNull?.take(500)
+                ?: current.openAiApiKey,
+            openAiModel = parsed["openAiModel"]?.jsonPrimitive?.contentOrNull?.take(120)
+                ?: current.openAiModel,
+            openAiPrompt = parsed["openAiPrompt"]?.jsonPrimitive?.contentOrNull?.take(5000)
+                ?: current.openAiPrompt,
+            baiduAppId = parsed["baiduAppId"]?.jsonPrimitive?.contentOrNull?.take(200)
+                ?: current.baiduAppId,
+            baiduAppKey = parsed["baiduAppKey"]?.jsonPrimitive?.contentOrNull?.take(500)
+                ?: current.baiduAppKey,
+            microsoftKey = parsed["microsoftKey"]?.jsonPrimitive?.contentOrNull?.take(500)
+                ?: current.microsoftKey,
+            microsoftRegion = parsed["microsoftRegion"]?.jsonPrimitive?.contentOrNull?.take(80)
+                ?: current.microsoftRegion,
+            microsoftEndpoint = parsed["microsoftEndpoint"]?.jsonPrimitive?.contentOrNull?.take(500)
+                ?: current.microsoftEndpoint,
+            deepLApiKey = parsed["deepLApiKey"]?.jsonPrimitive?.contentOrNull?.take(500)
+                ?: current.deepLApiKey,
+            deepLEndpoint = parsed["deepLEndpoint"]?.jsonPrimitive?.contentOrNull?.take(500)
+                ?: current.deepLEndpoint,
+            deepLXEndpoint = parsed["deepLXEndpoint"]?.jsonPrimitive?.contentOrNull?.take(500)
+                ?: current.deepLXEndpoint,
+            deepLXApiKey = parsed["deepLXApiKey"]?.jsonPrimitive?.contentOrNull?.take(500)
+                ?: current.deepLXApiKey,
+            verifiedSignature = parsed["verifiedSignature"]?.jsonPrimitive?.contentOrNull?.take(120).orEmpty()
+        ).sanitized
+    }
+
+    private fun writeSubtitleBehaviorPrefs(body: String) {
+        val parsed = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull() ?: return
+        parsed["preferBilingualSubtitleOnOsd"]?.jsonPrimitive?.booleanOrNull?.let {
+            Prefs.preferBilingualSubtitleOnOsd = it
+        }
+        parsed["preferCustomSecondarySubtitle"]?.jsonPrimitive?.booleanOrNull?.let {
+            Prefs.preferCustomSecondarySubtitle = it
+        }
+    }
+
+    private fun parseSubtitleTranslationTestSentence(body: String): String {
+        val parsed = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull()
+            ?: return DefaultSubtitleTranslationTestSentence
+        val sentence = parsed["testSentence"]?.jsonPrimitive?.contentOrNull
+            ?.take(300)
+            ?.trim()
+        return sentence.takeUnless { it.isNullOrBlank() } ?: DefaultSubtitleTranslationTestSentence
+    }
+
+    private fun subtitleConfigHtml(): String {
+        val providerOptions = SubtitleTranslationProviderType.entries.joinToString("\n") {
+            """<option value="${it.name}">${it.displayName}</option>"""
+        }
+        val languageOptions = SubtitleLanguages.supported.joinToString("\n") {
+            """<option value="${it.code}">${it.displayName}</option>"""
+        }
+        return """
+            <!DOCTYPE html>
+            <html lang="zh-CN">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>双语字幕配置</title>
+              <style>
+                :root {
+                  --bg: #111214;
+                  --panel: #1a1c20;
+                  --panel-2: #23262d;
+                  --border: rgba(255,255,255,0.1);
+                  --muted: #a5adba;
+                  --text: #f6f7fb;
+                  --accent: #8ee6d1;
+                  --danger: #ff9d9d;
+                }
+                * { box-sizing: border-box; }
+                body {
+                  margin: 0;
+                  background: var(--bg);
+                  color: var(--text);
+                  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+                }
+                .page { max-width: 960px; margin: 0 auto; padding: 24px 18px 48px; }
+                .hero { padding: 10px 4px 18px; }
+                h1 { margin: 0 0 8px; font-size: 28px; }
+                p { margin: 0; color: var(--muted); line-height: 1.5; }
+                .card {
+                  background: var(--panel);
+                  border: 1px solid var(--border);
+                  border-radius: 18px;
+                  overflow: hidden;
+                  box-shadow: 0 18px 50px rgba(0,0,0,0.28);
+                }
+                .section { padding: 18px 20px; border-top: 1px solid var(--border); }
+                .section:first-child { border-top: none; }
+                .section-title { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
+                .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+                @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+                label { display: grid; gap: 7px; color: var(--muted); font-size: 14px; }
+                input, textarea, select {
+                  width: 100%;
+                  border: 1px solid var(--border);
+                  border-radius: 12px;
+                  background: var(--panel-2);
+                  color: var(--text);
+                  padding: 12px 13px;
+                  font-size: 15px;
+                  outline: none;
+                }
+                input:focus, textarea:focus, select:focus {
+                  border-color: var(--accent);
+                  box-shadow: 0 0 0 3px rgba(142,230,209,0.14);
+                }
+                textarea { min-height: 170px; resize: vertical; line-height: 1.5; }
+                .switch-row { display: grid; gap: 12px; }
+                .switch { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font-size: 15px; }
+                .switch input { width: 18px; height: 18px; }
+                .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
+                .provider-block { display: none; margin-top: 14px; }
+                .provider-block.active { display: block; }
+                .action-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+                .buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+                button {
+                  padding: 12px 20px;
+                  border: none;
+                  border-radius: 999px;
+                  background: var(--accent);
+                  color: #081512;
+                  font-size: 15px;
+                  font-weight: 700;
+                  cursor: pointer;
+                }
+                button.secondary { background: #d1d7e8; }
+                button:disabled { cursor: not-allowed; opacity: 0.45; }
+                #result { min-height: 22px; color: var(--muted); font-size: 14px; }
+                #result.error { color: var(--danger); }
+                .test-area { display: grid; gap: 12px; margin-top: 16px; }
+                .test-output {
+                  min-height: 54px;
+                  border: 1px solid var(--border);
+                  border-radius: 12px;
+                  background: rgba(255,255,255,0.045);
+                  padding: 12px 13px;
+                  color: var(--text);
+                  white-space: pre-wrap;
+                  line-height: 1.45;
+                }
+                .test-output.empty { color: var(--muted); }
+              </style>
+            </head>
+            <body>
+              <div class="page">
+                <div class="hero">
+                  <h1>双语字幕</h1>
+                  <p>配置字幕翻译服务。启用前需要先测试连接；修改任一字段后需要重新测试。</p>
+                </div>
+                <div class="card">
+                  <div class="section">
+                    <div class="section-title">基础设置</div>
+                    <div class="switch-row">
+                      <label class="switch"><input id="preferBilingualSubtitleOnOsd" type="checkbox" /> 优先使用双语字幕</label>
+                      <label class="switch"><input id="preferCustomSecondarySubtitle" type="checkbox" /> 优先使用自定义字幕</label>
+                    </div>
+                    <div class="grid" style="margin-top: 14px;">
+                      <label>翻译服务
+                        <select id="providerType">$providerOptions</select>
+                      </label>
+                      <label>目标语言
+                        <select id="targetLanguage">$languageOptions</select>
+                      </label>
+                      <label>预翻译秒数
+                        <input id="preTranslateSeconds" type="number" min="15" max="600" />
+                      </label>
+                    </div>
+                  </div>
+                  <div class="section">
+                    <div class="section-title">服务凭据</div>
+                    <div id="provider-OpenAiCompatible" class="provider-block">
+                      <div class="grid">
+                        <label>Base URL
+                          <input id="openAiBaseUrl" autocomplete="off" placeholder="https://api.openai.com/v1" />
+                        </label>
+                        <label>模型名
+                          <input id="openAiModel" autocomplete="off" placeholder="gpt-4.1-mini" />
+                        </label>
+                        <label style="grid-column: 1 / -1;">API Key
+                          <input id="openAiApiKey" type="password" autocomplete="off" placeholder="sk-..." />
+                        </label>
+                      </div>
+                    </div>
+                    <div id="provider-Baidu" class="provider-block">
+                      <div class="grid">
+                        <label>App ID <input id="baiduAppId" autocomplete="off" /></label>
+                        <label>App Key <input id="baiduAppKey" type="password" autocomplete="off" /></label>
+                      </div>
+                    </div>
+                    <div id="provider-Microsoft" class="provider-block">
+                      <div class="grid">
+                        <label>Key <input id="microsoftKey" type="password" autocomplete="off" /></label>
+                        <label>Region <input id="microsoftRegion" autocomplete="off" placeholder="eastasia" /></label>
+                        <label style="grid-column: 1 / -1;">Endpoint
+                          <input id="microsoftEndpoint" autocomplete="off" placeholder="https://api.cognitive.microsofttranslator.com" />
+                        </label>
+                      </div>
+                    </div>
+                    <div id="provider-DeepL" class="provider-block">
+                      <div class="grid">
+                        <label>API Key <input id="deepLApiKey" type="password" autocomplete="off" /></label>
+                        <label>Endpoint <input id="deepLEndpoint" autocomplete="off" placeholder="https://api-free.deepl.com" /></label>
+                      </div>
+                    </div>
+                    <div id="provider-DeepLX" class="provider-block">
+                      <div class="grid">
+                        <label>Endpoint <input id="deepLXEndpoint" autocomplete="off" placeholder="https://your-deeplx/translate" /></label>
+                        <label>API Key（可选）<input id="deepLXApiKey" type="password" autocomplete="off" /></label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="section">
+                    <div class="section-title">Prompt</div>
+                    <textarea id="openAiPrompt"></textarea>
+                    <div class="hint">可用占位符：{targetlanguage}、{items}、{context}。机器翻译服务会忽略 Prompt。</div>
+                  </div>
+                  <div class="section">
+                    <div class="section-title">上下文和批量</div>
+                    <div class="grid">
+                      <label>上文字幕条数 <input id="contextBefore" type="number" min="0" max="20" /></label>
+                      <label>下文字幕条数 <input id="contextAfter" type="number" min="0" max="20" /></label>
+                      <label>每次请求字幕条数 <input id="requestBatchSize" type="number" min="1" max="80" /></label>
+                    </div>
+                    <div class="test-area">
+                      <label>测试例句
+                        <input id="testSentence" autocomplete="off" value="${DefaultSubtitleTranslationTestSentence}" />
+                      </label>
+                      <label>测试翻译效果
+                        <div id="testOutput" class="test-output empty">点击“测试连接”后，这里会显示服务返回的翻译结果。</div>
+                      </label>
+                    </div>
+                    <div class="action-bar">
+                      <div class="buttons">
+                        <button class="secondary" onclick="testConfig()">测试连接</button>
+                        <button id="saveButton" onclick="saveConfig()" disabled>保存配置</button>
+                      </div>
+                      <div id="result"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <script>
+                const el = (id) => document.getElementById(id);
+                let verifiedSignature = "";
+                let currentSignature = "";
+                let resultTimer = 0;
+                const preferenceFields = ['preferBilingualSubtitleOnOsd','preferCustomSecondarySubtitle'];
+                const serviceFields = [
+                  'providerType','targetLanguage',
+                  'preTranslateSeconds','openAiBaseUrl','openAiApiKey','openAiModel','openAiPrompt',
+                  'baiduAppId','baiduAppKey','microsoftKey','microsoftRegion','microsoftEndpoint',
+                  'deepLApiKey','deepLEndpoint','deepLXEndpoint','deepLXApiKey',
+                  'contextBefore','contextAfter','requestBatchSize'
+                ];
+                const clampInt = (value, min, max) => {
+                  const parsed = Number.parseInt(value, 10);
+                  if (Number.isNaN(parsed)) return min;
+                  return Math.min(max, Math.max(min, parsed));
+                };
+                function payload() {
+                  return {
+                    preferBilingualSubtitleOnOsd: el('preferBilingualSubtitleOnOsd').checked,
+                    preferCustomSecondarySubtitle: el('preferCustomSecondarySubtitle').checked,
+                    providerType: el('providerType').value,
+                    targetLanguage: el('targetLanguage').value,
+                    preTranslateSeconds: clampInt(el('preTranslateSeconds').value, 15, 600),
+                    openAiBaseUrl: el('openAiBaseUrl').value,
+                    openAiApiKey: el('openAiApiKey').value,
+                    openAiModel: el('openAiModel').value,
+                    openAiPrompt: el('openAiPrompt').value,
+                    baiduAppId: el('baiduAppId').value,
+                    baiduAppKey: el('baiduAppKey').value,
+                    microsoftKey: el('microsoftKey').value,
+                    microsoftRegion: el('microsoftRegion').value,
+                    microsoftEndpoint: el('microsoftEndpoint').value,
+                    deepLApiKey: el('deepLApiKey').value,
+                    deepLEndpoint: el('deepLEndpoint').value,
+                    deepLXEndpoint: el('deepLXEndpoint').value,
+                    deepLXApiKey: el('deepLXApiKey').value,
+                    contextBefore: clampInt(el('contextBefore').value, 0, 20),
+                    contextAfter: clampInt(el('contextAfter').value, 0, 20),
+                    requestBatchSize: clampInt(el('requestBatchSize').value, 1, 80),
+                    verifiedSignature
+                  };
+                }
+                function showProvider() {
+                  document.querySelectorAll('.provider-block').forEach(node => node.classList.remove('active'));
+                  const node = el('provider-' + el('providerType').value);
+                  if (node) node.classList.add('active');
+                }
+                function showStatus(message, isError = false, autoClear = true) {
+                  window.clearTimeout(resultTimer);
+                  el('result').className = isError ? 'error' : '';
+                  el('result').textContent = message;
+                  if (autoClear && message) {
+                    resultTimer = window.setTimeout(() => {
+                      el('result').textContent = '';
+                      el('result').className = '';
+                    }, 3000);
+                  }
+                }
+                function setTestOutput(text, isEmpty = false) {
+                  el('testOutput').textContent = text;
+                  el('testOutput').className = isEmpty ? 'test-output empty' : 'test-output';
+                }
+                function markDirty() {
+                  verifiedSignature = "";
+                  el('saveButton').disabled = true;
+                  showStatus('配置已修改，请先测试连接');
+                  showProvider();
+                }
+                function markPreferenceDirty() {
+                  showStatus('偏好已修改，可以保存');
+                  if (currentSignature) el('saveButton').disabled = false;
+                }
+                async function loadConfig() {
+                  const response = await fetch('/api/subtitle/config');
+                  const config = await response.json();
+                  el('preferBilingualSubtitleOnOsd').checked = Boolean(config.preferBilingualSubtitleOnOsd);
+                  el('preferCustomSecondarySubtitle').checked = Boolean(config.preferCustomSecondarySubtitle);
+                  el('providerType').value = config.providerType || 'OpenAiCompatible';
+                  el('targetLanguage').value = config.targetLanguage || 'en';
+                  el('preTranslateSeconds').value = config.preTranslateSeconds ?? 90;
+                  el('openAiBaseUrl').value = config.openAiBaseUrl || '';
+                  el('openAiApiKey').value = config.openAiApiKey || '';
+                  el('openAiModel').value = config.openAiModel || '';
+                  el('openAiPrompt').value = config.openAiPrompt || ${DefaultSubtitleTranslationPrompt.quoteJs()};
+                  el('baiduAppId').value = config.baiduAppId || '';
+                  el('baiduAppKey').value = config.baiduAppKey || '';
+                  el('microsoftKey').value = config.microsoftKey || '';
+                  el('microsoftRegion').value = config.microsoftRegion || '';
+                  el('microsoftEndpoint').value = config.microsoftEndpoint || 'https://api.cognitive.microsofttranslator.com';
+                  el('deepLApiKey').value = config.deepLApiKey || '';
+                  el('deepLEndpoint').value = config.deepLEndpoint || 'https://api-free.deepl.com';
+                  el('deepLXEndpoint').value = config.deepLXEndpoint || '';
+                  el('deepLXApiKey').value = config.deepLXApiKey || '';
+                  el('contextBefore').value = config.contextBefore ?? 2;
+                  el('contextAfter').value = config.contextAfter ?? 1;
+                  el('requestBatchSize').value = config.requestBatchSize ?? 12;
+                  verifiedSignature = config.verifiedSignature || '';
+                  currentSignature = config.currentSignature || '';
+                  showProvider();
+                  el('saveButton').disabled = !config.verified;
+                  showStatus(config.verified ? '当前配置已通过测试' : '启用前请先测试连接');
+                  preferenceFields.forEach(id => el(id).addEventListener('input', markPreferenceDirty));
+                  preferenceFields.forEach(id => el(id).addEventListener('change', markPreferenceDirty));
+                  serviceFields.forEach(id => el(id).addEventListener('input', markDirty));
+                  serviceFields.forEach(id => el(id).addEventListener('change', markDirty));
+                }
+                async function testConfig() {
+                  showStatus('正在测试连接...', false, false);
+                  el('saveButton').disabled = true;
+                  setTestOutput('正在请求翻译服务...', true);
+                  const testPayload = payload();
+                  testPayload.testSentence = el('testSentence').value;
+                  const response = await fetch('/api/subtitle/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testPayload)
+                  });
+                  const data = await response.json().catch(() => ({}));
+                  if (response.ok && data.success) {
+                    verifiedSignature = data.signature || '';
+                    el('saveButton').disabled = false;
+                    setTestOutput(data.translation || '服务返回为空');
+                    showStatus('测试通过，可以保存配置');
+                  } else {
+                    verifiedSignature = '';
+                    setTestOutput('测试失败，未取得翻译结果。', true);
+                    showStatus(data.error || '测试失败', true);
+                  }
+                }
+                async function saveConfig() {
+                  const response = await fetch('/api/subtitle/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload())
+                  });
+                  const data = await response.json().catch(() => ({}));
+                  showStatus(response.ok ? '配置已保存' : (data.error || '保存失败，请重试'), !response.ok);
+                }
+                loadConfig().catch(() => {
+                  showStatus('读取配置失败，请确认电视端服务正常运行', true);
+                });
+              </script>
+            </body>
+            </html>
+        """.trimIndent()
+    }
+
     private data class LogItem(
         val name: String,
         val size: Long,
@@ -576,6 +1095,8 @@ object HttpServer {
     private fun String.decodeUrlFormPart(): String {
         return java.net.URLDecoder.decode(this, Charsets.UTF_8.name())
     }
+
+    private fun String.quoteJs(): String = "\"${jsonEscape(this)}\""
 
     private fun searchInputHtml(): String {
         return """

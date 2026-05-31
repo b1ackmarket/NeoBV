@@ -71,6 +71,7 @@ fun AudioVideoSetting(
     var enableFfmpegAudioRenderer by remember { mutableStateOf(Prefs.enableFfmpegAudioRenderer) }
     var enableVolumeNormalization by remember { mutableStateOf(Prefs.enableVolumeNormalization) }
     var enableSoftwareVideoRenderer by remember { mutableStateOf(Prefs.enableSoftwareVideoDecoder) }
+    var enableBilingualSubtitle by remember { mutableStateOf(Prefs.enableBilingualSubtitle) }
     var sponsorBlockEnabled by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -153,8 +154,17 @@ fun AudioVideoSetting(
             }
         )
         SettingSwitchListItem(
+            title = "双语字幕",
+            supportText = "启用后可在播放器字幕菜单里选择副字幕；翻译配置请到 ${HttpServer.getServerAddress("/subtitle")} 调整",
+            checked = enableBilingualSubtitle,
+            onCheckedChange = {
+                enableBilingualSubtitle = it
+                Prefs.enableBilingualSubtitle = it
+            }
+        )
+        SettingSwitchListItem(
             title = "空降助手",
-            supportText = "默认仅显示提示；分类细项请到局域网页里调整",
+            supportText = "默认仅显示提示；分类细项请到 ${HttpServer.getServerAddress("/sponsorblock")} 调整",
             checked = sponsorBlockEnabled,
             onCheckedChange = {
                 sponsorBlockEnabled = it
@@ -162,11 +172,6 @@ fun AudioVideoSetting(
                     sponsorBlockStore.setEnabled(it)
                 }
             }
-        )
-        SettingListItem(
-            title = "空降助手局域网页",
-            supportText = HttpServer.getServerAddress("/sponsorblock"),
-            onClick = { }
         )
     }
     // 弹窗复用组件

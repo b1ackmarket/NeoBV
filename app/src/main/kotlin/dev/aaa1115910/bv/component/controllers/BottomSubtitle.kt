@@ -2,6 +2,7 @@ package dev.aaa1115910.bv.component.controllers
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -34,39 +35,55 @@ internal fun resolveSubtitleBottomPadding(
 fun BottomSubtitle(
     modifier: Modifier = Modifier,
     subtitleData: List<SubtitleItem>,
+    secondarySubtitleData: List<SubtitleItem> = emptyList(),
     currentTime: Long,
     fontSize: TextUnit,
     opacity: Float,
     padding: Dp,
 ) {
     var currentText by remember { mutableStateOf("") }
+    var currentSecondaryText by remember { mutableStateOf("") }
 
     val updateCurrentText: () -> Unit = {
         runCatching {
             currentText = subtitleData.find { it.isShowing(currentTime) }?.content
                 ?: if (BuildConfig.DEBUG) "【DEBUG】无内容" else ""
+            currentSecondaryText = secondarySubtitleData.find { it.isShowing(currentTime) }?.content.orEmpty()
         }
     }
 
-    LaunchedEffect(subtitleData, currentTime) {
+    LaunchedEffect(subtitleData, secondarySubtitleData, currentTime) {
         updateCurrentText()
     }
 
     Box(
         modifier = modifier.fillMaxSize()
     ) {
-        if (currentText != "") {
-            Text(
+        if (currentText != "" || currentSecondaryText != "") {
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = padding)
                     .clip(MaterialTheme.shapes.small)
                     .background(Color.Black.copy(alpha = opacity))
                     .padding(vertical = 4.dp, horizontal = 12.dp),
-                text = currentText,
-                fontSize = fontSize,
-                textAlign = TextAlign.Center
-            )
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (currentText != "") {
+                    Text(
+                        text = currentText,
+                        fontSize = fontSize,
+                        textAlign = TextAlign.Center
+                    )
+                }
+                if (currentSecondaryText != "") {
+                    Text(
+                        text = currentSecondaryText,
+                        fontSize = fontSize * 0.78f,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
     }
 }

@@ -78,6 +78,7 @@ class VideoPlayRepository(
     suspend fun getPlayData(
         aid: Long,
         cid: Long,
+        curAiAudioLanguage: String? = null,
         preferApiType: ApiType = ApiType.Web
     ): PlayData {
         return when (preferApiType) {
@@ -89,6 +90,7 @@ class VideoPlayRepository(
                     qn = 127,
                     fnver = 0,
                     fourk = 1,
+                    curLanguage = curAiAudioLanguage,
                     sessData = authRepository.sessionData,
                     dedeUserID = authRepository.mid
                 ).getResponseData()
@@ -146,7 +148,8 @@ class VideoPlayRepository(
         preferCodec: CodeType = CodeType.NoCode,
         preferApiType: ApiType = ApiType.Web,
         enableProxy: Boolean = false,
-        proxyArea: String = ""
+        proxyArea: String = "",
+        curAiAudioLanguage: String? = null
     ): PlayData {
         println("get pgc play data: [aid=$aid, cid=$cid, epid=$epid, preferCodec=$preferCodec, preferApiType=$preferApiType, enableProxy=$enableProxy, proxyArea=$proxyArea]")
         return when (preferApiType) {
@@ -160,6 +163,8 @@ class VideoPlayRepository(
                         qn = 127,
                         fnver = 0,
                         fourk = 1,
+                        supportMultiAudio = true,
+                        curLanguage = curAiAudioLanguage,
                         sessData = authRepository.sessionData
                     )
                 } else {
@@ -171,6 +176,8 @@ class VideoPlayRepository(
                         qn = 127,
                         fnver = 0,
                         fourk = 1,
+                        supportMultiAudio = true,
+                        curLanguage = curAiAudioLanguage,
                         sessData = authRepository.sessionData
                     )
                 }.getResponseData()

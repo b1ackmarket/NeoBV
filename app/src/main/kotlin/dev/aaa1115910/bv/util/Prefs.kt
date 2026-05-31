@@ -26,6 +26,8 @@ import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
+import dev.aaa1115910.bv.subtitle.translation.DefaultSubtitleTranslationPrompt
+import dev.aaa1115910.bv.subtitle.translation.SubtitleTranslationProviderType
 import dev.aaa1115910.bv.viewmodel.player.SeekStepOption
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -245,6 +247,44 @@ object Prefs {
         save = { it.value.roundToInt() },
         restore = { it.dp }
     )
+    var enableBilingualSubtitle by pref(PrefKeys.prefEnableBilingualSubtitleKey, false)
+    var preferBilingualSubtitleOnOsd by pref(PrefKeys.prefPreferBilingualSubtitleOnOsdKey, false)
+    var preferCustomSecondarySubtitle by pref(PrefKeys.prefPreferCustomSecondarySubtitleKey, false)
+    var subtitleTranslationProviderType by pref(
+        PrefKeys.prefSubtitleTranslationProviderTypeKey,
+        SubtitleTranslationProviderType.OpenAiCompatible,
+        save = { it.ordinal },
+        restore = { SubtitleTranslationProviderType.entries.getOrElse(it) { SubtitleTranslationProviderType.OpenAiCompatible } }
+    )
+    var subtitleTranslationTargetLanguage by pref(PrefKeys.prefSubtitleTranslationTargetLanguageKey, "en")
+    var bilingualSubtitleBaseUrl by pref(PrefKeys.prefBilingualSubtitleBaseUrlKey, "")
+    var bilingualSubtitleApiKey by pref(PrefKeys.prefBilingualSubtitleApiKeyKey, "")
+    var bilingualSubtitleModel by pref(PrefKeys.prefBilingualSubtitleModelKey, "")
+    var bilingualSubtitlePrompt by pref(
+        PrefKeys.prefBilingualSubtitlePromptKey,
+        DefaultSubtitleTranslationPrompt
+    )
+    var bilingualSubtitleForceAiSubtitle by pref(PrefKeys.prefBilingualSubtitleForceAiSubtitleKey, false)
+    var bilingualSubtitleContextBefore by pref(PrefKeys.prefBilingualSubtitleContextBeforeKey, 2)
+    var bilingualSubtitleContextAfter by pref(PrefKeys.prefBilingualSubtitleContextAfterKey, 1)
+    var bilingualSubtitleRequestBatchSize by pref(PrefKeys.prefBilingualSubtitleRequestBatchSizeKey, 12)
+    var subtitleTranslationPreTranslateSeconds by pref(PrefKeys.prefSubtitleTranslationPreTranslateSecondsKey, 90)
+    var subtitleTranslationBaiduAppId by pref(PrefKeys.prefSubtitleTranslationBaiduAppIdKey, "")
+    var subtitleTranslationBaiduAppKey by pref(PrefKeys.prefSubtitleTranslationBaiduAppKeyKey, "")
+    var subtitleTranslationMicrosoftKey by pref(PrefKeys.prefSubtitleTranslationMicrosoftKeyKey, "")
+    var subtitleTranslationMicrosoftRegion by pref(PrefKeys.prefSubtitleTranslationMicrosoftRegionKey, "")
+    var subtitleTranslationMicrosoftEndpoint by pref(
+        PrefKeys.prefSubtitleTranslationMicrosoftEndpointKey,
+        "https://api.cognitive.microsofttranslator.com"
+    )
+    var subtitleTranslationDeepLApiKey by pref(PrefKeys.prefSubtitleTranslationDeepLApiKeyKey, "")
+    var subtitleTranslationDeepLEndpoint by pref(
+        PrefKeys.prefSubtitleTranslationDeepLEndpointKey,
+        "https://api-free.deepl.com"
+    )
+    var subtitleTranslationDeepLXEndpoint by pref(PrefKeys.prefSubtitleTranslationDeepLXEndpointKey, "")
+    var subtitleTranslationDeepLXApiKey by pref(PrefKeys.prefSubtitleTranslationDeepLXApiKeyKey, "")
+    var subtitleTranslationVerifiedSignature by pref(PrefKeys.prefSubtitleTranslationVerifiedSignatureKey, "")
 
     // =========================================================================
     // 播放器 - 界面
@@ -472,6 +512,30 @@ private object PrefKeys {
     val prefDefaultSubtitleFontSizeKey = intPreferencesKey("dsfs")
     val prefDefaultSubtitleBackgroundOpacityKey = floatPreferencesKey("dsbo")
     val prefDefaultSubtitleBottomPaddingKey = intPreferencesKey("dsbp")
+    val prefEnableBilingualSubtitleKey = booleanPreferencesKey("enable_bilingual_subtitle")
+    val prefPreferBilingualSubtitleOnOsdKey = booleanPreferencesKey("prefer_bilingual_subtitle_on_osd")
+    val prefPreferCustomSecondarySubtitleKey = booleanPreferencesKey("prefer_custom_secondary_subtitle")
+    val prefSubtitleTranslationProviderTypeKey = intPreferencesKey("subtitle_translation_provider_type")
+    val prefSubtitleTranslationTargetLanguageKey = stringPreferencesKey("subtitle_translation_target_language")
+    val prefBilingualSubtitleBaseUrlKey = stringPreferencesKey("bilingual_subtitle_base_url")
+    val prefBilingualSubtitleApiKeyKey = stringPreferencesKey("bilingual_subtitle_api_key")
+    val prefBilingualSubtitleModelKey = stringPreferencesKey("bilingual_subtitle_model")
+    val prefBilingualSubtitlePromptKey = stringPreferencesKey("bilingual_subtitle_prompt")
+    val prefBilingualSubtitleForceAiSubtitleKey = booleanPreferencesKey("bilingual_subtitle_force_ai")
+    val prefBilingualSubtitleContextBeforeKey = intPreferencesKey("bilingual_subtitle_context_before")
+    val prefBilingualSubtitleContextAfterKey = intPreferencesKey("bilingual_subtitle_context_after")
+    val prefBilingualSubtitleRequestBatchSizeKey = intPreferencesKey("bilingual_subtitle_batch_size")
+    val prefSubtitleTranslationPreTranslateSecondsKey = intPreferencesKey("subtitle_translation_pre_translate_seconds")
+    val prefSubtitleTranslationBaiduAppIdKey = stringPreferencesKey("subtitle_translation_baidu_app_id")
+    val prefSubtitleTranslationBaiduAppKeyKey = stringPreferencesKey("subtitle_translation_baidu_app_key")
+    val prefSubtitleTranslationMicrosoftKeyKey = stringPreferencesKey("subtitle_translation_microsoft_key")
+    val prefSubtitleTranslationMicrosoftRegionKey = stringPreferencesKey("subtitle_translation_microsoft_region")
+    val prefSubtitleTranslationMicrosoftEndpointKey = stringPreferencesKey("subtitle_translation_microsoft_endpoint")
+    val prefSubtitleTranslationDeepLApiKeyKey = stringPreferencesKey("subtitle_translation_deepl_api_key")
+    val prefSubtitleTranslationDeepLEndpointKey = stringPreferencesKey("subtitle_translation_deepl_endpoint")
+    val prefSubtitleTranslationDeepLXEndpointKey = stringPreferencesKey("subtitle_translation_deeplx_endpoint")
+    val prefSubtitleTranslationDeepLXApiKeyKey = stringPreferencesKey("subtitle_translation_deeplx_api_key")
+    val prefSubtitleTranslationVerifiedSignatureKey = stringPreferencesKey("subtitle_translation_verified_signature")
 
     // 播放器 - 界面
     val prefDefaultPlaySpeedKey = intPreferencesKey("dps")

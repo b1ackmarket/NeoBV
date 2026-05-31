@@ -24,6 +24,7 @@ import dev.aaa1115910.biliapi.entity.PlayData
 import dev.aaa1115910.biliapi.util.AvBvConverter
 import dev.aaa1115910.biliapi.entity.video.HeartbeatVideoType
 import dev.aaa1115910.biliapi.entity.video.Subtitle
+import dev.aaa1115910.biliapi.entity.video.SubtitleType
 import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.biliapi.http.util.toSmartDate
 import dev.aaa1115910.biliapi.entity.user.SpaceVideoOrder
@@ -63,6 +64,12 @@ import dev.aaa1115910.bv.repository.JumpModeQueueItem
 import dev.aaa1115910.bv.repository.JumpModeRepository
 import dev.aaa1115910.bv.repository.VideoInfoRepository
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
+import dev.aaa1115910.bv.subtitle.translation.SubtitleTranslationManager
+import dev.aaa1115910.bv.subtitle.translation.buildCachePrefix
+import dev.aaa1115910.bv.subtitle.translation.readSubtitleTranslationConfigFromPrefs
+import dev.aaa1115910.bv.subtitle.SecondarySubtitleOption
+import dev.aaa1115910.bv.subtitle.buildSecondarySubtitleOptions
+import dev.aaa1115910.bv.subtitle.resolveDefaultSecondarySubtitleOption
 import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import dev.aaa1115910.bv.telemetry.TelemetryErrorType
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
@@ -90,6 +97,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -237,6 +245,73 @@ internal fun resolveRememberedSubtitleId(
         ?: tracks.firstOrNull { it.id != -1L }?.id
 }
 
+internal fun resolveAutoSubtitleTracks(
+    tracks: List<Subtitle>,
+    forceAiSubtitle: Boolean
+): List<Subtitle> {
+    if (!forceAiSubtitle) return tracks
+    val aiTracks = tracks.filter { it.type == SubtitleType.AI }
+    return aiTracks.ifEmpty { tracks }
+}
+
+internal fun resolvePreferredMainSubtitleId(
+    memory: SubtitleMemory?,
+    tracks: List<Subtitle>
+): Long? {
+    return resolveRememberedSubtitleId(memory, tracks)
+        ?: tracks.firstOrNull { it.id != -1L }?.id
+}
+
+internal fun resolvePreferredSecondarySubtitleOption(
+    tracks: List<Subtitle>,
+    mainSubtitleId: Long,
+    memory: SubtitleMemory?,
+    config: dev.aaa1115910.bv.subtitle.translation.SubtitleTranslationConfig,
+    preferCustom: Boolean,
+    sourceSubtitleAvailable: Boolean
+): SecondarySubtitleOption? {
+    val options = buildSecondarySubtitleOptions(
+        tracks = tracks,
+        currentMainSubtitleId = mainSubtitleId,
+        config = config,
+        preferCustom = preferCustom,
+        sourceSubtitleAvailable = sourceSubtitleAvailable
+    )
+    return resolveDefaultSecondarySubtitleOption(options, memory)
+}
+
+internal const val CustomSubtitleTrackId = Long.MIN_VALUE
+
+enum class SubtitleRole {
+    Main,
+    Secondary
+}
+
+internal fun disableAllSubtitles(state: PlayerUiState): PlayerUiState {
+    val nextSubtitleMemory = if (state.subtitleId != -1L) {
+        rememberSubtitleTrack(state.subtitleList.firstOrNull { it.id == state.subtitleId })
+            ?: state.subtitleMemory
+    } else {
+        state.subtitleMemory
+    }
+    val nextSecondarySubtitleMemory = if (state.secondarySubtitleId != -1L) {
+        rememberSubtitleTrack(state.subtitleList.firstOrNull { it.id == state.secondarySubtitleId })
+            ?: state.secondarySubtitleMemory
+    } else {
+        state.secondarySubtitleMemory
+    }
+
+    return state.copy(
+        subtitleId = -1L,
+        subtitleMemory = nextSubtitleMemory,
+        subtitleData = emptyList(),
+        secondarySubtitleId = -1L,
+        secondarySubtitleMemory = nextSecondarySubtitleMemory,
+        secondarySubtitleCustom = false,
+        secondarySubtitleData = emptyList()
+    )
+}
+
 private fun AutoNextTarget.toVideoListItem(): VideoListItem {
     return when (this) {
         is AutoNextTarget.NextVideo -> VideoListItem(
@@ -334,6 +409,10 @@ class VideoPlayerV3ViewModel(
     private var backToStartCountdownJob: Job? = null
     private var playNextCountdownJob: Job? = null
     private var previewTipCountdownJob: Job? = null
+    private val subtitleTranslationManager = SubtitleTranslationManager()
+    private var lastSubtitleTranslationPreloadAtMs = 0L
+    private var lastSubtitleTranslationPreloadPositionMs = Long.MIN_VALUE
+    private var pendingCustomSecondaryAfterMainLoad = false
 
     private val videoPlayerListener = object : VideoPlayerListener {
         override fun onError(error: Exception) {
@@ -585,15 +664,39 @@ class VideoPlayerV3ViewModel(
         danmakuPlayer = null
     }
 
-    fun loadSubtitle(id: Long) {
+    private fun resetCustomSubtitleTranslation() {
+        lastSubtitleTranslationPreloadAtMs = 0L
+        lastSubtitleTranslationPreloadPositionMs = Long.MIN_VALUE
+        pendingCustomSecondaryAfterMainLoad = false
+        subtitleTranslationManager.clear()
+    }
+
+    fun loadSubtitle(id: Long, role: SubtitleRole = SubtitleRole.Main) {
+        if (id == CustomSubtitleTrackId && role == SubtitleRole.Secondary) {
+            loadCustomTranslatedSubtitle()
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             if (id == -1L) {
-                _uiState.update {
-                    it.copy(
-                        subtitleId = -1,
-                        subtitleMemory = null,
-                        subtitleData = emptyList()
-                    )
+                _uiState.update { state ->
+                    when (role) {
+                        SubtitleRole.Main -> state.copy(
+                            subtitleId = -1,
+                            subtitleMemory = null,
+                            subtitleData = emptyList()
+                        )
+
+                        SubtitleRole.Secondary -> state.copy(
+                            secondarySubtitleId = -1,
+                            secondarySubtitleMemory = null,
+                            secondarySubtitleCustom = false,
+                            secondarySubtitleData = emptyList()
+                        )
+                    }
+                }
+                if (role == SubtitleRole.Secondary) resetCustomSubtitleTranslation()
+                if (role == SubtitleRole.Main && id == -1L) {
+                    pendingCustomSecondaryAfterMainLoad = false
                 }
                 return@launch
             }
@@ -609,12 +712,30 @@ class VideoPlayerV3ViewModel(
                 val responseText = client.get(subtitleUrl).bodyAsText()
                 client.close()
                 val subtitleData = SubtitleParser.fromBccString(responseText)
-                _uiState.update {
-                    it.copy(
-                        subtitleId = id,
-                        subtitleMemory = subtitleMemory,
-                        subtitleData = subtitleData
-                    )
+                _uiState.update { state ->
+                    when (role) {
+                        SubtitleRole.Main -> state.copy(
+                            subtitleId = id,
+                            subtitleMemory = subtitleMemory,
+                            subtitleData = subtitleData
+                        )
+
+                        SubtitleRole.Secondary -> state.copy(
+                            secondarySubtitleId = id,
+                            secondarySubtitleMemory = subtitleMemory,
+                            secondarySubtitleCustom = false,
+                            secondarySubtitleData = subtitleData
+                        )
+                    }
+                }
+                if (role == SubtitleRole.Secondary) resetCustomSubtitleTranslation()
+                if (role == SubtitleRole.Main) {
+                    if (pendingCustomSecondaryAfterMainLoad) {
+                        pendingCustomSecondaryAfterMainLoad = false
+                        loadCustomTranslatedSubtitle()
+                    } else if (_uiState.value.secondarySubtitleCustom) {
+                        startCustomSubtitleTranslation(videoPlayer?.currentPosition ?: _seekerState.value.currentTime)
+                    }
                 }
             }.onFailure {
                 logger.fInfo { "Load subtitle failed: ${it.stackTraceToString()}" }
@@ -624,15 +745,95 @@ class VideoPlayerV3ViewModel(
         }
     }
 
-    fun toggleSubtitle() {
+    private fun loadCustomTranslatedSubtitle() {
         val state = _uiState.value
-        if (state.subtitleId != -1L) {
-            loadSubtitle(-1L)
+        val config = readSubtitleTranslationConfigFromPrefs()
+
+        if (!Prefs.enableBilingualSubtitle) {
+            showToast("请先开启双语字幕")
+            return
+        }
+        if (!config.verified()) {
+            showToast("请先在 ${HttpServer.getServerAddress("/subtitle")} 测试并保存翻译配置")
+            return
+        }
+        if (state.subtitleId == -1L || state.subtitleData.isEmpty()) {
+            showToast("当前视频没有可翻译字幕")
             return
         }
 
-        val targetSubtitleId = resolveRememberedSubtitleId(state.subtitleMemory, state.subtitleList)
-            ?: state.subtitleList.firstOrNull { it.id != -1L }?.id
+        val currentPosition = videoPlayer?.currentPosition ?: _seekerState.value.currentTime
+        val prefix = buildCachePrefix(
+            aid = state.aid,
+            cid = state.cid,
+            subtitleId = state.subtitleId,
+            config = config
+        )
+        subtitleTranslationManager.reset(prefix)
+        _uiState.update {
+            it.copy(
+                secondarySubtitleId = CustomSubtitleTrackId,
+                secondarySubtitleMemory = null,
+                secondarySubtitleCustom = true,
+                secondarySubtitleData = subtitleTranslationManager.buildTranslatedSubtitles(state.subtitleData)
+            )
+        }
+        startCustomSubtitleTranslation(currentPosition)
+    }
+
+    private fun maybePreloadCustomSubtitleTranslation(currentPositionMs: Long) {
+        val state = _uiState.value
+        if (!state.secondarySubtitleCustom || state.subtitleData.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val positionDelta = kotlin.math.abs(currentPositionMs - lastSubtitleTranslationPreloadPositionMs)
+        if (now - lastSubtitleTranslationPreloadAtMs < 3_000L && positionDelta < 8_000L) return
+        startCustomSubtitleTranslation(currentPositionMs)
+    }
+
+    private fun startCustomSubtitleTranslation(currentPositionMs: Long) {
+        val state = _uiState.value
+        val config = readSubtitleTranslationConfigFromPrefs()
+        if (!Prefs.enableBilingualSubtitle || !config.verified()) return
+        if (!state.secondarySubtitleCustom || state.subtitleId == -1L || state.subtitleData.isEmpty()) return
+
+        lastSubtitleTranslationPreloadAtMs = System.currentTimeMillis()
+        lastSubtitleTranslationPreloadPositionMs = currentPositionMs
+        subtitleTranslationManager.preload(
+            sourceSubtitles = state.subtitleData,
+            currentTimeMs = currentPositionMs,
+            config = config,
+            title = state.title,
+            aid = state.aid,
+            cid = state.cid,
+            subtitleId = state.subtitleId,
+            onUpdate = { translated ->
+                _uiState.update { current ->
+                    if (!current.secondarySubtitleCustom || current.subtitleId != state.subtitleId) {
+                        current
+                    } else {
+                        current.copy(secondarySubtitleData = translated)
+                    }
+                }
+            },
+            onError = { error ->
+                logger.fWarn { "Translate custom subtitle failed: ${error.stackTraceToString()}" }
+                showToast("翻译字幕失败：${error.message ?: "未知错误"}")
+            }
+        )
+    }
+
+    fun toggleSubtitle() {
+        val state = _uiState.value
+        if (state.subtitleId != -1L || state.secondarySubtitleId != -1L) {
+            _uiState.update { disableAllSubtitles(it) }
+            return
+        }
+
+        val autoSubtitleTracks = resolveAutoSubtitleTracks(
+            tracks = state.subtitleList,
+            forceAiSubtitle = false
+        )
+        val targetSubtitleId = resolvePreferredMainSubtitleId(state.subtitleMemory, autoSubtitleTracks)
 
         if (targetSubtitleId == null) {
             showToast("当前视频没有字幕")
@@ -640,6 +841,24 @@ class VideoPlayerV3ViewModel(
         }
 
         loadSubtitle(targetSubtitleId)
+
+        if (Prefs.enableBilingualSubtitle && Prefs.preferBilingualSubtitleOnOsd) {
+            val config = readSubtitleTranslationConfigFromPrefs()
+            when (val secondary = resolvePreferredSecondarySubtitleOption(
+                tracks = autoSubtitleTracks,
+                mainSubtitleId = targetSubtitleId,
+                memory = state.secondarySubtitleMemory,
+                config = config,
+                preferCustom = Prefs.preferCustomSecondarySubtitle,
+                sourceSubtitleAvailable = true
+            )) {
+                SecondarySubtitleOption.CustomTranslation -> {
+                    pendingCustomSecondaryAfterMainLoad = true
+                }
+                is SecondarySubtitleOption.BiliTrack -> loadSubtitle(secondary.subtitle.id, SubtitleRole.Secondary)
+                null -> Unit
+            }
+        }
     }
 
     fun updatePlaySpeed(
@@ -732,6 +951,53 @@ class VideoPlayerV3ViewModel(
 
             if (mediaUrls != null) {
                 executePlayback(mediaUrls, startPositionMs = currentPosition.takeIf { it > 0L })
+            }
+        }
+    }
+
+    fun updateAiAudioTranslation(language: String) {
+        val normalizedLanguage = language.trim()
+        if (_uiState.value.currentAiAudioLanguage == normalizedLanguage) return
+
+        val state = _uiState.value
+        val player = videoPlayer
+        val currentPosition = player?.currentPosition?.takeIf { it > 0L }
+        player?.pause()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val newPlayData = fetchPlayData(
+                    avid = state.aid,
+                    cid = state.cid,
+                    epid = state.epid ?: 0,
+                    preferApi = Prefs.playbackApiType,
+                    proxyArea = state.proxyArea,
+                    aiAudioLanguage = normalizedLanguage.takeIf { it.isNotBlank() }
+                )
+                playData = newPlayData
+                val availableAudioList = buildAvailableAudioList(newPlayData)
+                val targetAudio = calculateTargetAudio(availableAudioList, state.mediaProfileState.audio)
+                _uiState.update {
+                    it.copy(
+                        availableAudio = availableAudioList,
+                        aiAudioTranslations = newPlayData.aiAudioTranslations,
+                        currentAiAudioLanguage = newPlayData.currentAiAudioLanguage,
+                        mediaProfileState = it.mediaProfileState.copy(audio = targetAudio)
+                    )
+                }
+                resolveMediaUrls(
+                    qn = state.mediaProfileState.qualityId,
+                    codec = state.mediaProfileState.videoCodec,
+                    audio = targetAudio
+                ) ?: throw IllegalStateException("AI 原声翻译播放源解析失败")
+            }.onSuccess { mediaUrls ->
+                withContext(Dispatchers.Main) {
+                    executePlayback(mediaUrls, startPositionMs = currentPosition)
+                }
+            }.onFailure { error ->
+                if (error is CancellationException) throw error
+                logger.fWarn { "Switch AI audio translation failed: ${error.stackTraceToString()}" }
+                showToast("AI原声翻译切换失败")
             }
         }
     }
@@ -897,6 +1163,7 @@ class VideoPlayerV3ViewModel(
         danmakuPlayer?.seekTo(time)
         // akdanmaku 会在跳转后立即播放，如果需要缓冲则会导致弹幕不同步
         danmakuPlayer?.pause()
+        maybePreloadCustomSubtitleTranslation(time)
     }
 
     fun confirmPendingPluginAction() {
@@ -1139,6 +1406,7 @@ class VideoPlayerV3ViewModel(
         videoPlayer?.pause()
         resetUpPanelVideos()
         resetComments()
+        resetCustomSubtitleTranslation()
         viewModelScope.launch(Dispatchers.IO) {
             PluginManager.getPlayerPlugins().forEach { plugin ->
                 runCatching { plugin.onPlaybackEnded() }
@@ -1188,6 +1456,12 @@ class VideoPlayerV3ViewModel(
 
         // 加载新播放url
         loadVideoWithResources()
+    }
+
+    override fun onCleared() {
+        subtitleTranslationManager.release()
+        detachedWorkScope.cancel()
+        super.onCleared()
     }
 
     fun playUpPanelVideoByAid(aid: Long, fallbackTitle: String) {
@@ -1346,11 +1620,7 @@ class VideoPlayerV3ViewModel(
             logger.fInfo { "Video available resolution: $resolutionMap" }
 
             // 3. 解析并去重可用的音质 (使用 buildList 和 distinct 替代 forEach + mutableList)
-            val availableAudioList = buildList {
-                addAll(playData.dashAudios.map { Audio.fromCode(it.codecId) })
-                playData.dolby?.let { add(Audio.fromCode(it.codecId)) }
-                playData.flac?.let { add(Audio.fromCode(it.codecId)) }
-            }.distinct()
+            val availableAudioList = buildAvailableAudioList(playData)
 
             logger.fInfo { "Video available audio: $availableAudioList" }
 
@@ -1365,6 +1635,8 @@ class VideoPlayerV3ViewModel(
                 it.copy(
                     availableQuality = resolutionMap,
                     availableAudio = availableAudioList,
+                    aiAudioTranslations = playData.aiAudioTranslations,
+                    currentAiAudioLanguage = playData.currentAiAudioLanguage,
                     mediaProfileState = it.mediaProfileState.copy(
                         qualityId = targetQualityId,
                         audio = targetAudio
@@ -1390,7 +1662,12 @@ class VideoPlayerV3ViewModel(
     }
 
     private suspend fun fetchPlayData(
-        avid: Long, cid: Long, epid: Int, preferApi: ApiType, proxyArea: ProxyArea
+        avid: Long,
+        cid: Long,
+        epid: Int,
+        preferApi: ApiType,
+        proxyArea: ProxyArea,
+        aiAudioLanguage: String? = _uiState.value.currentAiAudioLanguage.takeIf { it.isNotBlank() }
     ): PlayData {
         return if (_uiState.value.fromSeason) {
             videoPlayRepository.getPgcPlayData(
@@ -1400,15 +1677,25 @@ class VideoPlayerV3ViewModel(
                 preferCodec = Prefs.defaultVideoCodec.toBiliApiCodeType(),
                 preferApiType = preferApi,
                 enableProxy = Prefs.enableProxy,
-                proxyArea = proxyArea.toQueryParam()
+                proxyArea = proxyArea.toQueryParam(),
+                curAiAudioLanguage = aiAudioLanguage
             )
         } else {
             videoPlayRepository.getPlayData(
                 aid = avid,
                 cid = cid,
+                curAiAudioLanguage = aiAudioLanguage,
                 preferApiType = preferApi
             )
         }
+    }
+
+    private fun buildAvailableAudioList(playData: PlayData): List<Audio> {
+        return buildList {
+            addAll(playData.dashAudios.map { Audio.fromCode(it.codecId) })
+            playData.dolby?.let { add(Audio.fromCode(it.codecId)) }
+            playData.flac?.let { add(Audio.fromCode(it.codecId)) }
+        }.distinct()
     }
 
     private fun calculateTargetQuality(availableQualities: Set<Int>, defaultQualityCode: Int): Int {
@@ -1711,7 +1998,35 @@ class VideoPlayerV3ViewModel(
                 )
             }
             logger.fInfo { "Update subtitle size: ${subtitleList.size}" }
-            resolveRememberedSubtitleId(_uiState.value.subtitleMemory, subtitleList)?.let { subtitleId ->
+            val autoSubtitleTracks = resolveAutoSubtitleTracks(
+                tracks = subtitleList,
+                forceAiSubtitle = false
+            )
+            val mainSubtitleId = resolveRememberedSubtitleId(_uiState.value.subtitleMemory, autoSubtitleTracks)
+            if (Prefs.enableBilingualSubtitle) {
+                val config = readSubtitleTranslationConfigFromPrefs()
+                when (val secondary = resolvePreferredSecondarySubtitleOption(
+                    tracks = autoSubtitleTracks,
+                    mainSubtitleId = mainSubtitleId ?: -1L,
+                    memory = _uiState.value.secondarySubtitleMemory,
+                    config = config,
+                    preferCustom = Prefs.preferCustomSecondarySubtitle,
+                    sourceSubtitleAvailable = mainSubtitleId != null
+                )) {
+                    SecondarySubtitleOption.CustomTranslation -> {
+                        logger.info { "Restore custom secondary subtitle" }
+                        pendingCustomSecondaryAfterMainLoad = true
+                    }
+
+                    is SecondarySubtitleOption.BiliTrack -> {
+                        logger.info { "Restore remembered secondary subtitle: ${secondary.subtitle.id}" }
+                        loadSubtitle(secondary.subtitle.id, SubtitleRole.Secondary)
+                    }
+
+                    null -> Unit
+                }
+            }
+            mainSubtitleId?.let { subtitleId ->
                 logger.info { "Restore remembered subtitle: $subtitleId" }
                 loadSubtitle(subtitleId)
             }
@@ -2000,6 +2315,7 @@ class VideoPlayerV3ViewModel(
                 ).filter { info -> info.isNotBlank() }.joinToString("\n")
             )
         }
+        maybePreloadCustomSubtitleTranslation(currentPos)
     }
 
     private fun resetWatchedProgress(positionMs: Long = 0L) {
@@ -2241,6 +2557,12 @@ internal fun PlayerUiState.copyForVideoSwitch(
     } else {
         null
     }
+    val nextSecondarySubtitleMemory = if (secondarySubtitleId != -1L) {
+        rememberSubtitleTrack(subtitleList.firstOrNull { it.id == secondarySubtitleId })
+            ?: secondarySubtitleMemory
+    } else {
+        null
+    }
 
     return copy(
         aid = newVideo.aid,
@@ -2262,6 +2584,12 @@ internal fun PlayerUiState.copyForVideoSwitch(
         subtitleMemory = nextSubtitleMemory,
         subtitleList = emptyList(),
         subtitleData = emptyList(),
+        secondarySubtitleId = -1L,
+        secondarySubtitleMemory = nextSecondarySubtitleMemory,
+        secondarySubtitleCustom = false,
+        secondarySubtitleData = emptyList(),
+        aiAudioTranslations = emptyList(),
+        currentAiAudioLanguage = "",
         relatedVideos = emptyList(),
         isFollowingUp = false,
         jumpModeState = jumpModeState.copyForVideoSwitch(newVideo.aid)

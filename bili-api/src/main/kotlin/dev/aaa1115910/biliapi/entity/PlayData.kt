@@ -17,6 +17,8 @@ data class PlayData(
     val flac: DashAudio? = null,
     val codec: Map<Int, List<String>> = emptyMap(),
     val qualityDescriptions: Map<Int, String> = emptyMap(),
+    val aiAudioTranslations: List<AiAudioTranslation> = emptyList(),
+    val currentAiAudioLanguage: String = "",
     val needPay: Boolean = false,
 ) {
     companion object {
@@ -305,6 +307,16 @@ data class PlayData(
                 flac = flac,
                 codec = codec,
                 qualityDescriptions = playUrlData.supportFormats.toQualityDescriptions(),
+                aiAudioTranslations = playUrlData.language?.takeIf { it.support }?.items
+                    ?.map {
+                        AiAudioTranslation(
+                            lang = it.lang,
+                            title = it.title,
+                            subtitleLang = it.subtitleLang
+                        )
+                    }
+                    ?: emptyList(),
+                currentAiAudioLanguage = playUrlData.currentLanguage,
                 needPay = isPreview
             )
         }
@@ -458,10 +470,22 @@ data class PlayData(
                     .filter { it != "none" }
             }.toMap(),
             qualityDescriptions = qualityDescriptions + other.qualityDescriptions,
+            aiAudioTranslations = if (aiAudioTranslations.isNotEmpty()) {
+                aiAudioTranslations
+            } else {
+                other.aiAudioTranslations
+            },
+            currentAiAudioLanguage = currentAiAudioLanguage.ifBlank { other.currentAiAudioLanguage },
             needPay = needPay || other.needPay
         )
     }
 }
+
+data class AiAudioTranslation(
+    val lang: String,
+    val title: String,
+    val subtitleLang: String = ""
+)
 
 /**
  * @param quality 视频分辨率
