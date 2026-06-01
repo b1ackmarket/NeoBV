@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -32,6 +31,7 @@ import dev.aaa1115910.bv.repository.JumpModeRepository
 import dev.aaa1115910.bv.repository.JumpModeSource
 import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.util.formatHourMinSec
+import dev.aaa1115910.bv.util.rememberAdaptiveGridCells
 import dev.aaa1115910.bv.util.toWanString
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -64,7 +64,7 @@ fun UgcRegionScaffold(
     TvLazyVerticalGrid(
         modifier = modifier,
         state = gridState,
-        columns = GridCells.Fixed(4),
+        columns = rememberAdaptiveGridCells(defaultColumns = 4),
         contentPadding = PaddingValues(24.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)

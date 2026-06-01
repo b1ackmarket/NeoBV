@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
@@ -73,6 +72,7 @@ import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.focusedScale
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.removeHtmlTags
+import dev.aaa1115910.bv.util.rememberAdaptiveGridCells
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
@@ -153,6 +153,7 @@ fun SearchResultScreen(
     val jumpModeRepository = remember { BVApp.koinApplication.koin.get<JumpModeRepository>() }
 
     var rowSize by remember { mutableIntStateOf(4) }
+    val gridCells = rememberAdaptiveGridCells(defaultColumns = rowSize)
 
     var searchKeyword by remember { mutableStateOf("") }
     val requestedSearchTriggers = remember { mutableStateMapOf<SearchType, SearchResultRequestState>() }
@@ -379,7 +380,7 @@ fun SearchResultScreen(
                 modifier = Modifier
                     .onFocusChanged { focusOnContent = it.hasFocus },
                 state = gridState,
-                columns = GridCells.Fixed(rowSize),
+                columns = gridCells,
                 contentPadding = PaddingValues(24.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp),
                 horizontalArrangement = Arrangement.spacedBy(24.dp)

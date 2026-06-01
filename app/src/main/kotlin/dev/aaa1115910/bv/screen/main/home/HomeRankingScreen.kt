@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -43,6 +42,7 @@ import dev.aaa1115910.bv.repository.JumpModeRepository
 import dev.aaa1115910.bv.repository.JumpModeSource
 import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.util.formatHourMinSec
+import dev.aaa1115910.bv.util.rememberAdaptiveGridCells
 import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.viewmodel.home.HomeRankingType
@@ -66,7 +66,7 @@ fun HomeRankingScreen(
     Box(modifier = modifier.fillMaxSize()) {
         TvLazyVerticalGrid(
             state = gridState,
-            columns = GridCells.Fixed(4),
+            columns = rememberAdaptiveGridCells(defaultColumns = 4),
             contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -47,6 +46,7 @@ import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.util.getDisplayName
+import dev.aaa1115910.bv.util.rememberAdaptiveGridCells
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.viewmodel.index.PgcIndexViewModel
 import kotlinx.coroutines.Dispatchers
@@ -152,7 +152,7 @@ fun PgcIndexScreen(
     ) { innerPadding ->
         TvLazyVerticalGrid(
             modifier = Modifier.padding(innerPadding),
-            columns = GridCells.Fixed(6),
+            columns = rememberAdaptiveGridCells(defaultColumns = 6),
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp)
@@ -182,9 +182,7 @@ fun PgcIndexScreen(
                 )
             }
             if (pgcItems.isEmpty() && noMore) {
-                item(
-                    span = { GridItemSpan(6) }
-                ) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center

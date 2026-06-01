@@ -52,6 +52,7 @@ import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.resolveDefaultDensity
 import kotlin.math.roundToInt
 
 @Composable
@@ -70,7 +71,12 @@ fun UISetting(
     var enableFocusPreview by remember { mutableStateOf(Prefs.enableFocusPreview) }
     var enableFocusPreviewMuted by remember { mutableStateOf(Prefs.enableFocusPreviewMuted) }
 
-    val density by Prefs.densityFlow.collectAsState(context.resources.displayMetrics.widthPixels / 960f)
+    val density by Prefs.densityFlow.collectAsState(
+        resolveDefaultDensity(
+            widthPx = context.resources.displayMetrics.widthPixels,
+            heightPx = context.resources.displayMetrics.heightPixels
+        )
+    )
     val densityDialogState = remember { UIDensityDialogState(density) }
     var selectedLeftNavItem by remember { mutableStateOf(Prefs.homeLeftNaviItem) }
     var selectedFirstHomeTopNavItem by remember { mutableStateOf(Prefs.firstHomeTopNavItem) }
@@ -254,7 +260,14 @@ private fun UIDensityDialog(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
-    val defaultDensity by remember { mutableFloatStateOf(context.resources.displayMetrics.widthPixels / 960f) }
+    val defaultDensity by remember {
+        mutableFloatStateOf(
+            resolveDefaultDensity(
+                widthPx = context.resources.displayMetrics.widthPixels,
+                heightPx = context.resources.displayMetrics.heightPixels
+            )
+        )
+    }
 
     LaunchedEffect(show) {
         if (show) {

@@ -3,12 +3,14 @@ package dev.aaa1115910.bv.screen.main.live
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -53,6 +55,7 @@ import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.repository.LiveJumpModeRepository
 import dev.aaa1115910.bv.repository.toLiveJumpModeItems
 import dev.aaa1115910.bv.screen.main.LoginRequiredPlaceholder
+import dev.aaa1115910.bv.util.rememberAdaptiveGridCells
 import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.viewmodel.live.LiveViewModel
 import kotlinx.coroutines.launch
@@ -103,6 +106,8 @@ fun LiveContent(
     val scope = rememberCoroutineScope()
     val liveJumpModeRepository = remember { BVApp.koinApplication.koin.get<LiveJumpModeRepository>() }
     val liveColumns = 4
+    val liveGridCells = rememberAdaptiveGridCells(defaultColumns = liveColumns)
+    val safeTopPadding = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()
     val gridState = rememberLazyGridState()
     var isRoomGridFocused by remember { mutableStateOf(false) }
     var isSubCategoryRowFocused by remember { mutableStateOf(false) }
@@ -186,9 +191,9 @@ fun LiveContent(
             TvLazyVerticalGrid(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(top = 72.dp),
+                    .padding(top = safeTopPadding + 72.dp),
                 state = gridState,
-                columns = GridCells.Fixed(liveColumns),
+                columns = liveGridCells,
                 contentPadding = PaddingValues(
                     start = 24.dp,
                     end = 24.dp,

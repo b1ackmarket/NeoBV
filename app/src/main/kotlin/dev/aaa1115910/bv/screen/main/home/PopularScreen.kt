@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -45,6 +44,7 @@ import dev.aaa1115910.bv.repository.JumpModeSource
 import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.formatHourMinSec
+import dev.aaa1115910.bv.util.rememberAdaptiveGridCells
 import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
@@ -105,7 +105,7 @@ fun PopularScreen(
     TvLazyVerticalGrid(
         modifier = modifier,
         state = gridState,
-        columns = GridCells.Fixed(4),
+        columns = rememberAdaptiveGridCells(defaultColumns = 4),
         contentPadding = PaddingValues(24.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)

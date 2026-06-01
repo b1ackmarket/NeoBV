@@ -23,6 +23,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Typography
 import androidx.tv.material3.darkColorScheme
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.util.resolveDefaultDensity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,10 +54,12 @@ fun BVTheme(
         }
     }
 
+    val metrics = context.resources.displayMetrics
+    val defaultDensity = resolveDefaultDensity(metrics.widthPixels, metrics.heightPixels)
     val density = if (view.isInEditMode)
         LocalDensity.current.density
     else
-        Prefs.densityFlow.collectAsState(context.resources.displayMetrics.widthPixels / 960f).value
+        Prefs.densityFlow.collectAsState(defaultDensity).value
 
     MaterialTheme(
         colorScheme = colorSchemeTv,

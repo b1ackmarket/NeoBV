@@ -7,6 +7,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import dev.aaa1115910.bv.component.settings.PrivacyConsentDialog
 import dev.aaa1115910.bv.repository.UserRepository
@@ -28,6 +31,7 @@ class MainActivity : PreviewAwareComponentActivity() {
             setKeepOnScreenCondition { keepSplashScreen }
         }
         super.onCreate(savedInstanceState)
+        hideSystemBars()
 
         setContent {
             var isCheckingUserLock by remember { mutableStateOf(true) }
@@ -67,6 +71,20 @@ class MainActivity : PreviewAwareComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        hideSystemBars()
+    }
+
+    private fun hideSystemBars() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
     }
 }

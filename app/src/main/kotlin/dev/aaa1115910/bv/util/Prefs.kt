@@ -313,7 +313,10 @@ object Prefs {
 
     var density by pref(
         PrefKeys.prefDensityKey,
-        BVApp.context.resources.displayMetrics.widthPixels / 960f
+        resolveDefaultDensity(
+            widthPx = BVApp.context.resources.displayMetrics.widthPixels,
+            heightPx = BVApp.context.resources.displayMetrics.heightPixels
+        )
     )
     val densityFlow = flowMap[PrefKeys.prefDensityKey]!!.asStateFlow() as StateFlow<Float>
 

@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
@@ -31,6 +30,7 @@ import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.util.ImageSize
+import dev.aaa1115910.bv.util.rememberAdaptiveGridCells
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.resizedImageUrl
 import kotlinx.coroutines.Dispatchers
@@ -88,7 +88,7 @@ fun PgcRankScreen(
         } else {
             TvLazyVerticalGrid(
                 modifier = Modifier.padding(innerPadding),
-                columns = GridCells.Fixed(5),
+                columns = rememberAdaptiveGridCells(defaultColumns = 5),
                 state = gridState,
                 contentPadding = PaddingValues(24.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp),
