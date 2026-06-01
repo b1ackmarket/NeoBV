@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,7 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
@@ -29,14 +30,20 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.util.requestFocus
+
+internal const val SelectableItemPopupColumns = 4
+internal const val SelectableItemPopupWidthFraction = 0.68f
 
 @Composable
 fun <T> SelectableItemPopup(
@@ -57,64 +64,83 @@ fun <T> SelectableItemPopup(
     val gridState = rememberLazyGridState()
     val focusRequester = remember { FocusRequester() }
     val maxHeight = with(density) { (windowInfo.containerSize.height * 0.72f).toDp() }
+    val focusTargetIndex = items.indexOfFirst { it == selectedItem }.takeIf { it >= 0 } ?: 0
 
     LaunchedEffect(show, items.size, selectedItem) {
         if (!show || items.isEmpty()) return@LaunchedEffect
-        val selectedIndex = items.indexOfFirst { it == selectedItem }.takeIf { it >= 0 } ?: 0
-        gridState.scrollToItem(selectedIndex)
+        gridState.scrollToItem(focusTargetIndex)
         focusRequester.requestFocus(scope)
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.55f))
-            .onPreviewKeyEvent {
-                if (it.key == Key.Back || it.key == Key.Menu) {
-                    if (it.type == KeyEventType.KeyUp) onDismiss()
-                    return@onPreviewKeyEvent true
-                }
-                false
-            },
-        contentAlignment = Alignment.Center
+    Popup(
+        alignment = Alignment.Center,
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true)
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(0.68f),
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surface
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.55f))
+                .focusRequester(focusRequester)
+                .onPreviewKeyEvent {
+                    if (it.key == Key.Back || it.key == Key.Menu) {
+                        if (it.type == KeyEventType.KeyUp) onDismiss()
+                        return@onPreviewKeyEvent true
+                    }
+                    false
+                }
+                .pointerInput(onDismiss) {
+                    detectTapGestures(onTap = { onDismiss() })
+                },
+            contentAlignment = Alignment.Center
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(SelectableItemPopupWidthFraction)
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = {})
+                    },
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface
             ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge
-                )
-                LazyVerticalGrid(
-                    state = gridState,
-                    columns = GridCells.Fixed(4),
-                    modifier = Modifier.heightIn(max = maxHeight),
-                    contentPadding = PaddingValues(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    items(
-                        items = items
-                    ) { item ->
-                        val selected = item == selectedItem
-                        OutlinedButton(
-                            modifier = if (selected) Modifier.focusRequester(focusRequester) else Modifier,
-                            onClick = {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    LazyVerticalGrid(
+                        state = gridState,
+                        columns = GridCells.Fixed(SelectableItemPopupColumns),
+                        modifier = Modifier.heightIn(max = maxHeight),
+                        contentPadding = PaddingValues(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        itemsIndexed(
+                            items = items
+                        ) { index, item ->
+                            val selected = item == selectedItem
+                            val select = {
                                 onSelect(item)
                                 onDismiss()
                             }
-                        ) {
-                            Text(
-                                text = label(item),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            OutlinedButton(
+                                modifier = (if (index == focusTargetIndex) {
+                                    Modifier.focusRequester(focusRequester)
+                                } else {
+                                    Modifier
+                                }),
+                                onClick = select
+                            ) {
+                                Text(
+                                    text = label(item),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }

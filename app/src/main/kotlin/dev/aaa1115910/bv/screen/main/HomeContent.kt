@@ -122,7 +122,9 @@ fun HomeContent(
                     when (nav) {
                         HomeTopNavItem.Recommend -> {}
                         HomeTopNavItem.Popular -> {}
-                        HomeTopNavItem.Ranking -> {}
+                        HomeTopNavItem.Ranking -> {
+                            scope.launch(Dispatchers.IO) { rankingViewModel.ensureLoaded() }
+                        }
                         else -> {
                             if (homeRegionViewModel.regionStateMap[nav] == null) {
                                 homeRegionViewModel.addState(

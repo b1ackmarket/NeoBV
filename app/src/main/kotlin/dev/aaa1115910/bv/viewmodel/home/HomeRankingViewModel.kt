@@ -52,6 +52,12 @@ class HomeRankingViewModel(
         load(type = selectedType, periodId = selectedPeriodId)
     }
 
+    suspend fun ensureLoaded() {
+        if (!loaded && !loading) {
+            load(type = selectedType, periodId = selectedPeriodId)
+        }
+    }
+
     suspend fun selectType(type: HomeRankingType) {
         load(type = type, periodId = null)
     }

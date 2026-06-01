@@ -155,7 +155,7 @@ private fun CinemaTopicStrip(
 
         LazyRow(
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(end = 24.dp),
+            contentPadding = PaddingValues(start = 8.dp, top = 6.dp, end = 24.dp, bottom = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             itemsIndexed(previewItems) { index, item ->

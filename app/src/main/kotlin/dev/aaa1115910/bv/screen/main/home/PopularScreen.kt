@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -25,15 +24,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Icon
-import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.FilterChip
+import dev.aaa1115910.bv.component.FilterChipDefaults
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.SelectableItemPopup
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
@@ -45,7 +43,6 @@ import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.rememberAdaptiveGridCells
-import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.home.PopularRankCategory
@@ -106,7 +103,7 @@ fun PopularScreen(
         modifier = modifier,
         state = gridState,
         columns = rememberAdaptiveGridCells(defaultColumns = 4),
-        contentPadding = PaddingValues(24.dp),
+        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -205,35 +202,23 @@ private fun PopularCategoryRow(
     onSelect: (PopularRankCategory) -> Unit
 ) {
     LazyRow(
-        contentPadding = PaddingValues(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        contentPadding = FilterChipDefaults.RowContentPadding,
+        horizontalArrangement = Arrangement.spacedBy(FilterChipDefaults.RowSpacing)
     ) {
         item {
-            OutlinedButton(
-                modifier = Modifier.touchClick(onShowSelector),
+            FilterChip(
+                text = selectedCategory.displayName,
+                icon = Icons.Rounded.Tune,
+                maxWidth = FilterChipDefaults.SelectorMaxWidth,
                 onClick = onShowSelector
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Tune,
-                    contentDescription = null
-                )
-                Text(text = selectedCategory.displayName)
-            }
+            )
         }
         items(PopularRankCategory.entries, key = { it.name }) { category ->
             val selectCategory = { onSelect(category) }
-            OutlinedButton(
-                modifier = Modifier
-                    .widthIn(max = 152.dp)
-                    .touchClick(selectCategory),
+            FilterChip(
+                text = category.displayName,
                 onClick = selectCategory
-            ) {
-                Text(
-                    text = category.displayName,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            )
         }
     }
 }

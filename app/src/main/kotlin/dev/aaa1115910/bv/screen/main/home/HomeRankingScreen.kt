@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
@@ -25,14 +23,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Icon
-import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.repositories.HomeRankingPeriod
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.FilterChip
+import dev.aaa1115910.bv.component.FilterChipDefaults
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.SelectableItemPopup
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
@@ -43,7 +40,6 @@ import dev.aaa1115910.bv.repository.JumpModeSource
 import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.rememberAdaptiveGridCells
-import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.viewmodel.home.HomeRankingType
 import dev.aaa1115910.bv.viewmodel.home.HomeRankingViewModel
@@ -142,7 +138,7 @@ fun HomeRankingScreen(
             title = "选择榜单",
             items = HomeRankingType.entries,
             selectedItem = rankingViewModel.selectedType,
-            label = { it.displayName },
+            label = { it.popupDisplayName },
             onDismiss = { showTypePopup = false },
             onSelect = { type ->
                 scope.launch(Dispatchers.IO) { rankingViewModel.selectType(type) }
@@ -156,7 +152,7 @@ fun HomeRankingScreen(
             selectedItem = rankingViewModel.periods.firstOrNull {
                 it.id == rankingViewModel.selectedPeriodId
             },
-            label = { it.label },
+            label = { it.displayLabel() },
             onDismiss = { showPeriodPopup = false },
             onSelect = { period ->
                 scope.launch(Dispatchers.IO) { rankingViewModel.selectPeriod(period) }
@@ -176,46 +172,44 @@ private fun HomeRankingFilterRow(
 ) {
     val selectedPeriod = periods.firstOrNull { it.id == selectedPeriodId }
     LazyRow(
-        contentPadding = PaddingValues(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        contentPadding = FilterChipDefaults.RowContentPadding,
+        horizontalArrangement = Arrangement.spacedBy(FilterChipDefaults.RowSpacing)
     ) {
         item {
-            OutlinedButton(
-                modifier = Modifier.touchClick(onShowTypePopup),
+            FilterChip(
+                text = selectedType.displayName,
+                icon = Icons.Rounded.Tune,
+                maxWidth = FilterChipDefaults.SelectorMaxWidth,
                 onClick = onShowTypePopup
-            ) {
-                Icon(
-                    modifier = Modifier.size(18.dp),
-                    imageVector = Icons.Rounded.Tune,
-                    contentDescription = null
-                )
-                Text(text = selectedType.displayName)
-            }
+            )
         }
         if (selectedType.hasPeriods && periods.isNotEmpty()) {
             item {
-                OutlinedButton(
-                    modifier = Modifier.touchClick(onShowPeriodPopup),
+                FilterChip(
+                    text = selectedPeriod?.label ?: "最新一期",
+                    maxWidth = FilterChipDefaults.SelectorMaxWidth,
                     onClick = onShowPeriodPopup
-                ) {
-                    Text(text = selectedPeriod?.label ?: "最新一期")
-                }
+                )
             }
         }
         items(HomeRankingType.entries, key = { it.name }) { type ->
             val selectType = { onSelectType(type) }
-            OutlinedButton(
-                modifier = Modifier
-                    .widthIn(max = 192.dp)
-                    .touchClick(selectType),
+            FilterChip(
+                text = type.displayName,
                 onClick = selectType
-            ) {
-                Text(
-                    text = type.displayName,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            )
         }
     }
 }
+
+internal fun HomeRankingPeriod.displayLabel(): String {
+    val match = Regex("第\\s*([0-9]+)\\s*期").find(label)
+    return match?.groupValues?.getOrNull(1)?.let { "第${it}期" } ?: label
+}
+
+internal val HomeRankingType.popupDisplayName: String
+    get() = when (this) {
+        HomeRankingType.MusicHot -> "热歌榜"
+        HomeRankingType.MusicOriginal -> "二创榜"
+        else -> displayName
+    }
