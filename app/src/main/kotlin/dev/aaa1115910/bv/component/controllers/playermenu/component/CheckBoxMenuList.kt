@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -30,9 +31,18 @@ fun CheckBoxMenuList(
     onFocusBackToParent: () -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
+    val itemFocusRequesters = remember(items) {
+        mutableStateListOf<FocusRequester>().apply {
+            addAll(items.map { FocusRequester() })
+        }
+    }
     LaunchedEffect(requestFocusWhen, selected, items) {
         if (requestFocusWhen && items.isNotEmpty()) {
-            focusRequester.requestFocus()
+            val targetIndex = selected.firstOrNull()
+                ?.coerceIn(0, items.lastIndex)
+                ?: 0
+            itemFocusRequesters.getOrNull(targetIndex)?.requestFocus()
+                ?: focusRequester.requestFocus()
         }
     }
     LazyColumn(
@@ -54,18 +64,21 @@ fun CheckBoxMenuList(
         contentPadding = PaddingValues(vertical = 120.dp, horizontal = 8.dp)
     ) {
         itemsIndexed(items) { index, item ->
+            val selectItem = {
+                itemFocusRequesters.getOrNull(index)?.requestFocus()
+                val newSelectedIndexes = selected.toMutableList()
+                if (newSelectedIndexes.contains(index)) newSelectedIndexes.remove(index)
+                else newSelectedIndexes.add(index)
+                onSelectedChanged(newSelectedIndexes)
+            }
             MenuListItem(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .focusRequester(itemFocusRequesters[index])
                     .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
                 text = item,
                 selected = selected.contains(index),
-                onClick = {
-                    val newSelectedIndexes = selected.toMutableList()
-                    if (newSelectedIndexes.contains(index)) newSelectedIndexes.remove(index)
-                    else newSelectedIndexes.add(index)
-                    onSelectedChanged(newSelectedIndexes)
-                }
+                onClick = selectItem
             )
         }
     }

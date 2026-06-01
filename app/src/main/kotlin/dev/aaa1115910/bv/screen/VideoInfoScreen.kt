@@ -58,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
@@ -113,7 +114,6 @@ import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
-import dev.aaa1115910.bv.util.focusedBorder
 import dev.aaa1115910.bv.util.formatPubTimeString
 import dev.aaa1115910.bv.util.launchPlayerActivity
 import dev.aaa1115910.bv.util.requestFocus
@@ -532,6 +532,7 @@ fun VideoInfoData(
 ) {
     val localDensity = LocalDensity.current
     var heightIs by remember { mutableStateOf(0.dp) }
+    val upNameFocusRequester = remember { FocusRequester() }
 
     Row(
         modifier = modifier
@@ -540,6 +541,7 @@ fun VideoInfoData(
         Surface(
             modifier = Modifier
                 .focusRequester(defaultFocusRequester)
+                .focusProperties { right = upNameFocusRequester }
                 .weight(3f)
                 .aspectRatio(1.6f)
                 .touchClick(onClickCover)
@@ -606,6 +608,7 @@ fun VideoInfoData(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     UpButton(
+                        upNameFocusRequester = upNameFocusRequester,
                         name = videoDetail.author.name,
                         followed = isFollowing,
                         onClickUp = onClickUp,
@@ -659,6 +662,7 @@ fun VideoInfoData(
 @Composable
 private fun UpButton(
     modifier: Modifier = Modifier,
+    upNameFocusRequester: FocusRequester = remember { FocusRequester() },
     name: String,
     followed: Boolean,
     onClickUp: () -> Unit,
@@ -673,46 +677,72 @@ private fun UpButton(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        Row(
+        Surface(
             modifier = Modifier
-                .clip(MaterialTheme.shapes.small)
-                .background(Color.White.copy(alpha = 0.2f))
-                .focusedBorder(MaterialTheme.shapes.small)
-                .padding(4.dp)
+                .focusRequester(upNameFocusRequester)
                 .touchClick(onClickUp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
+            onClick = onClickUp,
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = Color.White.copy(alpha = 0.2f),
+                focusedContainerColor = Color.White.copy(alpha = 0.28f),
+                pressedContainerColor = Color.White.copy(alpha = 0.28f)
+            ),
+            shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.small),
+            border = ClickableSurfaceDefaults.border(
+                focusedBorder = Border(
+                    border = BorderStroke(width = 3.dp, color = Color.White),
+                    shape = MaterialTheme.shapes.small
+                )
+            )
         ) {
-            UpIcon(color = Color.White)
-            Text(text = name, color = Color.White)
+            Row(
+                modifier = Modifier.padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                UpIcon(color = Color.White)
+                Text(text = name, color = Color.White)
+            }
         }
         AnimatedVisibility(visible = isLogin) {
-            Row(
+            val toggleFollow = { if (followed) onDelFollow() else onAddFollow() }
+            Surface(
                 modifier = Modifier
-                    .clip(MaterialTheme.shapes.small)
-                    .background(Color.White.copy(alpha = 0.2f))
-                    .focusedBorder(MaterialTheme.shapes.small)
-                    .padding(horizontal = 4.dp, vertical = 3.dp)
-                    .touchClick { if (followed) onDelFollow() else onAddFollow() }
                     .animateContentSize()
+                    .touchClick(toggleFollow),
+                onClick = toggleFollow,
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = Color.White.copy(alpha = 0.2f),
+                    focusedContainerColor = Color.White.copy(alpha = 0.28f),
+                    pressedContainerColor = Color.White.copy(alpha = 0.28f)
+                ),
+                shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.small),
+                border = ClickableSurfaceDefaults.border(
+                    focusedBorder = Border(
+                        border = BorderStroke(width = 3.dp, color = Color.White),
+                        shape = MaterialTheme.shapes.small
+                    )
+                )
             ) {
-                if (followed) {
-                    Icon(
-                        imageVector = Icons.Rounded.Done,
-                        contentDescription = null,
-                        tint = Color.White
-                    )
-                    Text(
-                        text = stringResource(R.string.video_info_followed),
-                        color = Color.White
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = null,
-                        tint = Color.White
-                    )
-                    Text(text = stringResource(R.string.video_info_follow), color = Color.White)
+                Row(modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp)) {
+                    if (followed) {
+                        Icon(
+                            imageVector = Icons.Rounded.Done,
+                            contentDescription = null,
+                            tint = Color.White
+                        )
+                        Text(
+                            text = stringResource(R.string.video_info_followed),
+                            color = Color.White
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = null,
+                            tint = Color.White
+                        )
+                        Text(text = stringResource(R.string.video_info_follow), color = Color.White)
+                    }
                 }
             }
         }
@@ -741,18 +771,28 @@ fun VideoDescription(
             fontSize = titleFontSize.sp,
             color = titleColor
         )
-        Box(
+        Surface(
             modifier = Modifier
                 .padding(top = 15.dp)
+                .touchClick { showDescriptionDialog = true }
                 .onFocusChanged { hasFocus = it.hasFocus }
-                .clip(MaterialTheme.shapes.medium)
-                .focusedBorder(MaterialTheme.shapes.medium)
-                .padding(8.dp)
-                .touchClick {
-                    showDescriptionDialog = true
-                }
+                .fillMaxWidth(),
+            onClick = { showDescriptionDialog = true },
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = Color.Transparent,
+                focusedContainerColor = Color.White.copy(alpha = 0.08f),
+                pressedContainerColor = Color.White.copy(alpha = 0.08f)
+            ),
+            shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
+            border = ClickableSurfaceDefaults.border(
+                focusedBorder = Border(
+                    border = BorderStroke(width = 3.dp, color = Color.White),
+                    shape = MaterialTheme.shapes.medium
+                )
+            )
         ) {
             Text(
+                modifier = Modifier.padding(8.dp),
                 text = description,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

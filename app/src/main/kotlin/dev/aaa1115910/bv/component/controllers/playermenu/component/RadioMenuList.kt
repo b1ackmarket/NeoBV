@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -30,9 +31,16 @@ fun RadioMenuList(
     onFocusBackToParent: () -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
+    val itemFocusRequesters = remember(items) {
+        mutableStateListOf<FocusRequester>().apply {
+            addAll(items.map { FocusRequester() })
+        }
+    }
     LaunchedEffect(requestFocusWhen, selected, items) {
         if (requestFocusWhen && items.isNotEmpty()) {
-            focusRequester.requestFocus()
+            itemFocusRequesters.getOrNull(selected.coerceIn(0, items.lastIndex))
+                ?.requestFocus()
+                ?: focusRequester.requestFocus()
         }
     }
     LazyColumn(
@@ -54,16 +62,19 @@ fun RadioMenuList(
         contentPadding = PaddingValues(vertical = 120.dp, horizontal = 8.dp)
     ) {
         itemsIndexed(items) { index, item ->
+            val selectItem = {
+                itemFocusRequesters.getOrNull(index)?.requestFocus()
+                println("Click menu: $item ($index)")
+                onSelectedChanged(index)
+            }
             MenuListItem(
                 modifier = Modifier
                     .width(200.dp)
+                    .focusRequester(itemFocusRequesters[index])
                     .ifElse(selected == index, Modifier.focusRequester(focusRequester)),
                 text = item,
                 selected = selected == index,
-                onClick = {
-                    println("Click menu: $item ($index)")
-                    onSelectedChanged(index)
-                }
+                onClick = selectItem
             )
         }
     }

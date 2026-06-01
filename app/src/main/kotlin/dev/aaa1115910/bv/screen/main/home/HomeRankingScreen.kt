@@ -43,6 +43,7 @@ import dev.aaa1115910.bv.repository.JumpModeRepository
 import dev.aaa1115910.bv.repository.JumpModeSource
 import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.util.formatHourMinSec
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.viewmodel.home.HomeRankingType
 import dev.aaa1115910.bv.viewmodel.home.HomeRankingViewModel
@@ -179,7 +180,10 @@ private fun HomeRankingFilterRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            OutlinedButton(onClick = onShowTypePopup) {
+            OutlinedButton(
+                modifier = Modifier.touchClick(onShowTypePopup),
+                onClick = onShowTypePopup
+            ) {
                 Icon(
                     modifier = Modifier.size(18.dp),
                     imageVector = Icons.Rounded.Tune,
@@ -190,15 +194,21 @@ private fun HomeRankingFilterRow(
         }
         if (selectedType.hasPeriods && periods.isNotEmpty()) {
             item {
-                OutlinedButton(onClick = onShowPeriodPopup) {
+                OutlinedButton(
+                    modifier = Modifier.touchClick(onShowPeriodPopup),
+                    onClick = onShowPeriodPopup
+                ) {
                     Text(text = selectedPeriod?.label ?: "最新一期")
                 }
             }
         }
         items(HomeRankingType.entries, key = { it.name }) { type ->
+            val selectType = { onSelectType(type) }
             OutlinedButton(
-                modifier = Modifier.widthIn(max = 192.dp),
-                onClick = { onSelectType(type) }
+                modifier = Modifier
+                    .widthIn(max = 192.dp)
+                    .touchClick(selectType),
+                onClick = selectType
             ) {
                 Text(
                     text = type.displayName,

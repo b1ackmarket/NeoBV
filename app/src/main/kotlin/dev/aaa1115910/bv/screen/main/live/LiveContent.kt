@@ -53,6 +53,7 @@ import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.repository.LiveJumpModeRepository
 import dev.aaa1115910.bv.repository.toLiveJumpModeItems
 import dev.aaa1115910.bv.screen.main.LoginRequiredPlaceholder
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.viewmodel.live.LiveViewModel
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -301,7 +302,10 @@ private fun LiveSubCategoryRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            OutlinedButton(onClick = onShowSelector) {
+            OutlinedButton(
+                modifier = Modifier.touchClick(onShowSelector),
+                onClick = onShowSelector
+            ) {
                 Icon(
                     modifier = Modifier.size(18.dp),
                     imageVector = Icons.Rounded.Tune,
@@ -311,9 +315,12 @@ private fun LiveSubCategoryRow(
             }
         }
         items(categories, key = { it.key }) { category ->
+            val selectCategory = { onSelect(category.takeUnless { it.areaId == 0 }) }
             OutlinedButton(
-                modifier = Modifier.widthIn(max = 160.dp),
-                onClick = { onSelect(category.takeUnless { it.areaId == 0 }) }
+                modifier = Modifier
+                    .widthIn(max = 160.dp)
+                    .touchClick(selectCategory),
+                onClick = selectCategory
             ) {
                 Text(
                     text = category.label,

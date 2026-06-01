@@ -22,6 +22,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
+import dev.aaa1115910.bv.util.touchClick
 
 @Composable
 fun StepLessMenuItem(
@@ -36,6 +37,22 @@ fun StepLessMenuItem(
     onFocusBackToParent: () -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
+    val increaseValue = {
+        val nextValue = stepValueResolver?.invoke(value, 1) ?: if (value >= range.endInclusive - step) {
+            range.endInclusive
+        } else {
+            value + step
+        }
+        onValueChange(nextValue)
+    }
+    val decreaseValue = {
+        val nextValue = stepValueResolver?.invoke(value, -1) ?: if (value - step <= range.start) {
+            range.start
+        } else {
+            value - step
+        }
+        onValueChange(nextValue)
+    }
     LaunchedEffect(requestFocusWhen, text) {
         if (requestFocusWhen) {
             focusRequester.requestFocus()
@@ -57,7 +74,11 @@ fun StepLessMenuItem(
                 .padding(horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(imageVector = Icons.Rounded.ArrowDropUp, contentDescription = null)
+            Icon(
+                modifier = Modifier.touchClick(increaseValue),
+                imageVector = Icons.Rounded.ArrowDropUp,
+                contentDescription = null
+            )
             MenuListItem(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -66,23 +87,13 @@ fun StepLessMenuItem(
                         when (it.key) {
                             Key.DirectionUp -> {
                                 if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
-                                val nextValue = stepValueResolver?.invoke(value, 1) ?: if (value >= range.endInclusive - step) {
-                                    range.endInclusive
-                                } else {
-                                    value + step
-                                }
-                                onValueChange(nextValue)
+                                increaseValue()
                                 return@onPreviewKeyEvent true
                             }
 
                             Key.DirectionDown -> {
                                 if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
-                                val nextValue = stepValueResolver?.invoke(value, -1) ?: if (value - step <= range.start) {
-                                    range.start
-                                } else {
-                                    value - step
-                                }
-                                onValueChange(nextValue)
+                                decreaseValue()
                                 return@onPreviewKeyEvent true
                             }
                         }
@@ -91,7 +102,11 @@ fun StepLessMenuItem(
                 text = text,
                 selected = false
             ) { }
-            Icon(imageVector = Icons.Rounded.ArrowDropDown, contentDescription = null)
+            Icon(
+                modifier = Modifier.touchClick(decreaseValue),
+                imageVector = Icons.Rounded.ArrowDropDown,
+                contentDescription = null
+            )
         }
     }
 }
@@ -108,6 +123,20 @@ fun StepLessMenuItem(
     onFocusBackToParent: () -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
+    val increaseValue = {
+        if (value >= range.last - step) {
+            onValueChange(range.last)
+        } else {
+            onValueChange(value + step)
+        }
+    }
+    val decreaseValue = {
+        if (value - step <= range.first) {
+            onValueChange(range.first)
+        } else {
+            onValueChange(value - step)
+        }
+    }
     LaunchedEffect(requestFocusWhen, text) {
         if (requestFocusWhen) {
             focusRequester.requestFocus()
@@ -129,7 +158,11 @@ fun StepLessMenuItem(
                 .padding(horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(imageVector = Icons.Rounded.ArrowDropUp, contentDescription = null)
+            Icon(
+                modifier = Modifier.touchClick(increaseValue),
+                imageVector = Icons.Rounded.ArrowDropUp,
+                contentDescription = null
+            )
             MenuListItem(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -138,21 +171,13 @@ fun StepLessMenuItem(
                         when (it.key) {
                             Key.DirectionUp -> {
                                 if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
-                                if (value >= range.last - step) {
-                                    onValueChange(range.last)
-                                } else {
-                                    onValueChange(value + step)
-                                }
+                                increaseValue()
                                 return@onPreviewKeyEvent true
                             }
 
                             Key.DirectionDown -> {
                                 if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
-                                if (value - step <= range.first) {
-                                    onValueChange(range.first)
-                                } else {
-                                    onValueChange(value - step)
-                                }
+                                decreaseValue()
                                 return@onPreviewKeyEvent true
                             }
                         }
@@ -161,7 +186,11 @@ fun StepLessMenuItem(
                 text = text,
                 selected = false
             ) { }
-            Icon(imageVector = Icons.Rounded.ArrowDropDown, contentDescription = null)
+            Icon(
+                modifier = Modifier.touchClick(decreaseValue),
+                imageVector = Icons.Rounded.ArrowDropDown,
+                contentDescription = null
+            )
         }
     }
 }

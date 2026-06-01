@@ -11,10 +11,15 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Icon
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
@@ -30,6 +36,7 @@ import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
+import dev.aaa1115910.bv.component.SelectableItemPopup
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
@@ -38,6 +45,7 @@ import dev.aaa1115910.bv.repository.JumpModeSource
 import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.formatHourMinSec
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.home.PopularRankCategory
@@ -59,6 +67,7 @@ fun PopularScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val jumpModeRepository = remember { BVApp.koinApplication.koin.get<JumpModeRepository>() }
+    var showCategoryPopup by remember { mutableStateOf(false) }
 
     val onClickVideo: (UgcItem) -> Unit = { ugcItem ->
         jumpModeRepository.setPendingQueue(
@@ -103,6 +112,8 @@ fun PopularScreen(
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             PopularCategoryRow(
+                selectedCategory = popularViewModel.selectedCategory,
+                onShowSelector = { showCategoryPopup = true },
                 onSelect = { category ->
                     scope.launch(Dispatchers.IO) {
                         popularViewModel.selectCategory(category)
@@ -170,20 +181,52 @@ fun PopularScreen(
             }
         }
     }
+
+    SelectableItemPopup(
+        show = showCategoryPopup,
+        title = "选择热门分区",
+        items = PopularRankCategory.entries,
+        selectedItem = popularViewModel.selectedCategory,
+        label = { it.displayName },
+        onDismiss = { showCategoryPopup = false },
+        onSelect = { category ->
+            scope.launch(Dispatchers.IO) {
+                popularViewModel.selectCategory(category)
+                popularViewModel.loadMore()
+            }
+        }
+    )
 }
 
 @Composable
 private fun PopularCategoryRow(
+    selectedCategory: PopularRankCategory,
+    onShowSelector: () -> Unit,
     onSelect: (PopularRankCategory) -> Unit
 ) {
     LazyRow(
         contentPadding = PaddingValues(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(PopularRankCategory.entries, key = { it.name }) { category ->
+        item {
             OutlinedButton(
-                modifier = Modifier.widthIn(max = 152.dp),
-                onClick = { onSelect(category) }
+                modifier = Modifier.touchClick(onShowSelector),
+                onClick = onShowSelector
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Tune,
+                    contentDescription = null
+                )
+                Text(text = selectedCategory.displayName)
+            }
+        }
+        items(PopularRankCategory.entries, key = { it.name }) { category ->
+            val selectCategory = { onSelect(category) }
+            OutlinedButton(
+                modifier = Modifier
+                    .widthIn(max = 152.dp)
+                    .touchClick(selectCategory),
+                onClick = selectCategory
             ) {
                 Text(
                     text = category.displayName,
