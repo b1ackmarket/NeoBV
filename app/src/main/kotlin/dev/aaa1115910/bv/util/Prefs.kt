@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.http.util.generateBuvid
+import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.component.HomePageSettingItem
 import dev.aaa1115910.bv.component.HomeTopNavItem
@@ -348,8 +349,14 @@ object Prefs {
 
     var incognitoMode by pref(PrefKeys.prefIncognitoModeKey, false)
     var hasAcceptedUserAgreement by pref(PrefKeys.prefHasAcceptedUserAgreementKey, false)
-    var enableCrashReportCollection by pref(PrefKeys.prefEnableCrashReportCollectionKey, false)
-    var enableAnonymousUsageCollection by pref(PrefKeys.prefEnableAnonymousUsageCollectionKey, false)
+    var enableCrashReportCollection by pref(
+        PrefKeys.prefEnableCrashReportCollectionKey,
+        PrefDefaultValues.enableCrashReportCollection
+    )
+    var enableAnonymousUsageCollection by pref(
+        PrefKeys.prefEnableAnonymousUsageCollectionKey,
+        PrefDefaultValues.enableAnonymousUsageCollection
+    )
 
     // =========================================================================
 
@@ -417,6 +424,8 @@ internal object PrefDefaultValues {
     const val enableFfmpegAudioRenderer = true
     const val showVideoInfo = true
     const val preferOfficialCdn = true
+    const val enableCrashReportCollection = true
+    val enableAnonymousUsageCollection = BuildConfig.BUILD_TYPE == "alpha"
     val firstPersonalTopNavItem = PersonalTopNavItem.History
     val defaultLiveDanmakuSourceMode = LiveDanmakuSourceMode.HistoryOnly
 }
