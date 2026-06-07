@@ -110,6 +110,7 @@ private fun currentClockText(): String {
 
 private const val LiveDanmakuPollIntervalMs = 5_000L
 private const val LiveJumpModeHoldMs = 3_000L
+private const val LiveHistoryHeartbeatIntervalSec = 60
 
 private enum class LiveDanmakuEventSource {
     WebSocket,
@@ -486,6 +487,31 @@ fun LivePlayerScreen() {
     LaunchedEffect(roomContext?.title, roomContext?.roomId) {
         val contextTitle = roomContext?.title.orEmpty()
         if (contextTitle.isNotBlank()) title = contextTitle
+    }
+
+    LaunchedEffect(roomContext?.roomId, roomContext?.liveStatus) {
+        val resolvedRoomId = roomContext?.roomId ?: return@LaunchedEffect
+        if (resolvedRoomId <= 0 || Prefs.incognitoMode) return@LaunchedEffect
+        runCatching {
+            withContext(Dispatchers.IO) {
+                liveRepository.reportRoomEntry(resolvedRoomId)
+                liveRepository.sendLiveHeartbeat(
+                    roomId = resolvedRoomId,
+                    intervalSeconds = LiveHistoryHeartbeatIntervalSec
+                )
+            }
+        }
+        while (isActive) {
+            delay(LiveHistoryHeartbeatIntervalSec * 1000L)
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    liveRepository.sendLiveHeartbeat(
+                        roomId = resolvedRoomId,
+                        intervalSeconds = LiveHistoryHeartbeatIntervalSec
+                    )
+                }
+            }
+        }
     }
 
     LaunchedEffect(roomContext?.ownerMid) {

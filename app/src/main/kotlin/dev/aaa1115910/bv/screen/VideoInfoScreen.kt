@@ -2,11 +2,12 @@ package dev.aaa1115910.bv.screen
 
 import android.app.Activity
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
@@ -17,10 +18,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,6 +35,8 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -63,6 +68,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -74,6 +84,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.zIndex
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -89,9 +100,11 @@ import androidx.tv.material3.TabRow
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
+import dev.aaa1115910.biliapi.entity.user.Author
 import dev.aaa1115910.biliapi.entity.video.Dimension
 import dev.aaa1115910.biliapi.entity.video.Tag
 import dev.aaa1115910.biliapi.entity.video.VideoPage
+import dev.aaa1115910.biliapi.entity.video.VideoStaff
 import dev.aaa1115910.biliapi.entity.video.season.Episode
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
@@ -338,6 +351,13 @@ fun VideoInfoScreen(
                                 onDelFollow = {
                                     videoDetailViewModel.setFollow(false)
                                 },
+                                onClickStaff = { staff ->
+                                    UpInfoActivity.actionStart(
+                                        context,
+                                        mid = staff.mid,
+                                        name = staff.name
+                                    )
+                                },
                                 onClickTip = { tag ->
                                     TagActivity.actionStart(
                                         context = context,
@@ -523,6 +543,7 @@ fun VideoInfoData(
     onClickUp: () -> Unit,
     onAddFollow: () -> Unit,
     onDelFollow: () -> Unit,
+    onClickStaff: (VideoStaff) -> Unit,
     onClickTip: (Tag) -> Unit,
     onAddToDefaultFavoriteFolder: () -> Unit,
     onUpdateFavoriteFolders: (List<Long>) -> Unit,
@@ -604,16 +625,30 @@ fun VideoInfoData(
                         Text(text = "收藏 ${videoDetail.stat.favorite.toWanString()}")
                     }
                 }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                val authorChips = remember(videoDetail.author, videoDetail.staff) {
+                    buildVideoDetailAuthorChips(videoDetail.author, videoDetail.staff)
+                }
+                if (videoDetail.staff.isEmpty()) {
                     UpButton(
                         upNameFocusRequester = upNameFocusRequester,
-                        name = videoDetail.author.name,
+                        author = authorChips.first(),
                         followed = isFollowing,
-                        onClickUp = onClickUp,
+                        onClickAuthor = onClickUp,
                         onAddFollow = onAddFollow,
                         onDelFollow = onDelFollow
+                    )
+                } else {
+                    CooperativeStaffRow(
+                        authors = authorChips,
+                        firstFocusRequester = upNameFocusRequester,
+                        onClickAuthor = { author ->
+                            if (author.mid == videoDetail.author.mid) {
+                                onClickUp()
+                            } else {
+                                videoDetail.staff.firstOrNull { it.mid == author.mid }
+                                    ?.let(onClickStaff)
+                            }
+                        }
                     )
                 }
             }
@@ -659,89 +694,235 @@ fun VideoInfoData(
     }
 }
 
+internal fun shouldShowVideoDetailFollowButton(staffCount: Int): Boolean = staffCount == 0
+
+internal data class VideoDetailAuthorChip(
+    val mid: Long,
+    val name: String,
+    val face: String
+)
+
+internal fun buildVideoDetailAuthorChips(
+    owner: Author,
+    staff: List<VideoStaff>
+): List<VideoDetailAuthorChip> {
+    val chips = buildList {
+        add(
+            VideoDetailAuthorChip(
+                mid = owner.mid,
+                name = owner.name,
+                face = owner.face
+            )
+        )
+        staff.forEach { item ->
+            add(
+                VideoDetailAuthorChip(
+                    mid = item.mid,
+                    name = item.name,
+                    face = item.face
+                )
+            )
+        }
+    }
+    return chips.distinctBy { it.mid.takeIf { mid -> mid > 0L } ?: it.name.hashCode().toLong() }
+}
+
 @Composable
 private fun UpButton(
     modifier: Modifier = Modifier,
     upNameFocusRequester: FocusRequester = remember { FocusRequester() },
-    name: String,
+    author: VideoDetailAuthorChip,
     followed: Boolean,
-    onClickUp: () -> Unit,
+    onClickAuthor: () -> Unit,
     onAddFollow: () -> Unit,
     onDelFollow: () -> Unit
 ) {
     val view = LocalView.current
     val isLogin by remember { mutableStateOf(if (!view.isInEditMode) Prefs.isLogin else true) }
 
+    val chipShape = RoundedCornerShape(50)
+
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Surface(
             modifier = Modifier
+                .padding(2.dp)
                 .focusRequester(upNameFocusRequester)
-                .touchClick(onClickUp),
-            onClick = onClickUp,
+                .height(40.dp)
+                .touchClick(onClickAuthor),
+            onClick = onClickAuthor,
             colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color.White.copy(alpha = 0.2f),
-                focusedContainerColor = Color.White.copy(alpha = 0.28f),
-                pressedContainerColor = Color.White.copy(alpha = 0.28f)
+                containerColor = Color.White.copy(alpha = 0.12f),
+                focusedContainerColor = Color.White.copy(alpha = 0.24f),
+                pressedContainerColor = Color.White.copy(alpha = 0.24f)
             ),
-            shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.small),
+            shape = ClickableSurfaceDefaults.shape(shape = chipShape),
             border = ClickableSurfaceDefaults.border(
                 focusedBorder = Border(
-                    border = BorderStroke(width = 3.dp, color = Color.White),
-                    shape = MaterialTheme.shapes.small
+                    border = BorderStroke(width = 2.dp, color = Color.White),
+                    shape = chipShape
                 )
             )
         ) {
             Row(
-                modifier = Modifier.padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                UpIcon(color = Color.White)
-                Text(text = name, color = Color.White)
+                if (author.face.isNotBlank()) {
+                    AsyncImage(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape),
+                        model = author.face,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    UpIcon(color = Color.White)
+                }
+                Text(
+                    text = author.name,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelMedium
+                )
             }
         }
         AnimatedVisibility(visible = isLogin) {
             val toggleFollow = { if (followed) onDelFollow() else onAddFollow() }
             Surface(
                 modifier = Modifier
-                    .animateContentSize()
+                    .padding(2.dp)
+                    .height(40.dp)
+                    .width(88.dp)
                     .touchClick(toggleFollow),
                 onClick = toggleFollow,
                 colors = ClickableSurfaceDefaults.colors(
-                    containerColor = Color.White.copy(alpha = 0.2f),
-                    focusedContainerColor = Color.White.copy(alpha = 0.28f),
-                    pressedContainerColor = Color.White.copy(alpha = 0.28f)
+                    containerColor = Color.White.copy(alpha = 0.12f),
+                    focusedContainerColor = Color.White.copy(alpha = 0.24f),
+                    pressedContainerColor = Color.White.copy(alpha = 0.24f)
                 ),
-                shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.small),
+                shape = ClickableSurfaceDefaults.shape(shape = chipShape),
                 border = ClickableSurfaceDefaults.border(
                     focusedBorder = Border(
-                        border = BorderStroke(width = 3.dp, color = Color.White),
-                        shape = MaterialTheme.shapes.small
+                        border = BorderStroke(width = 2.dp, color = Color.White),
+                        shape = chipShape
                     )
                 )
             ) {
-                Row(modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     if (followed) {
                         Icon(
                             imageVector = Icons.Rounded.Done,
                             contentDescription = null,
-                            tint = Color.White
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
                         )
                         Text(
                             text = stringResource(R.string.video_info_followed),
-                            color = Color.White
+                            color = Color.White,
+                            maxLines = 1,
+                            softWrap = false,
+                            style = MaterialTheme.typography.labelMedium
                         )
                     } else {
                         Icon(
                             imageVector = Icons.Rounded.Add,
                             contentDescription = null,
-                            tint = Color.White
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
                         )
-                        Text(text = stringResource(R.string.video_info_follow), color = Color.White)
+                        Text(
+                            text = stringResource(R.string.video_info_follow),
+                            color = Color.White,
+                            maxLines = 1,
+                            softWrap = false,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun CooperativeStaffRow(
+    authors: List<VideoDetailAuthorChip>,
+    firstFocusRequester: FocusRequester,
+    onClickAuthor: (VideoDetailAuthorChip) -> Unit
+) {
+    val chipShape = RoundedCornerShape(50)
+
+    Row(
+        modifier = Modifier.fillMaxWidth().zIndex(1f),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        LazyRow(
+            modifier = Modifier
+                .weight(1f)
+                .zIndex(2f),
+            contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 56.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            itemsIndexed(authors, key = { index, item -> "${item.mid}-${item.name}-$index" }) { index, item ->
+                val openAuthor = { if (item.mid > 0L) onClickAuthor(item) }
+                var hasFocus by remember { mutableStateOf(false) }
+                Surface(
+                    modifier = Modifier
+                        .padding(4.dp)
+                        .ifElse(index == 0, Modifier.focusRequester(firstFocusRequester))
+                        .onFocusChanged { hasFocus = it.hasFocus }
+                        .zIndex(if (hasFocus) 3f else 0f)
+                        .defaultMinSize(minWidth = 112.dp, minHeight = 42.dp)
+                        .touchClick(openAuthor),
+                    onClick = openAuthor,
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = Color.White.copy(alpha = 0.12f),
+                        focusedContainerColor = Color.White.copy(alpha = 0.24f),
+                        pressedContainerColor = Color.White.copy(alpha = 0.24f)
+                    ),
+                    shape = ClickableSurfaceDefaults.shape(shape = chipShape),
+                    border = ClickableSurfaceDefaults.border(
+                        focusedBorder = Border(
+                            border = BorderStroke(width = 2.dp, color = Color.White),
+                            shape = chipShape
+                        )
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AsyncImage(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape),
+                            model = item.face,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop
+                        )
+                        Text(
+                            text = item.name,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.labelMedium
+                        )
                     }
                 }
             }
@@ -774,6 +955,7 @@ fun VideoDescription(
         Surface(
             modifier = Modifier
                 .padding(top = 15.dp)
+                .height(88.dp)
                 .touchClick { showDescriptionDialog = true }
                 .onFocusChanged { hasFocus = it.hasFocus }
                 .fillMaxWidth(),
@@ -792,11 +974,12 @@ fun VideoDescription(
             )
         ) {
             Text(
-                modifier = Modifier.padding(8.dp),
+                modifier = Modifier
+                    .padding(8.dp),
                 text = description,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                color = Color.White
+                color = Color.White,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -816,6 +999,17 @@ fun VideoDescriptionDialog(
     description: String
 ) {
     if (show) {
+        val scrollState = rememberScrollState()
+        val focusRequester = remember { FocusRequester() }
+        val scope = rememberCoroutineScope()
+        val density = LocalDensity.current
+        val scrollStepPx = remember(density) { with(density) { 96.dp.roundToPx() } }
+        var focused by remember { mutableStateOf(false) }
+
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus(scope)
+        }
+
         AlertDialog(
             modifier = modifier,
             onDismissRequest = { onHideDialog() },
@@ -826,13 +1020,76 @@ fun VideoDescriptionDialog(
                 )
             },
             text = {
-                LazyColumn {
-                    item {
-                        Text(text = description)
-                    }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .clip(MaterialTheme.shapes.small)
+                        .border(
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = if (focused) {
+                                    MaterialTheme.colorScheme.border
+                                } else {
+                                    Color.White.copy(alpha = 0.18f)
+                                }
+                            ),
+                            shape = MaterialTheme.shapes.small
+                        )
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { focused = it.isFocused }
+                        .onPreviewKeyEvent {
+                            if (it.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            when (it.key) {
+                                Key.DirectionDown -> {
+                                    if (scrollState.value >= scrollState.maxValue) {
+                                        false
+                                    } else {
+                                        scope.launch {
+                                            scrollState.animateScrollTo(
+                                                (scrollState.value + scrollStepPx)
+                                                    .coerceAtMost(scrollState.maxValue)
+                                            )
+                                        }
+                                        true
+                                    }
+                                }
+
+                                Key.DirectionUp -> {
+                                    if (scrollState.value <= 0) {
+                                        false
+                                    } else {
+                                        scope.launch {
+                                            scrollState.animateScrollTo(
+                                                (scrollState.value - scrollStepPx)
+                                                    .coerceAtLeast(0)
+                                            )
+                                        }
+                                        true
+                                    }
+                                }
+
+                                else -> false
+                            }
+                        }
+                        .focusable()
+                        .verticalScroll(scrollState)
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = description,
+                        color = Color.White.copy(alpha = if (focused) 0.92f else 0.82f)
+                    )
                 }
             },
-            confirmButton = {}
+            confirmButton = {
+                androidx.tv.material3.OutlinedButton(
+                    onClick = onHideDialog,
+                    modifier = Modifier.touchClick(onHideDialog)
+                ) {
+                    Text(text = "关闭")
+                }
+            }
         )
     }
 }
@@ -1359,9 +1616,13 @@ private fun UpButtonPreview() {
     var followed by remember { mutableStateOf(false) }
     BVTheme {
         UpButton(
-            name = "12435678",
+            author = VideoDetailAuthorChip(
+                mid = 1L,
+                name = "12435678",
+                face = ""
+            ),
             followed = followed,
-            onClickUp = { followed = !followed },
+            onClickAuthor = { followed = !followed },
             onAddFollow = {},
             onDelFollow = {}
         )

@@ -18,6 +18,7 @@ data class VideoDetail(
     val description: String,
     val stat: Stat,
     val author: Author,
+    val staff: List<VideoStaff> = emptyList(),
     val pages: List<VideoPage>,
     val ugcSeason: UgcSeason?,
     val relatedVideos: List<RelatedVideo>,
@@ -113,7 +114,8 @@ data class VideoDetail(
                 userActions = UserActions(),
                 history = History(0, 0),
                 playerIcon = null,
-                isUpowerExclusive = videoDetail.view.isUpowerExclusive?: false
+                isUpowerExclusive = videoDetail.view.isUpowerExclusive ?: false,
+                staff = videoDetail.view.staff.map { VideoStaff.fromStaff(it) }
             )
     }
 
@@ -190,6 +192,24 @@ data class VideoDetail(
                     )
                 }
         }
+    }
+}
+
+data class VideoStaff(
+    val mid: Long,
+    val name: String,
+    val face: String,
+    val title: String,
+    val follower: Int
+) {
+    companion object {
+        fun fromStaff(staff: dev.aaa1115910.biliapi.http.entity.user.Staff) = VideoStaff(
+            mid = staff.mid,
+            name = staff.name,
+            face = staff.face,
+            title = staff.title,
+            follower = staff.follower
+        )
     }
 }
 

@@ -291,11 +291,10 @@ class LiveDanmakuView @JvmOverloads constructor(
 
 private fun LiveDanmakuMenuState.allows(event: DanmakuEvent): Boolean {
     if (enabledTypes.isEmpty()) return false
-    if (enabledTypes.contains(DanmakuType.All)) return true
     return when (event.displayMode) {
-        DisplayMode.Rolling -> enabledTypes.contains(DanmakuType.Rolling)
-        DisplayMode.Top -> enabledTypes.contains(DanmakuType.Top)
-        DisplayMode.Bottom -> enabledTypes.contains(DanmakuType.Bottom)
+        DisplayMode.Rolling -> enabledTypes.contains(DanmakuType.All) || enabledTypes.contains(DanmakuType.Rolling)
+        DisplayMode.Top -> enabledTypes.contains(DanmakuType.All) || enabledTypes.contains(DanmakuType.Top)
+        DisplayMode.Bottom -> enabledTypes.contains(DanmakuType.All) || enabledTypes.contains(DanmakuType.Bottom)
     }
 }
 

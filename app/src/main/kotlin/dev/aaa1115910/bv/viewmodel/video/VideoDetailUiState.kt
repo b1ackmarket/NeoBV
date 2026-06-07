@@ -5,6 +5,7 @@ import dev.aaa1115910.biliapi.entity.user.Author
 import dev.aaa1115910.biliapi.entity.video.Tag
 import dev.aaa1115910.biliapi.entity.video.VideoDetail.Stat
 import dev.aaa1115910.biliapi.entity.video.VideoPage
+import dev.aaa1115910.biliapi.entity.video.VideoStaff
 import dev.aaa1115910.biliapi.entity.video.season.UgcSeason
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import java.util.Date
@@ -41,6 +42,7 @@ data class VideoDetailState(
     val isUpowerExclusive: Boolean = false,
     val redirectToEp: Boolean,
     val argueTip: String?,
+    val staff: List<VideoStaff> = emptyList(),
     val description: String,
     val pages: List<VideoPage>,
     val relatedVideos: List<VideoCardData>,

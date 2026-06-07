@@ -4,6 +4,7 @@ import bilibili.app.interfaces.v1.HistoryGrpcKt
 import bilibili.app.interfaces.v1.cursor
 import bilibili.app.interfaces.v1.cursorV2Req
 import dev.aaa1115910.biliapi.entity.ApiType
+import dev.aaa1115910.biliapi.entity.user.HistoryBusiness
 import dev.aaa1115910.biliapi.entity.user.HistoryData
 import dev.aaa1115910.biliapi.http.BiliHttpApi
 import org.koin.core.annotation.Single
@@ -20,15 +21,17 @@ class HistoryRepository(
 
     suspend fun getHistories(
         cursor: Long,
+        business: HistoryBusiness = HistoryBusiness.Video,
         preferApiType: ApiType = ApiType.Web
     ): HistoryData {
         return when (preferApiType) {
             ApiType.Web -> {
                 val data = BiliHttpApi.getHistories(
                     viewAt = cursor,
+                    business = business.apiName,
                     sessData = authRepository.sessionData!!,
                 ).getResponseData()
-                HistoryData.fromHistoryResponse(data)
+                HistoryData.fromHistoryResponse(data, business)
             }
 
             ApiType.App -> {
@@ -36,9 +39,9 @@ class HistoryRepository(
                     this.cursor = cursor {
                         max = cursor
                     }
-                    business = "archive"
+                    this.business = business.apiName.ifBlank { "archive" }
                 })
-                HistoryData.fromHistoryResponse(reply!!)
+                HistoryData.fromHistoryResponse(reply!!, business)
             }
         }
     }

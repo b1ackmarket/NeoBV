@@ -18,12 +18,17 @@ import kotlinx.serialization.json.longOrNull
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.core.annotation.Single
 
 @Single
 class LiveRepository(
     private val authRepository: AuthRepository
 ) {
+    private companion object {
+        val logger = KotlinLogging.logger { }
+    }
+
     suspend fun resolveRoomContext(roomId: Int): LiveRoomContext {
         val roomInfo = BiliLiveHttpApi.getLiveRoomPlayInfo(roomId).data
         val webInfo = runCatching {
@@ -158,6 +163,43 @@ class LiveRepository(
             playInfo = playInfo,
             requestedLineIndex = lineIndex
         )
+    }
+
+    suspend fun reportRoomEntry(roomId: Int) {
+        val sessData = authRepository.sessionData?.takeIf { it.isNotBlank() } ?: return
+        val result = BiliLiveHttpApi.sendLiveRoomEntryAction(
+            roomId = roomId,
+            sessData = sessData,
+            csrf = authRepository.biliJct.orEmpty(),
+            buvid3 = authRepository.buvid3.orEmpty()
+        )
+        logger.info { "Send live room entry action result: $result" }
+    }
+
+    suspend fun sendLiveHeartbeat(roomId: Int, intervalSeconds: Int = 60) {
+        val sessData = authRepository.sessionData?.takeIf { it.isNotBlank() } ?: return
+        val csrf = authRepository.biliJct.orEmpty()
+        val buvid3 = authRepository.buvid3.orEmpty()
+
+        runCatching {
+            BiliLiveHttpApi.sendLiveUserOnlineHeart(
+                roomId = roomId,
+                sessData = sessData,
+                csrf = csrf,
+                buvid3 = buvid3
+            )
+        }.onFailure {
+            logger.warn { "Send live user online heart failed: ${it.message}" }
+        }
+
+        val webHeartbeatResult = BiliLiveHttpApi.sendLiveWebHeartbeat(
+            roomId = roomId,
+            intervalSeconds = intervalSeconds,
+            sessData = sessData,
+            csrf = csrf,
+            buvid3 = buvid3
+        )
+        logger.info { "Send live web heartbeat result: $webHeartbeatResult" }
     }
 }
 

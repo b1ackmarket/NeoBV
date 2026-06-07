@@ -76,6 +76,7 @@ import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.user.lock.UnlockSwitchUserContent
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.viewmodel.user.UserSwitchViewModel
 import io.github.g0dkar.qrcode.QRCode
 import kotlinx.coroutines.Dispatchers
@@ -489,13 +490,18 @@ private fun DeleteConfirmDialog(
                 )
             },
             confirmButton = {
-                Button(onClick = { onConfirm() }) {
+                Button(
+                    onClick = { onConfirm() },
+                    modifier = Modifier.touchClick { onConfirm() }
+                ) {
                     Text(text = stringResource(R.string.delete_account_confirm_dialog_confirm))
                 }
             },
             dismissButton = {
                 OutlinedButton(
-                    modifier = Modifier.focusRequester(focusRequester),
+                    modifier = Modifier
+                        .focusRequester(focusRequester)
+                        .touchClick { onHideDialog() },
                     onClick = { onHideDialog() }
                 ) {
                     Text(text = stringResource(R.string.delete_account_confirm_dialog_dismiss))

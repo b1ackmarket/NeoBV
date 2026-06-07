@@ -17,12 +17,18 @@ import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.client.request.forms.FormDataContent
+import io.ktor.http.Parameters
 import io.ktor.http.URLProtocol
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import java.util.Base64
 
 object BiliLiveHttpApi {
     private var endPoint: String = ""
@@ -159,4 +165,78 @@ object BiliLiveHttpApi {
         }
     }.body()
 
+    suspend fun sendLiveRoomEntryAction(
+        roomId: Int,
+        sessData: String = "",
+        csrf: String = "",
+        buvid3: String = ""
+    ): String = client.post("/xlive/web-room/v1/index/roomEntryAction") {
+        setBody(
+            FormDataContent(
+                Parameters.build {
+                    append("room_id", "$roomId")
+                    append("roomid", "$roomId")
+                    append("platform", "pc")
+                    csrf.takeIf { it.isNotBlank() }?.let {
+                        append("csrf", it)
+                        append("csrf_token", it)
+                    }
+                }
+            )
+        )
+        header("Referer", "https://live.bilibili.com/$roomId")
+        header("Origin", "https://live.bilibili.com")
+        buildLiveCookie(sessData, csrf, buvid3).takeIf { it.isNotBlank() }?.let { header("Cookie", it) }
+    }.bodyAsText()
+
+    suspend fun sendLiveUserOnlineHeart(
+        roomId: Int,
+        sessData: String = "",
+        csrf: String = "",
+        buvid3: String = ""
+    ): String = client.post("/User/userOnlineHeart") {
+        setBody(
+            FormDataContent(
+                Parameters.build {
+                    append("room_id", "$roomId")
+                    append("roomid", "$roomId")
+                    csrf.takeIf { it.isNotBlank() }?.let {
+                        append("csrf", it)
+                        append("csrf_token", it)
+                    }
+                }
+            )
+        )
+        header("Referer", "https://live.bilibili.com/$roomId")
+        header("Origin", "https://live.bilibili.com")
+        buildLiveCookie(sessData, csrf, buvid3).takeIf { it.isNotBlank() }?.let { header("Cookie", it) }
+    }.bodyAsText()
+
+    suspend fun sendLiveWebHeartbeat(
+        roomId: Int,
+        intervalSeconds: Int = 60,
+        sessData: String = "",
+        csrf: String = "",
+        buvid3: String = ""
+    ): String {
+        val heartbeat = "$intervalSeconds|$roomId|1|0"
+        val hb = Base64.getEncoder().encodeToString(heartbeat.toByteArray(Charsets.UTF_8))
+        return client.get("https://live-trace.bilibili.com/xlive/rdata-interface/v1/heartbeat/webHeartBeat") {
+            parameter("hb", hb)
+            parameter("pf", "web")
+            header("Referer", "https://live.bilibili.com/$roomId")
+            header("Origin", "https://live.bilibili.com")
+            buildLiveCookie(sessData, csrf, buvid3).takeIf { it.isNotBlank() }?.let { header("Cookie", it) }
+        }.bodyAsText()
+    }
 }
+
+private fun buildLiveCookie(
+    sessData: String,
+    csrf: String,
+    buvid3: String
+): String = buildList {
+    sessData.takeIf { it.isNotBlank() }?.let { add("SESSDATA=$it") }
+    csrf.takeIf { it.isNotBlank() }?.let { add("bili_jct=$it") }
+    buvid3.takeIf { it.isNotBlank() }?.let { add("buvid3=$it") }
+}.joinToString("; ")

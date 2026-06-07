@@ -3,6 +3,8 @@ package dev.aaa1115910.bv.screen.user
 import android.app.Activity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,7 +26,14 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.focusable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Done
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,19 +47,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Border
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Tab
@@ -58,6 +78,7 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.SelectableItemPopupWidthFraction
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.CardCover
@@ -68,6 +89,7 @@ import dev.aaa1115910.bv.repository.JumpModeRepository
 import dev.aaa1115910.bv.repository.JumpModeSource
 import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.ui.effect.UiEffect
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toast
@@ -78,6 +100,7 @@ import dev.aaa1115910.bv.viewmodel.user.UpSeasonSeriesGroup
 import dev.aaa1115910.bv.viewmodel.user.UpSpaceTab
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -283,6 +306,17 @@ private fun UpVideosGrid(
                     },
                 )
             }
+            if (upInfoViewModel.noMore) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        text = stringResource(R.string.load_data_no_more),
+                        color = Color.White.copy(alpha = 0.42f)
+                    )
+                }
+            }
         } else {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 EmptyTip(
@@ -304,88 +338,83 @@ private fun UpProfileHeader(
 ) {
     var showDescriptionDialog by remember { mutableStateOf(false) }
     val description = upInfoViewModel.upSign.ifBlank { "这个 UP 主还没有填写个人简介" }
+    val descriptionFocusRequester = remember { FocusRequester() }
 
-    Surface(
-        onClick = { showDescriptionDialog = true },
-        modifier = modifier.fillMaxWidth(),
-        shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.White.copy(alpha = 0.02f),
-            contentColor = Color.White,
-            focusedContainerColor = Color.White.copy(alpha = 0.08f),
-            focusedContentColor = Color.White
-        ),
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(
-                border = BorderStroke(2.dp, Color.White.copy(alpha = 0.85f)),
-                shape = MaterialTheme.shapes.medium
-            )
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f)
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(
-            modifier = Modifier
+        Box(
+            modifier = modifier
                 .fillMaxWidth()
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(horizontal = 4.dp, vertical = 2.dp)
+                .background(
+                    color = Color.White.copy(alpha = 0.02f),
+                    shape = MaterialTheme.shapes.medium
+                )
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    if (upInfoViewModel.upFace.isNotBlank()) {
-                        AsyncImage(
-                            modifier = Modifier
-                                .size(72.dp)
-                                .clip(CircleShape),
-                            model = upInfoViewModel.upFace,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = upInfoViewModel.upName,
-                            fontSize = 26.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                            UpProfileStat("粉丝", upInfoViewModel.followerText)
-                            UpProfileStat("获赞", upInfoViewModel.likeText)
-                            UpProfileStat("投稿", upInfoViewModel.archiveText)
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        if (upInfoViewModel.upFace.isNotBlank()) {
+                            AsyncImage(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(CircleShape),
+                                model = upInfoViewModel.upFace,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = upInfoViewModel.upName,
+                                fontSize = 26.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                                UpProfileStat("粉丝", upInfoViewModel.followerText)
+                                UpProfileStat("获赞", upInfoViewModel.likeText)
+                                UpProfileStat("投稿", upInfoViewModel.archiveText)
+                            }
                         }
                     }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = stringResource(
-                            R.string.load_data_count,
-                            upInfoViewModel.spaceVideos.size
-                        ),
-                        color = Color.White.copy(alpha = 0.6f)
-                    )
-                    AnimatedVisibility(visible = upInfoViewModel.noMore) {
-                        Text(
-                            text = stringResource(R.string.load_data_no_more),
-                            color = Color.White.copy(alpha = 0.6f)
+                    AnimatedVisibility(
+                        visible = shouldShowUpFollowButton(Prefs.isLogin, upInfoViewModel.upMid)
+                    ) {
+                        UpFollowButton(
+                            modifier = Modifier
+                                .align(Alignment.Top)
+                                .focusProperties { down = descriptionFocusRequester },
+                            followed = upInfoViewModel.isFollowing,
+                            onToggleFollow = { upInfoViewModel.setFollow(!upInfoViewModel.isFollowing) }
                         )
                     }
                 }
+                UpProfileDescriptionCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 2.dp, vertical = 2.dp)
+                        .focusRequester(descriptionFocusRequester),
+                    description = description,
+                    dimmed = upInfoViewModel.upSign.isBlank(),
+                    onClick = { showDescriptionDialog = true }
+                )
             }
-            Text(
-                text = description,
-                color = Color.White.copy(alpha = if (upInfoViewModel.upSign.isNotBlank()) 0.78f else 0.42f),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                fontSize = 13.sp
-            )
         }
     }
 
@@ -394,6 +423,102 @@ private fun UpProfileHeader(
         description = description,
         onDismiss = { showDescriptionDialog = false }
     )
+}
+
+internal fun shouldShowUpFollowButton(isLogin: Boolean, upMid: Long): Boolean =
+    isLogin && upMid > 0L
+
+@Composable
+private fun UpFollowButton(
+    modifier: Modifier = Modifier,
+    followed: Boolean,
+    onToggleFollow: () -> Unit
+) {
+    val shape = RoundedCornerShape(50)
+
+    Surface(
+        modifier = modifier
+            .padding(2.dp)
+            .height(40.dp)
+            .width(88.dp)
+            .touchClick(onToggleFollow),
+        onClick = onToggleFollow,
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.White.copy(alpha = 0.16f),
+            focusedContainerColor = Color.White.copy(alpha = 0.28f),
+            pressedContainerColor = Color.White.copy(alpha = 0.28f)
+        ),
+        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = Border(
+                border = BorderStroke(width = 2.dp, color = Color.White),
+                shape = shape
+            )
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (followed) Icons.Rounded.Done else Icons.Rounded.Add,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = stringResource(
+                    if (followed) R.string.video_info_followed else R.string.video_info_follow
+                ),
+                color = Color.White,
+                maxLines = 1,
+                softWrap = false,
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
+    }
+}
+
+@Composable
+private fun UpProfileDescriptionCard(
+    modifier: Modifier = Modifier,
+    description: String,
+    dimmed: Boolean,
+    onClick: () -> Unit
+) {
+    val shape = MaterialTheme.shapes.medium
+
+    Surface(
+        modifier = modifier
+            .height(64.dp)
+            .touchClick(onClick),
+        onClick = onClick,
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.White.copy(alpha = 0.04f),
+            focusedContainerColor = Color.White.copy(alpha = 0.08f),
+            pressedContainerColor = Color.White.copy(alpha = 0.08f)
+        ),
+        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = Border(
+                border = BorderStroke(width = 2.dp, color = Color.White),
+                shape = shape
+            )
+        )
+    ) {
+        Text(
+            modifier = Modifier
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            text = description,
+            color = Color.White.copy(alpha = if (dimmed) 0.42f else 0.78f),
+            fontSize = 13.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
 }
 
 @Composable
@@ -417,26 +542,31 @@ private fun UpTabs(
         }
     }
 
-    TabRow(
-        modifier = modifier.focusRestorer(tabFocusRequesters[selectedIndex]),
-        selectedTabIndex = selectedIndex,
-        separator = { Spacer(modifier = Modifier.width(16.dp)) }
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
     ) {
-        tabs.forEachIndexed { index, tab ->
-            val selectTab = { onSelect(tab) }
-            Tab(
-                modifier = Modifier
-                    .focusRequester(tabFocusRequesters[index])
-                    .touchClick(selectTab),
-                selected = tab == selectedTab,
-                onFocus = selectTab,
-                onClick = selectTab
-            ) {
-                Text(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                    text = tab.displayName,
-                    fontSize = 18.sp
-                )
+        TabRow(
+            modifier = modifier.focusRestorer(tabFocusRequesters[selectedIndex]),
+            selectedTabIndex = selectedIndex,
+            separator = { Spacer(modifier = Modifier.width(16.dp)) }
+        ) {
+            tabs.forEachIndexed { index, tab ->
+                val selectTab = { onSelect(tab) }
+                Tab(
+                    modifier = Modifier
+                        .focusRequester(tabFocusRequesters[index])
+                        .touchClick(selectTab),
+                    selected = tab == selectedTab,
+                    onFocus = selectTab,
+                    onClick = selectTab
+                ) {
+                    Text(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                        text = tab.displayName,
+                        fontSize = 18.sp
+                    )
+                }
             }
         }
     }
@@ -588,9 +718,9 @@ private fun UpVideoGroupRow(
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             contentPadding = PaddingValues(
                 start = 18.dp,
-                top = 8.dp,
+                top = 18.dp,
                 end = 48.dp,
-                bottom = 8.dp
+                bottom = 12.dp
             )
         ) {
             item {
@@ -688,7 +818,9 @@ private fun UpGroupVideosDialog(
     if (!show) return
 
     androidx.compose.material3.AlertDialog(
+        modifier = Modifier.fillMaxWidth(SelectableItemPopupWidthFraction),
         onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
         title = {
             Text(
                 text = title,
@@ -703,6 +835,7 @@ private fun UpGroupVideosDialog(
                 modifier = Modifier.height(420.dp),
                 columns = GridCells.Fixed(3),
                 state = gridState,
+                contentPadding = PaddingValues(top = 12.dp, bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
                 horizontalArrangement = Arrangement.spacedBy(18.dp)
             ) {
@@ -734,6 +867,17 @@ private fun UpDescriptionDialog(
 ) {
     if (!show) return
 
+    val scrollState = rememberScrollState()
+    val focusRequester = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val scrollStepPx = remember(density) { with(density) { 96.dp.roundToPx() } }
+    var focused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus(scope)
+    }
+
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -743,13 +887,76 @@ private fun UpDescriptionDialog(
             )
         },
         text = {
-            LazyColumn {
-                item {
-                    Text(text = description)
-                }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .border(
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = if (focused) {
+                                MaterialTheme.colorScheme.border
+                            } else {
+                                Color.White.copy(alpha = 0.18f)
+                            }
+                        ),
+                        shape = MaterialTheme.shapes.small
+                    )
+                    .focusRequester(focusRequester)
+                    .onFocusChanged { focused = it.isFocused }
+                    .onPreviewKeyEvent {
+                        if (it.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        when (it.key) {
+                            Key.DirectionDown -> {
+                                if (scrollState.value >= scrollState.maxValue) {
+                                    false
+                                } else {
+                                    scope.launch {
+                                        scrollState.animateScrollTo(
+                                            (scrollState.value + scrollStepPx)
+                                                .coerceAtMost(scrollState.maxValue)
+                                        )
+                                    }
+                                    true
+                                }
+                            }
+
+                            Key.DirectionUp -> {
+                                if (scrollState.value <= 0) {
+                                    false
+                                } else {
+                                    scope.launch {
+                                        scrollState.animateScrollTo(
+                                            (scrollState.value - scrollStepPx)
+                                                .coerceAtLeast(0)
+                                        )
+                                    }
+                                    true
+                                }
+                            }
+
+                            else -> false
+                        }
+                    }
+                    .focusable()
+                    .verticalScroll(scrollState)
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = description,
+                    color = Color.White.copy(alpha = if (focused) 0.92f else 0.82f)
+                )
             }
         },
-        confirmButton = {}
+        confirmButton = {
+            androidx.tv.material3.OutlinedButton(
+                onClick = onDismiss,
+                modifier = Modifier.touchClick(onDismiss)
+            ) {
+                Text(text = "关闭")
+            }
+        }
     )
 }
 

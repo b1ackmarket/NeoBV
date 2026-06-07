@@ -264,6 +264,36 @@ class UpInfoViewModel(
         selectedTab = tab
     }
 
+    fun setFollow(follow: Boolean) {
+        if (upMid <= 0L || !Prefs.isLogin) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            logger.fInfo { "${if (follow) "Add" else "Del"} follow to up $upMid" }
+            runCatching {
+                if (follow) {
+                    userRepository.followUser(
+                        mid = upMid,
+                        preferApiType = Prefs.playbackApiType
+                    )
+                } else {
+                    userRepository.unfollowUser(
+                        mid = upMid,
+                        preferApiType = Prefs.playbackApiType
+                    )
+                }
+            }.onSuccess { result ->
+                logger.fInfo { "${if (follow) "Add" else "Del"} follow up result: $result" }
+                if (result) {
+                    withContext(Dispatchers.Main) {
+                        isFollowing = follow
+                    }
+                }
+            }.onFailure {
+                logger.fInfo { "Update up follow failed: ${it.stackTraceToString()}" }
+            }
+        }
+    }
+
     private fun UserSeasonsSeriesData.Meta.toGroup(type: UpSeasonSeriesType): UpSeasonSeriesGroup? {
         val groupId = when (type) {
             UpSeasonSeriesType.Season -> seasonId

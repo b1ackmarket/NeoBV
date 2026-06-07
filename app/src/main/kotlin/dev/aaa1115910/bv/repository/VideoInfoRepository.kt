@@ -63,6 +63,7 @@ class VideoInfoRepository(private val videoDetailRepository: VideoDetailReposito
             isUpowerExclusive = videoDetail.isUpowerExclusive,
             redirectToEp = videoDetail.redirectToEp,
             argueTip = videoDetail.argueTip,
+            staff = videoDetail.staff,
             description = videoDetail.description,
             pages = videoDetail.pages,
             relatedVideos = mapToVideoCardData(videoDetail.relatedVideos),
