@@ -14,7 +14,7 @@ data class DynamicVideoData(
         private val logger = KotlinLogging.logger { }
         fun fromDynamicData(data: dev.aaa1115910.biliapi.http.entity.dynamic.DynamicData) =
             DynamicVideoData(
-                videos = data.items.map { DynamicVideo.fromDynamicVideoItem(it) },
+                videos = data.items.mapNotNull { DynamicVideo.fromDynamicVideoItem(it) },
                 hasMore = data.hasMore,
                 historyOffset = data.offset,
                 updateBaseline = data.updateBaseline
@@ -46,6 +46,7 @@ data class DynamicVideoData(
  * @property title 视频标题
  * @property cover 视频封面
  * @property author 视频作者
+ * @property authorFace 视频作者头像
  * @property duration 视频时长，单位秒
  * @property play 视频播放量
  * @property danmaku 视频弹幕数
@@ -61,14 +62,15 @@ data class DynamicVideo(
     val cover: String,
     val author: String,
     val authorMid: Long,
+    val authorFace: String = "",
     val duration: Int,
     val play: Int,
     val danmaku: Int,
     val pubTime: String? = null,
 ) {
     companion object {
-        fun fromDynamicVideoItem(item: dev.aaa1115910.biliapi.http.entity.dynamic.DynamicItem): DynamicVideo {
-            val archive = item.modules.moduleDynamic.major!!.archive!!
+        fun fromDynamicVideoItem(item: dev.aaa1115910.biliapi.http.entity.dynamic.DynamicItem): DynamicVideo? {
+            val archive = item.modules.moduleDynamic.major?.archive ?: return null
             val author = item.modules.moduleAuthor
             return DynamicVideo(
                 aid = archive.aid.toLong(),
@@ -79,6 +81,7 @@ data class DynamicVideo(
                 cover = archive.cover,
                 author = author.name,
                 authorMid = author.mid,
+                authorFace = author.face,
                 duration = convertStringTimeToSeconds(archive.durationText),
                 play = convertStringPlayCountToNumberPlayCount(archive.stat.play),
                 danmaku = convertStringPlayCountToNumberPlayCount(archive.stat.danmaku),
@@ -106,6 +109,7 @@ data class DynamicVideo(
                         cover = archive.cover,
                         author = author.author.name,
                         authorMid = author.author.mid,
+                        authorFace = author.author.face,
                         duration = convertStringTimeToSeconds(archive.coverLeftText1),
                         play = convertStringPlayCountToNumberPlayCount(archive.coverLeftText2),
                         danmaku = convertStringPlayCountToNumberPlayCount(archive.coverLeftText3),
@@ -125,6 +129,7 @@ data class DynamicVideo(
                         cover = pgc.cover,
                         author = author.author.name,
                         authorMid = author.author.mid,
+                        authorFace = author.author.face,
                         duration = convertStringTimeToSeconds(pgc.coverLeftText1),
                         play = convertStringPlayCountToNumberPlayCount(pgc.coverLeftText2),
                         danmaku = convertStringPlayCountToNumberPlayCount(pgc.coverLeftText3),

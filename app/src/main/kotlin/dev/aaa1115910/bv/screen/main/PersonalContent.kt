@@ -31,6 +31,7 @@ import dev.aaa1115910.bv.screen.user.FavoriteScreen
 import dev.aaa1115910.bv.screen.user.FollowingSeasonScreen
 import dev.aaa1115910.bv.screen.user.HistoryScreen
 import dev.aaa1115910.bv.screen.user.ToViewScreen
+import dev.aaa1115910.bv.util.LayoutConfig
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
 import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
@@ -51,6 +52,7 @@ fun PersonalContent(
     val scope = rememberCoroutineScope()
 
     var focusOnContent by remember { mutableStateOf(false) }
+    val historyFirstCardFocusRequester = remember { FocusRequester() }
 
     val firstTab = remember { Prefs.firstPersonalTopNavItem }
     var selectedTab by remember { mutableStateOf(firstTab) }
@@ -62,7 +64,13 @@ fun PersonalContent(
         else allItems.drop(startIndex) + allItems.take(startIndex)
     }
     val reorderedItems = remember {
-        getReorderedItems(firstTab)
+        LayoutConfig.applyPersonal(getReorderedItems(firstTab))
+    }
+
+    LaunchedEffect(reorderedItems, selectedTab) {
+        if (selectedTab !in reorderedItems) {
+            selectedTab = reorderedItems.firstOrNull() ?: firstTab
+        }
     }
 
     fun refreshPageData(nav: PersonalTopNavItem) {
@@ -114,6 +122,11 @@ fun PersonalContent(
                     .focusRequester(navFocusRequester),
                 items = reorderedItems,
                 isLargePadding = !focusOnContent,
+                downFocusRequester = if (selectedTab == PersonalTopNavItem.History) {
+                    historyFirstCardFocusRequester
+                } else {
+                    FocusRequester.Default
+                },
                 onSelectedChanged = { nav ->
                     selectedTab = nav as PersonalTopNavItem
                 },
@@ -157,7 +170,7 @@ fun PersonalContent(
                     }
 
                     PersonalTopNavItem.History -> {
-                        HistoryScreen()
+                        HistoryScreen(firstCardFocusRequester = historyFirstCardFocusRequester)
                     }
 
                     PersonalTopNavItem.Favorite -> {

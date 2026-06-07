@@ -36,6 +36,7 @@ import dev.aaa1115910.bv.screen.main.pgc.GuoChuangContent
 import dev.aaa1115910.bv.screen.main.pgc.MovieContent
 import dev.aaa1115910.bv.screen.main.pgc.TvContent
 import dev.aaa1115910.bv.screen.main.pgc.VarietyContent
+import dev.aaa1115910.bv.util.LayoutConfig
 import dev.aaa1115910.bv.viewmodel.pgc.PgcAnimeViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcCinemaViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcDocumentaryViewModel
@@ -64,8 +65,15 @@ fun PgcContent(
     val tvState = rememberLazyListState()
     val varietyState = rememberLazyListState()
 
-    var selectedTab by remember { mutableStateOf(PgcTopNavItem.Cinema) }
+    val pgcTopNavItems = remember { LayoutConfig.applyPgc(PgcTopNavItem.entries) }
+    var selectedTab by remember { mutableStateOf(pgcTopNavItems.firstOrNull() ?: PgcTopNavItem.Cinema) }
     var focusOnContent by remember { mutableStateOf(false) }
+
+    LaunchedEffect(pgcTopNavItems, selectedTab) {
+        if (selectedTab !in pgcTopNavItems) {
+            selectedTab = pgcTopNavItems.firstOrNull() ?: PgcTopNavItem.Cinema
+        }
+    }
     val currentListOnTop by remember {
         derivedStateOf {
             with(
@@ -96,7 +104,7 @@ fun PgcContent(
                 modifier = Modifier
                     .focusRequester(navFocusRequester)
                     .padding(end = 80.dp),
-                items = PgcTopNavItem.entries,
+                items = pgcTopNavItems,
                 isLargePadding = !focusOnContent && currentListOnTop,
                 onSelectedChanged = { nav ->
                     selectedTab = nav as PgcTopNavItem

@@ -2,12 +2,14 @@ package dev.aaa1115910.bv.screen.main.home
 
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -15,6 +17,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -25,20 +28,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.user.DynamicVideo
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.user.LoginActivity
@@ -159,6 +167,14 @@ fun DynamicsScreen(
                 itemsIndexed(dynamicViewModel.authorFilters) { _, author ->
                     var isFocused by remember(author) { mutableStateOf(false) }
                     val isAllAuthors = author == DynamicViewModel.ALL_UP_AUTHORS_FILTER
+                    val authorFace = if (isAllAuthors) {
+                        ""
+                    } else {
+                        dynamicViewModel.dynamicList
+                            .firstOrNull { it.author == author }
+                            ?.authorFace
+                            .orEmpty()
+                    }
                     val isSelected = if (isAllAuthors) {
                         selectedAuthor == null
                     } else {
@@ -192,18 +208,46 @@ fun DynamicsScreen(
                             pressedContentColor = MaterialTheme.colorScheme.inverseOnSurface
                         )
                     ) {
-                        Text(
-                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
-                            text = author,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = if (isFocused) {
-                                MaterialTheme.colorScheme.inverseOnSurface
-                            } else if (isSelected) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (!isAllAuthors) {
+                                if (authorFace.isNotBlank()) {
+                                    AsyncImage(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape),
+                                        model = authorFace,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(text = author.take(1))
+                                    }
+                                }
                             }
-                        )
+                            Text(
+                                text = author,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (isFocused) {
+                                    MaterialTheme.colorScheme.inverseOnSurface
+                                } else if (isSelected) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -214,7 +258,7 @@ fun DynamicsScreen(
                     .weight(1f),
                 state = gridState,
                 columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(bottom = 24.dp),
+                contentPadding = PaddingValues(top = 6.dp, bottom = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {

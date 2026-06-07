@@ -45,6 +45,7 @@ import dev.aaa1115910.bv.screen.main.live.LiveContent
 import dev.aaa1115910.bv.screen.search.SearchInputScreen
 import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import dev.aaa1115910.bv.telemetry.TelemetryScreen
+import dev.aaa1115910.bv.util.LayoutConfig
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
@@ -75,6 +76,9 @@ fun MainScreen(
         )
     }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val visibleLeftNaviItems = remember(Prefs.layoutConfigJson) {
+        LayoutConfig.applyLeftNav(LeftNaviItem.entries)
+    }
 
     val personalFocusRequester = remember { FocusRequester() }
     val mainFocusRequester = remember { FocusRequester() }
@@ -124,6 +128,12 @@ fun MainScreen(
                 LeftNaviItem.Live -> TelemetryScreen.Live
             }
         )
+    }
+
+    LaunchedEffect(visibleLeftNaviItems, selectedDrawerItem) {
+        if (selectedDrawerItem !in visibleLeftNaviItems) {
+            selectedDrawerItem = visibleLeftNaviItems.firstOrNull() ?: LeftNaviItem.Home
+        }
     }
 
     LaunchedEffect(userViewModel.isLogin) {

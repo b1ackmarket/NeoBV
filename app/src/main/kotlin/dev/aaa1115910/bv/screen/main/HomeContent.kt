@@ -37,6 +37,7 @@ import dev.aaa1115910.bv.screen.main.home.HomeRankingScreen
 import dev.aaa1115910.bv.screen.main.home.PopularScreen
 import dev.aaa1115910.bv.screen.main.home.RecommendScreen
 import dev.aaa1115910.bv.screen.main.ugc.UgcRegionScaffold
+import dev.aaa1115910.bv.util.LayoutConfig
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.UserViewModel
@@ -75,7 +76,13 @@ fun HomeContent(
     var focusOnContent by remember { mutableStateOf(false) }
 
     val reorderedItems = remember {
-        resolveHomeTopNavOrder(firstTab)
+        LayoutConfig.applyHome(resolveHomeTopNavOrder(firstTab))
+    }
+
+    LaunchedEffect(reorderedItems, selectedTab) {
+        if (selectedTab !in reorderedItems) {
+            selectedTab = reorderedItems.firstOrNull() ?: firstTab
+        }
     }
     val regionGridStates = remember {
         HomeTopNavItem.entries

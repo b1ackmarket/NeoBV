@@ -36,6 +36,7 @@ import androidx.tv.material3.SurfaceDefaults
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.LayoutConfig
 import dev.aaa1115910.bv.util.isDpadRight
 import dev.aaa1115910.bv.util.isKeyDown
 import dev.aaa1115910.bv.util.touchClick
@@ -53,13 +54,15 @@ fun LeftNaviContent(
     onLogin: () -> Unit
 ) {
     val railItems = remember {
-        listOf(
-            LeftNaviItem.Search,
-            LeftNaviItem.Personal,
-            LeftNaviItem.Home,
-            LeftNaviItem.Dynamic,
-            LeftNaviItem.PGC,
-            LeftNaviItem.Live,
+        LayoutConfig.applyLeftNav(
+            listOf(
+                LeftNaviItem.Search,
+                LeftNaviItem.Personal,
+                LeftNaviItem.Home,
+                LeftNaviItem.Dynamic,
+                LeftNaviItem.PGC,
+                LeftNaviItem.Live,
+            )
         )
     }
     val screenHeightDp = LocalConfiguration.current.screenHeightDp

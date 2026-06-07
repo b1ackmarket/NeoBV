@@ -4,6 +4,7 @@ import dev.aaa1115910.biliapi.http.entity.user.Pendant
 import dev.aaa1115910.biliapi.http.entity.user.Vip
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class DynamicData(
@@ -24,7 +25,7 @@ data class DynamicItem(
     val idStr: String,
     val modules: Modules,
     val type: String,
-    val visible: Boolean
+    val visible: JsonElement? = null
 ) {
     @Serializable
     data class Basic(
@@ -64,8 +65,8 @@ data class DynamicItem(
         data class Author(
             val face: String,
             @SerialName("face_nft")
-            val faceNft: Boolean,
-            val following: Boolean = false,
+            val faceNft: JsonElement? = null,
+            val following: JsonElement? = null,
             @SerialName("jump_url")
             val jumpUrl: String,
             val label: String,
@@ -163,7 +164,7 @@ data class DynamicItem(
                 data class Desc(
                     val style: Int,
                     val text: String,
-                    val visible: Boolean
+                    val visible: JsonElement? = null
                 )
             }
 
@@ -269,8 +270,8 @@ data class DynamicItem(
             @Serializable
             data class StatItem(
                 val count: Int,
-                val forbidden: Boolean,
-                val statue: Boolean = false
+                val forbidden: JsonElement? = null,
+                val statue: JsonElement? = null
             )
         }
     }

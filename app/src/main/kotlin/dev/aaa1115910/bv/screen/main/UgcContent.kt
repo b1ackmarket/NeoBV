@@ -48,9 +48,15 @@ fun UgcContent(
 ) {
     val context = LocalContext.current
 
-    var selectedTab by remember { mutableStateOf(UgcTopNavItem.Douga) }
     var focusOnContent by remember { mutableStateOf(false) }
-    val ugcTopNavItems = UgcTopNavItem.entries
+    val ugcTopNavItems = remember { UgcTopNavItem.entries }
+    var selectedTab by remember { mutableStateOf(ugcTopNavItems.firstOrNull() ?: UgcTopNavItem.Douga) }
+
+    LaunchedEffect(ugcTopNavItems, selectedTab) {
+        if (selectedTab !in ugcTopNavItems) {
+            selectedTab = ugcTopNavItems.firstOrNull() ?: UgcTopNavItem.Douga
+        }
+    }
 
     LaunchedEffect(Unit) {
         toViewViewModel.uiEvent.collect { event ->

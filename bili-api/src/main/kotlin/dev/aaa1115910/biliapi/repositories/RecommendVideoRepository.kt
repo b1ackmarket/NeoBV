@@ -13,11 +13,13 @@ import dev.aaa1115910.biliapi.http.entity.video.MusicTopListItem
 import dev.aaa1115910.biliapi.http.entity.video.MusicTopListPeriodItem
 import dev.aaa1115910.biliapi.http.entity.video.WeeklySeriesItem
 import dev.aaa1115910.biliapi.http.BiliHttpApi
+import dev.aaa1115910.biliapi.http.util.toSmartDate
 import org.koin.core.annotation.Single
 
 data class HomeRankingPeriod(
     val id: Int,
-    val label: String
+    val label: String,
+    val publishTime: Long = 0L
 )
 
 data class HomeRankingResult(
@@ -124,13 +126,25 @@ class RecommendVideoRepository(
     }
 
     suspend fun getWeeklyRanking(periodId: Int? = null): HomeRankingResult {
-        val periods = BiliHttpApi.getWeeklySeriesList()
+        val sessData = authRepository.sessionData.orEmpty()
+        val biliJct = authRepository.biliJct.orEmpty()
+        val buvid3 = authRepository.buvid3.orEmpty()
+        val periods = BiliHttpApi.getWeeklySeriesList(
+            sessData = sessData,
+            biliJct = biliJct,
+            buvid3 = buvid3
+        )
             .getResponseData()
             .list
             .map { it.toHomeRankingPeriod() }
         val selectedPeriod = periodId ?: periods.firstOrNull()?.id
         val data = selectedPeriod?.let {
-            BiliHttpApi.getWeeklySeriesOne(it).getResponseData()
+            BiliHttpApi.getWeeklySeriesOne(
+                number = it,
+                sessData = sessData,
+                biliJct = biliJct,
+                buvid3 = buvid3
+            ).getResponseData()
         }
         return HomeRankingResult(
             items = data?.list.orEmpty().map { UgcItem.fromVideoInfo(it) },
@@ -160,11 +174,15 @@ class RecommendVideoRepository(
             .sortedByDescending { it.period }
             .map { it.toHomeRankingPeriod() }
         val selectedPeriod = periodId ?: periods.firstOrNull()?.id
+        val selectedPeriodPubTime = periods
+            .firstOrNull { it.id == selectedPeriod }
+            ?.publishTime
+            ?.toSmartDate()
         val items = BiliHttpApi.getMusicTopList(
             listId = listId,
             listType = listType,
             periodId = selectedPeriod
-        ).getResponseData().list.flatMap { it.toUgcItems() }
+        ).getResponseData().list.flatMap { it.toUgcItems(selectedPeriodPubTime) }
         return HomeRankingResult(
             items = items,
             periods = periods,
@@ -177,51 +195,57 @@ private fun WeeklySeriesItem.toHomeRankingPeriod(): HomeRankingPeriod {
     return HomeRankingPeriod(id = number, label = name.ifBlank { "第${number}期" })
 }
 
-private fun MusicTopListPeriodItem.toHomeRankingPeriod(): HomeRankingPeriod {
-    return HomeRankingPeriod(id = id, label = "第${period}期")
+internal fun MusicTopListPeriodItem.toHomeRankingPeriod(): HomeRankingPeriod {
+    return HomeRankingPeriod(id = id, label = "第${period}期", publishTime = publishTime)
 }
 
-private fun MusicTopListItem.toUgcItems(): List<UgcItem> {
-    val archives = arcList.orEmpty().mapNotNull { it.toUgcItem() }
+private fun MusicTopListItem.toUgcItems(pubTime: String?): List<UgcItem> {
+    val archives = arcList.orEmpty().mapNotNull { it.toUgcItem(pubTime) }
     if (archives.isNotEmpty()) return archives
-    return listOfNotNull(toUgcItem())
+    return listOfNotNull(toUgcItem(pubTime))
 }
 
-private fun MusicTopListItem.toUgcItem(): UgcItem? {
+private fun MusicTopListItem.toUgcItem(pubTime: String?): UgcItem? {
     if (creationAid <= 0L) return null
     return UgcItem(
         aid = creationAid,
         bvid = creationBvid,
         title = creationTitle,
         cover = creationCover,
-        author = creationNickname,
+        author = creationUpName(),
         authorMid = creationUp.takeIf { it > 0L },
         play = creationPlay.takeIf { it > 0 } ?: heat,
         danmaku = -1,
         duration = creationDuration,
-        pubTime = creationReasonText()
+        pubTime = pubTime
     )
 }
 
-private fun MusicTopListArchive.toUgcItem(): UgcItem? {
+private fun MusicTopListArchive.toUgcItem(pubTime: String?): UgcItem? {
     if (aid <= 0L) return null
     return UgcItem(
         aid = aid,
         bvid = bvid,
         title = title,
         cover = cover,
-        author = upName,
+        author = cleanMusicRankingUpName(upName),
         authorMid = mid.takeIf { it > 0L },
         play = play,
         danmaku = -1,
         duration = 0,
-        pubTime = null
+        pubTime = pubTime
     )
 }
 
-private fun MusicTopListItem.creationReasonText(): String? {
-    return listOfNotNull(
-        "音乐榜 #$rank".takeIf { rank > 0 },
-        "热度 $heat".takeIf { heat > 0 }
-    ).joinToString(" · ").takeIf { it.isNotBlank() }
+internal fun MusicTopListItem.creationUpName(): String {
+    return cleanMusicRankingUpName(creationNickname)
+}
+
+internal fun cleanMusicRankingUpName(name: String): String {
+    return name
+        .replace(Regex("\\s*音乐榜\\s*#\\d+.*$"), "")
+        .replace(Regex("\\s*#\\d+.*$"), "")
+        .replace(Regex("\\s*热度\\s*\\d+.*$"), "")
+        .trim()
+        .ifBlank { name }
 }

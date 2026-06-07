@@ -149,8 +149,10 @@ class DynamicViewModel(
                 }
 
                 else -> {
-                    withContext(Dispatchers.Main) {
-                        "加载动态失败: ${e.localizedMessage}".toast(BVApp.context)
+                    if (dynamicList.isEmpty()) {
+                        withContext(Dispatchers.Main) {
+                            "加载动态失败: ${e.localizedMessage}".toast(BVApp.context)
+                        }
                     }
                 }
             }
