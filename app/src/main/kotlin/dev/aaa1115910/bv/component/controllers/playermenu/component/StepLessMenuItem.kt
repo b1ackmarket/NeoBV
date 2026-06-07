@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDropDown
@@ -74,11 +75,18 @@ fun StepLessMenuItem(
                 .padding(horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                modifier = Modifier.touchClick(increaseValue),
-                imageVector = Icons.Rounded.ArrowDropUp,
-                contentDescription = null
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .touchClick(increaseValue),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.ArrowDropUp,
+                    contentDescription = null
+                )
+            }
             MenuListItem(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -102,11 +110,18 @@ fun StepLessMenuItem(
                 text = text,
                 selected = false
             ) { }
-            Icon(
-                modifier = Modifier.touchClick(decreaseValue),
-                imageVector = Icons.Rounded.ArrowDropDown,
-                contentDescription = null
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .touchClick(decreaseValue),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.ArrowDropDown,
+                    contentDescription = null
+                )
+            }
         }
     }
 }
@@ -158,11 +173,18 @@ fun StepLessMenuItem(
                 .padding(horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                modifier = Modifier.touchClick(increaseValue),
-                imageVector = Icons.Rounded.ArrowDropUp,
-                contentDescription = null
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .touchClick(increaseValue),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.ArrowDropUp,
+                    contentDescription = null
+                )
+            }
             MenuListItem(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -186,11 +208,18 @@ fun StepLessMenuItem(
                 text = text,
                 selected = false
             ) { }
-            Icon(
-                modifier = Modifier.touchClick(decreaseValue),
-                imageVector = Icons.Rounded.ArrowDropDown,
-                contentDescription = null
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .touchClick(decreaseValue),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.ArrowDropDown,
+                    contentDescription = null
+                )
+            }
         }
     }
 }

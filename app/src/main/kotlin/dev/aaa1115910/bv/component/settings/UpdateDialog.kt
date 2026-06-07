@@ -38,6 +38,7 @@ import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.toMBString
+import dev.aaa1115910.bv.util.touchClick
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.content.ProgressListener
 import kotlinx.coroutines.Dispatchers
@@ -236,13 +237,19 @@ fun UpdateDialog(
                     UpdateStatus.UpdatingInfo, UpdateStatus.NoAvailableUpdate, UpdateStatus.Downloading, UpdateStatus.Installing -> {}
 
                     UpdateStatus.Ready -> {
-                        Button(onClick = startUpdate) {
+                        Button(
+                            onClick = startUpdate,
+                            modifier = Modifier.touchClick(startUpdate)
+                        ) {
                             Text(text = "立即更新")
                         }
                     }
 
                     UpdateStatus.InstallError, UpdateStatus.DownloadError, UpdateStatus.CheckError -> {
-                        Button(onClick = checkUpdate) {
+                        Button(
+                            onClick = checkUpdate,
+                            modifier = Modifier.touchClick(checkUpdate)
+                        ) {
                             Text(text = "再试一次")
                         }
                     }
@@ -251,7 +258,12 @@ fun UpdateDialog(
             dismissButton = {
                 OutlinedButton(
                     enabled = !(updateStatus == UpdateStatus.Downloading || updateStatus == UpdateStatus.Installing),
-                    onClick = { onHideDialog() }
+                    onClick = { onHideDialog() },
+                    modifier = Modifier.touchClick {
+                        if (updateStatus != UpdateStatus.Downloading && updateStatus != UpdateStatus.Installing) {
+                            onHideDialog()
+                        }
+                    }
                 ) {
                     Text(
                         text = when (updateStatus) {

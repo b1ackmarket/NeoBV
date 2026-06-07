@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -100,12 +101,14 @@ fun MenuListItem(
                         Text(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(32.dp),
+                                .height(32.dp)
+                                .basicMarquee(),
                             text = text,
                             style = MaterialTheme.typography.titleLarge,
                             textAlign = textAlign,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            softWrap = false,
+                            overflow = TextOverflow.Clip
                         )
                     }
                 }

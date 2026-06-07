@@ -3,15 +3,15 @@ package dev.aaa1115910.bv.activities.pgc
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import dev.aaa1115910.biliapi.entity.pgc.PgcCinemaTabData
+import dev.aaa1115910.bv.activities.ImmersiveComponentActivity
 import dev.aaa1115910.bv.entity.PgcCinemaTopicPayload
 import dev.aaa1115910.bv.screen.main.pgc.PgcCinemaTopicScreen
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import io.github.oshai.kotlinlogging.KotlinLogging
 
-class PgcCinemaTopicActivity : ComponentActivity() {
+class PgcCinemaTopicActivity : ImmersiveComponentActivity() {
     companion object {
         private const val ExtraTopicPayload = "topic_payload"
         private val logger = KotlinLogging.logger("PgcCinemaTopicActivity")

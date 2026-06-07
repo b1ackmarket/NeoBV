@@ -12,6 +12,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -58,7 +63,34 @@ fun MenuNavList(
             MenuListItem(
                 modifier = Modifier
                     .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
-                    .focusRequester(itemRequesters[index]),
+                    .focusRequester(itemRequesters[index])
+                    .onKeyEvent {
+                        if (it.type == KeyEventType.KeyUp) {
+                            if (it.key == Key.DirectionUp || it.key == Key.DirectionDown) return@onKeyEvent true
+                            return@onKeyEvent false
+                        }
+                        when (it.key) {
+                            Key.DirectionUp -> {
+                                if (index == 0) {
+                                    itemRequesters.lastOrNull()?.requestFocus()
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+
+                            Key.DirectionDown -> {
+                                if (index == VideoPlayerMenuNavItem.entries.lastIndex) {
+                                    itemRequesters.firstOrNull()?.requestFocus()
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+
+                            else -> false
+                        }
+                    },
                 text = item.getDisplayName(context),
                 icon = painterResource(id = item.iconRes),
                 expanded = isFocusing,

@@ -36,6 +36,7 @@ import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.telemetry.TelemetryConsentText
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
+import dev.aaa1115910.bv.util.touchClick
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -51,7 +52,10 @@ fun PrivacyConsentDialog(
             PrivacyPolicyText(requestInitialFocus = true)
         },
         confirmButton = {
-            Button(onClick = onAccept) {
+            Button(
+                onClick = onAccept,
+                modifier = Modifier.touchClick(onAccept)
+            ) {
                 Text(text = "同意并继续")
             }
         }
@@ -69,7 +73,10 @@ fun PrivacyPolicyDialog(
             PrivacyPolicyText()
         },
         confirmButton = {
-            OutlinedButton(onClick = onDismissRequest) {
+            OutlinedButton(
+                onClick = onDismissRequest,
+                modifier = Modifier.touchClick(onDismissRequest)
+            ) {
                 Text(text = "关闭")
             }
         }

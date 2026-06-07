@@ -4,12 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import dev.aaa1115910.bv.activities.ImmersiveComponentActivity
 import dev.aaa1115910.bv.screen.live.LivePlayerScreen
 import dev.aaa1115910.bv.ui.theme.BVTheme
 
-class LivePlayerActivity : ComponentActivity() {
+class LivePlayerActivity : ImmersiveComponentActivity() {
     companion object {
         fun actionStart(
             context: Context,

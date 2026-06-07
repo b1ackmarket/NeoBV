@@ -3,13 +3,13 @@ package dev.aaa1115910.bv.activities.pgc
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
+import dev.aaa1115910.bv.activities.ImmersiveComponentActivity
 import dev.aaa1115910.bv.screen.main.pgc.PgcRankScreen
 import dev.aaa1115910.bv.ui.theme.BVTheme
 
-class PgcRankActivity : ComponentActivity() {
+class PgcRankActivity : ImmersiveComponentActivity() {
     companion object {
         private const val ExtraPgcType = "pgc_type"
 

@@ -50,6 +50,8 @@ import dev.aaa1115910.bv.entity.live.LiveCategoryType
 import dev.aaa1115910.bv.repository.LiveJumpModeRepository
 import dev.aaa1115910.bv.repository.toLiveJumpModeItems
 import dev.aaa1115910.bv.screen.main.LoginRequiredPlaceholder
+import dev.aaa1115910.bv.util.LayoutConfig
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.rememberAdaptiveGridCells
 import dev.aaa1115910.bv.viewmodel.live.LiveViewModel
 import kotlinx.coroutines.launch
@@ -106,6 +108,7 @@ fun LiveContent(
     var isSubCategoryRowFocused by remember { mutableStateOf(false) }
     var showSubCategoryPopup by remember { mutableStateOf(false) }
     val loginFocusRequester = remember { FocusRequester() }
+    val firstRoomFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(liveViewModel.isLogin) {
         liveViewModel.onLoginStateChanged(liveViewModel.isLogin)
@@ -127,6 +130,10 @@ fun LiveContent(
             }
     }
 
+    val categoryKeys = liveViewModel.categories.joinToString("|") { it.key }
+    val visibleCategories = remember(categoryKeys, Prefs.layoutConfigJson) {
+        LayoutConfig.applyLive(liveViewModel.categories)
+    }
     val selectedCategory = liveViewModel.categories.getOrNull(liveViewModel.selectedCategoryIndex)
     val showLoginPlaceholder = shouldShowLiveLoginPlaceholder(liveViewModel.isLogin, selectedCategory)
     val childCategories = selectedCategory
@@ -134,9 +141,19 @@ fun LiveContent(
         ?.children
         .orEmpty()
 
+    val visibleCategoryKeys = visibleCategories.joinToString("|") { it.key }
+    LaunchedEffect(visibleCategoryKeys, liveViewModel.selectedCategoryIndex) {
+        val current = liveViewModel.categories.getOrNull(liveViewModel.selectedCategoryIndex)
+        if (current != null && visibleCategories.none { it.key == current.key }) {
+            val firstVisible = visibleCategories.firstOrNull()
+            val index = firstVisible?.let { liveViewModel.categories.indexOf(it) } ?: -1
+            if (index >= 0) liveViewModel.selectCategory(index)
+        }
+    }
+
     Scaffold(
         topBar = {
-            if (liveViewModel.categories.isNotEmpty()) {
+            if (visibleCategories.isNotEmpty()) {
                 TopNav(
                     modifier = Modifier
                         .focusRequester(navFocusRequester)
@@ -146,9 +163,10 @@ fun LiveContent(
                                 isSubCategoryRowFocused = false
                             }
                         },
-                    items = liveViewModel.categories,
+                    items = visibleCategories,
                     isLargePadding = !(isRoomGridFocused || isSubCategoryRowFocused),
                     downFocusRequester = loginFocusRequester.takeIf { showLoginPlaceholder }
+                        ?: firstRoomFocusRequester.takeIf { liveViewModel.rooms.isNotEmpty() }
                         ?: FocusRequester.Default,
                     onSelectedChanged = { nav ->
                         val index = liveViewModel.categories.indexOf(nav)
@@ -192,6 +210,7 @@ fun LiveContent(
                     columns = liveGridCells,
                     contentPadding = PaddingValues(
                         start = 24.dp,
+                        top = if (childCategories.isEmpty()) 24.dp else 0.dp,
                         end = 24.dp,
                         bottom = 24.dp
                     ),
@@ -218,6 +237,7 @@ fun LiveContent(
                     itemsIndexed(liveViewModel.rooms, key = { _, room -> room.roomId }) { index, room ->
                         SmallVideoCard(
                             modifier = Modifier
+                                .ifElse(index == 0, Modifier.focusRequester(firstRoomFocusRequester))
                                 .onFocusChanged {
                                     if (it.hasFocus) {
                                         isRoomGridFocused = true
@@ -225,6 +245,10 @@ fun LiveContent(
                                         liveViewModel.loadMoreIfNeeded(index)
                                     }
                                 }
+                                .ifElse(
+                                    index == 0 && childCategories.isNotEmpty(),
+                                    Modifier.focusProperties { up = FocusRequester.Default }
+                                )
                                 .ifElse(
                                     childCategories.isEmpty() &&
                                         shouldRouteLiveRoomUpToCategory(index = index, columns = liveColumns),

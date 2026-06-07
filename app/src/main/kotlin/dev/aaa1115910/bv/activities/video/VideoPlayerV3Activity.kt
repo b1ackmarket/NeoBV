@@ -4,12 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import dev.aaa1115910.biliapi.entity.user.Author
+import dev.aaa1115910.bv.activities.ImmersiveComponentActivity
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.screen.VideoPlayerV3Screen
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -18,7 +15,7 @@ import dev.aaa1115910.bv.viewmodel.player.VideoPlayerV3ViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
-class VideoPlayerV3Activity : ComponentActivity() {
+class VideoPlayerV3Activity : ImmersiveComponentActivity() {
     private val playerViewModel: VideoPlayerV3ViewModel by viewModel()
 
     companion object {
@@ -84,22 +81,10 @@ class VideoPlayerV3Activity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-
-        // 视频全屏播放，隐藏状态栏
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, window.decorView).apply {
-            hide(WindowInsetsCompat.Type.systemBars())
-            systemBarsBehavior =
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        }
     }
 
     override fun onPause() {
         super.onPause()
-
-        // 恢复状态栏
-        WindowInsetsControllerCompat(window, window.decorView)
-            .show(WindowInsetsCompat.Type.systemBars())
 
         playerViewModel.videoPlayer?.pause()
         playerViewModel.danmakuPlayer?.pause()

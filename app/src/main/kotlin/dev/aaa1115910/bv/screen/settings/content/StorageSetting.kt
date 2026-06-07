@@ -31,6 +31,7 @@ import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.fInfo
+import dev.aaa1115910.bv.util.touchClick
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -211,6 +212,10 @@ private fun ConfirmDeleteDialog(
     size: Long,
     clearFiles: () -> Unit
 ) {
+    val confirm = {
+        clearFiles()
+        onHideDialog()
+    }
     if (show) {
         AlertDialog(
             modifier = modifier,
@@ -218,15 +223,18 @@ private fun ConfirmDeleteDialog(
             title = { Text(text = "清除$content") },
             text = { Text(text = "${size / 1024 / 1024} MB") },
             confirmButton = {
-                Button(onClick = {
-                    clearFiles()
-                    onHideDialog()
-                }) {
+                Button(
+                    onClick = confirm,
+                    modifier = Modifier.touchClick(confirm)
+                ) {
                     Text(text = "确定")
                 }
             },
             dismissButton = {
-                OutlinedButton(onClick = onHideDialog) {
+                OutlinedButton(
+                    onClick = onHideDialog,
+                    modifier = Modifier.touchClick(onHideDialog)
+                ) {
                     Text(text = "取消")
                 }
             }

@@ -31,6 +31,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.MediaCodecActivity
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
+import dev.aaa1115910.bv.util.touchClick
 import java.text.DecimalFormat
 import kotlin.math.pow
 
@@ -141,9 +142,13 @@ fun InfoSetting(
                 )
             )
         }
-        Button(onClick = {
+        val openMediaCodec = {
             context.startActivity(Intent(context, MediaCodecActivity::class.java))
-        }) {
+        }
+        Button(
+            modifier = Modifier.touchClick(openMediaCodec),
+            onClick = openMediaCodec
+        ) {
             Text(stringResource(id = R.string.title_activity_media_codec))
         }
     }

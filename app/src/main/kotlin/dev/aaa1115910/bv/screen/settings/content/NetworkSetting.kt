@@ -40,6 +40,7 @@ import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.util.touchClick
 import org.koin.compose.getKoin
 
 @Composable
@@ -172,6 +173,15 @@ fun ProxyServerEditDialog(
     onProxyServerChange: (String) -> Unit
 ) {
     var proxyServerString by remember(show) { mutableStateOf(proxyServer) }
+    val confirm = {
+        onProxyServerChange(
+            proxyServerString
+                .replace("\n", "")
+                .replace("https://", "")
+                .replace("http://", "")
+        )
+        onHideDialog()
+    }
 
     if (show) {
         AlertDialog(
@@ -202,20 +212,18 @@ fun ProxyServerEditDialog(
             },
             onDismissRequest = onHideDialog,
             confirmButton = {
-                Button(onClick = {
-                    onProxyServerChange(
-                        proxyServerString
-                            .replace("\n", "")
-                            .replace("https://", "")
-                            .replace("http://", "")
-                    )
-                    onHideDialog()
-                }) {
+                Button(
+                    onClick = confirm,
+                    modifier = Modifier.touchClick(confirm)
+                ) {
                     Text(text = stringResource(id = R.string.common_confirm))
                 }
             },
             dismissButton = {
-                OutlinedButton(onClick = onHideDialog) {
+                OutlinedButton(
+                    onClick = onHideDialog,
+                    modifier = Modifier.touchClick(onHideDialog)
+                ) {
                     Text(text = stringResource(id = R.string.common_cancel))
                 }
             }

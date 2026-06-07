@@ -14,6 +14,7 @@ import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.network.VlcLibsApi
 import dev.aaa1115910.bv.player.BuildConfig
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toast
 import io.ktor.client.content.ProgressListener
 import kotlinx.coroutines.Dispatchers
@@ -112,7 +113,8 @@ fun LibVLCDownloaderDialog(
             confirmButton = {
                 Button(
                     onClick = { startInstall() },
-                    enabled = !processing
+                    enabled = !processing,
+                    modifier = Modifier.touchClick { if (!processing) startInstall() }
                 ) {
                     Text(text = "下载")
                 }
@@ -120,7 +122,8 @@ fun LibVLCDownloaderDialog(
             dismissButton = {
                 OutlinedButton(
                     onClick = { onHideDialog() },
-                    enabled = !processing
+                    enabled = !processing,
+                    modifier = Modifier.touchClick { if (!processing) onHideDialog() }
                 ) {
                     Text(text = "取消")
                 }

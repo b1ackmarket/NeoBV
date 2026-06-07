@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,6 +42,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.touchClick
 
 internal const val SelectableItemPopupColumns = 4
 internal const val SelectableItemPopupWidthFraction = 0.68f
@@ -132,13 +134,15 @@ fun <T> SelectableItemPopup(
                                     Modifier.focusRequester(focusRequester)
                                 } else {
                                     Modifier
-                                }),
+                                }).touchClick(select),
                                 onClick = select
                             ) {
                                 Text(
+                                    modifier = Modifier.basicMarquee(),
                                     text = label(item),
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    softWrap = false,
+                                    overflow = TextOverflow.Clip
                                 )
                             }
                         }

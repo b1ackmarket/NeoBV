@@ -76,6 +76,7 @@ import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
 import io.github.g0dkar.qrcode.QRCode
 import java.io.ByteArrayInputStream
@@ -497,18 +498,24 @@ private fun SearchHistory(
                 Text(text = stringResource(R.string.search_input_history_delete_all_confirm_dialog_text))
             },
             confirmButton = {
-                Button(onClick = {
+                val confirm = {
                     onDeleteAll()
                     showDeleteAllConfirmDialog = false
                     deleteMode = false
-                }) {
+                }
+                Button(
+                    onClick = confirm,
+                    modifier = Modifier.touchClick(confirm)
+                ) {
                     Text(text = stringResource(R.string.search_input_history_delete_all_confirm_dialog_confirm_button))
                 }
             },
             dismissButton = {
-                Button(onClick = {
-                    showDeleteAllConfirmDialog = false
-                }) {
+                val dismiss = { showDeleteAllConfirmDialog = false }
+                Button(
+                    onClick = dismiss,
+                    modifier = Modifier.touchClick(dismiss)
+                ) {
                     Text(text = stringResource(R.string.search_input_history_delete_all_confirm_dialog_cancel_button))
                 }
             }

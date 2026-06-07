@@ -1,5 +1,6 @@
 package dev.aaa1115910.bv.component
 
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -85,8 +86,10 @@ fun FilterChip(
         onClick = onClick,
         colors = ClickableSurfaceDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surface,
-            focusedContainerColor = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.4f),
-            pressedContainerColor = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.32f)
+            focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
+            pressedContainerColor = MaterialTheme.colorScheme.inverseSurface,
+            focusedContentColor = MaterialTheme.colorScheme.inverseOnSurface,
+            pressedContentColor = MaterialTheme.colorScheme.inverseOnSurface
         ),
         shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.extraLarge),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f)
@@ -107,10 +110,12 @@ fun FilterChip(
                 )
             }
             Text(
-                modifier = if (fixedWidth) Modifier.weight(1f, fill = false) else Modifier,
+                modifier = (if (fixedWidth) Modifier.weight(1f, fill = false) else Modifier)
+                    .basicMarquee(),
                 text = text,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                softWrap = false,
+                overflow = TextOverflow.Clip,
                 style = MaterialTheme.typography.labelLarge
             )
         }

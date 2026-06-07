@@ -23,6 +23,7 @@ import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.entity.AuthData
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.util.AuthTransferStorage
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toast
 import kotlinx.coroutines.launch
 
@@ -35,6 +36,26 @@ fun CookiesDialog(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val userRepository = remember { BVApp.koinApplication.koin.get<UserRepository>() }
+    val exportData: () -> Unit = {
+        scope.launch {
+            runCatching {
+                val exportResult = AuthTransferStorage.exportToDocuments(
+                    context = context,
+                    authData = AuthData.fromPrefs()
+                )
+                "已导出到 ${exportResult.displayPath}".toast(
+                    context,
+                    Toast.LENGTH_LONG
+                )
+            }.onFailure {
+                println(it.stackTraceToString())
+                "导出失败：${it.message ?: "无法写入文件"}".toast(
+                    context,
+                    Toast.LENGTH_LONG
+                )
+            }
+        }
+    }
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -74,32 +95,20 @@ fun CookiesDialog(
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Button(
-                            onClick = {
-                                scope.launch {
-                                    runCatching {
-                                        val exportResult = AuthTransferStorage.exportToDocuments(
-                                            context = context,
-                                            authData = AuthData.fromPrefs()
-                                        )
-                                        "已导出到 ${exportResult.displayPath}".toast(
-                                            context,
-                                            Toast.LENGTH_LONG
-                                        )
-                                    }.onFailure {
-                                        println(it.stackTraceToString())
-                                        "导出失败：${it.message ?: "无法写入文件"}".toast(
-                                            context,
-                                            Toast.LENGTH_LONG
-                                        )
-                                    }
-                                }
-                            },
-                            modifier = Modifier.padding(horizontal = 4.dp)
+                            onClick = exportData,
+                            modifier = Modifier
+                                .padding(horizontal = 4.dp)
+                                .touchClick(exportData)
                         ) {
                             Text(text = "导出数据")
                         }
                         OutlinedButton(
                             onClick = {
+                                importLauncher.launch(
+                                    arrayOf("application/json", "text/plain", "*/*")
+                                )
+                            },
+                            modifier = Modifier.touchClick {
                                 importLauncher.launch(
                                     arrayOf("application/json", "text/plain", "*/*")
                                 )
@@ -111,7 +120,10 @@ fun CookiesDialog(
                 }
             },
             confirmButton = {
-                OutlinedButton(onClick = { onHideDialog() }) {
+                OutlinedButton(
+                    onClick = { onHideDialog() },
+                    modifier = Modifier.touchClick { onHideDialog() }
+                ) {
                     Text(text = "关闭")
                 }
             },
