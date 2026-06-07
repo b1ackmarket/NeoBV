@@ -8,6 +8,7 @@ import dev.aaa1115910.biliapi.entity.AiAudioTranslation
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMask
 import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.biliapi.entity.video.VideoHeatmap
+import dev.aaa1115910.biliapi.entity.video.VideoProgressChapter
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bilisubtitle.entity.SubtitleItem
 import dev.aaa1115910.bv.component.controllers.DanmakuType
@@ -49,6 +50,7 @@ data class PlayerUiState(
     // 进度条缩略图
     val videoShot: VideoShot? = null,
     val videoHeatmap: VideoHeatmap? = null,
+    val videoProgressChapters: List<VideoProgressChapter> = emptyList(),
     // 播放器时钟
     val clock: Pair<Int, Int> = Pair(0, 0),
 

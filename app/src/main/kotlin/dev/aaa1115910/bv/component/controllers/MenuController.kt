@@ -350,6 +350,7 @@ private fun MenuList(
                     bilingualSubtitleEnabled = Prefs.enableBilingualSubtitle,
                     subtitleTranslationConfig = readSubtitleTranslationConfigFromPrefs(),
                     preferCustomSecondarySubtitle = Prefs.preferCustomSecondarySubtitle,
+                    mainSubtitleContentAvailable = uiState.subtitleId != -1L && uiState.subtitleData.isNotEmpty(),
                     onSubtitleChange = onSubtitleChange,
                     onSubtitleSizeChange = onSubtitleSizeChange,
                     onSubtitleBackgroundOpacityChange = onSubtitleBackgroundOpacityChange,

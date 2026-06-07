@@ -15,7 +15,9 @@ import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskType
 import dev.aaa1115910.biliapi.entity.video.HeartbeatVideoType
 import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.biliapi.entity.video.VideoHeatmap
+import dev.aaa1115910.biliapi.entity.video.VideoProgressChapter
 import dev.aaa1115910.biliapi.entity.video.VideoShot
+import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuFilterRuleData
 import dev.aaa1115910.biliapi.grpc.utils.handleGrpcException
 import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.http.BiliHttpProxyApi
@@ -352,6 +354,75 @@ class VideoPlayRepository(
         return VideoHeatmap.fromPbp(BiliHttpApi.getVideoPbp(bvid = bvid, cid = cid))
     }
 
+    suspend fun getVideoProgressChapters(
+        aid: Long,
+        cid: Long,
+        durationMs: Long
+    ): List<VideoProgressChapter> {
+        if (aid <= 0L || cid <= 0L) return emptyList()
+        val response = BiliHttpApi.getVideoMoreInfo(
+            avid = aid,
+            cid = cid,
+            sessData = authRepository.sessionData ?: "",
+            buvid3 = authRepository.buvid3 ?: ""
+        ).getResponseData()
+        return VideoProgressChapter.fromViewPoints(response.viewPoints, durationMs)
+    }
+
+    suspend fun getDanmakuFilterRules(): List<DanmakuFilterRuleData> {
+        if (authRepository.sessionData.isNullOrBlank()) return emptyList()
+        return BiliHttpApi.getDanmakuFilterRules(
+            sessData = authRepository.sessionData ?: "",
+            dedeUserID = authRepository.mid,
+            uidCkMd5 = ""
+        ).getResponseData().rule
+    }
+
+    suspend fun uploadLocalDanmakuFilterRules(
+        keywords: List<String>,
+        regexes: List<String>
+    ): Int {
+        val sessData = authRepository.sessionData
+        val csrf = authRepository.biliJct
+        val uid = authRepository.mid
+        if (sessData.isNullOrBlank() || csrf.isNullOrBlank() || uid == null || uid <= 0L) {
+            throw IllegalStateException("账号未登录")
+        }
+
+        val existing = getDanmakuFilterRules()
+            .filterNot { it.isDeleted }
+            .map { it.type to it.filter.trim() }
+            .toSet()
+        val pending = buildList {
+            keywords.asSequence()
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .forEach { add(0 to it) }
+            regexes.asSequence()
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .forEach { add(1 to it) }
+        }.filterNot { it in existing }
+
+        var uploaded = 0
+        pending.forEach { (type, filter) ->
+            val response = BiliHttpApi.addDanmakuFilterRule(
+                type = type,
+                filter = filter,
+                csrf = csrf,
+                sessData = sessData,
+                dedeUserID = uid
+            )
+            if (response.code != 0) {
+                throw IllegalStateException(response.message.ifBlank { "上传屏蔽词失败" })
+            }
+            uploaded++
+        }
+        return uploaded
+    }
+
     suspend fun getOnlineCount(
         aid: Long,
         cid: Long,
@@ -428,4 +499,5 @@ class VideoPlayRepository(
         }
         resolveSubtitleFallback(preferredTracks.await(), fallbackTracks.await())
     }
+
 }

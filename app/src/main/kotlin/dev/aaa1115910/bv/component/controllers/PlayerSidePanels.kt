@@ -244,7 +244,6 @@ private fun PlayerCommentsPanel(
         initialFirstVisibleItemIndex = state.rememberedFirstVisibleItemIndex,
         initialFirstVisibleItemScrollOffset = state.rememberedFirstVisibleItemScrollOffset
     )
-    var actionComment by remember { mutableStateOf<PlayerCommentItem?>(null) }
     var restoreCommentId by remember { mutableStateOf<String?>(null) }
     var commentDetailWasOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -412,7 +411,7 @@ private fun PlayerCommentsPanel(
                                 restoreCommentId = comment.id
                                 onOpenCommentDetail(comment)
                             },
-                            onOpenActions = { actionComment = comment }
+                            onOpenActions = { onOpenUpPage(comment.mid, comment.username) }
                         )
                     }
                     if (state.loading) {
@@ -430,15 +429,6 @@ private fun PlayerCommentsPanel(
         }
     }
 
-    actionComment?.let { comment ->
-        PlayerCommentActionDialog(
-            comment = comment,
-            onDismiss = { actionComment = null },
-            onOpenUpPage = onOpenUpPage,
-            onLike = onCommentLike,
-            onDislike = onCommentDislike
-        )
-    }
 }
 
 private suspend fun requestFocusWithRetry(focusRequester: FocusRequester) {
@@ -674,7 +664,7 @@ private fun PlayerCommentDetailPanel(
                 comment = rootComment,
                 onClick = {},
                 forceExpanded = true,
-                onOpenActions = { }
+                onOpenActions = { onOpenUpPage(rootComment.mid, rootComment.username) }
             )
         }
         item {
@@ -718,7 +708,7 @@ private fun PlayerCommentDetailPanel(
                     comment = reply,
                     onClick = {},
                     forceExpanded = true,
-                    onOpenActions = { }
+                    onOpenActions = { onOpenUpPage(reply.mid, reply.username) }
                 )
             }
         }

@@ -70,6 +70,7 @@ fun ClosedCaptionMenuList(
     bilingualSubtitleEnabled: Boolean,
     subtitleTranslationConfig: SubtitleTranslationConfig,
     preferCustomSecondarySubtitle: Boolean,
+    mainSubtitleContentAvailable: Boolean,
     onSubtitleChange: (Subtitle, SubtitleRole) -> Unit,
     onSubtitleSizeChange: (TextUnit) -> Unit,
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
@@ -92,14 +93,13 @@ fun ClosedCaptionMenuList(
         currentSubtitleId = currentSubtitleId,
         tracks = availableSubtitleTracks
     )
-    val sourceSubtitleAvailable = currentSubtitleId != -1L
     val secondarySubtitleOptions = remember(
         availableSubtitleTracks,
         currentSubtitleId,
         bilingualSubtitleEnabled,
         subtitleTranslationConfig,
         preferCustomSecondarySubtitle,
-        sourceSubtitleAvailable
+        mainSubtitleContentAvailable
     ) {
         if (!bilingualSubtitleEnabled) {
             emptyList()
@@ -109,7 +109,7 @@ fun ClosedCaptionMenuList(
                 currentMainSubtitleId = currentSubtitleId,
                 config = subtitleTranslationConfig,
                 preferCustom = preferCustomSecondarySubtitle,
-                sourceSubtitleAvailable = sourceSubtitleAvailable
+                sourceSubtitleAvailable = mainSubtitleContentAvailable
             )
         }
     }

@@ -3,6 +3,7 @@ package dev.aaa1115910.bv.component.controllers
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,6 +42,7 @@ import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.util.PlayerUiTextFormatter
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.player.DanmakuSettingAction
@@ -76,6 +78,32 @@ internal fun hasClickableControllerOverlay(
         showMenuController ||
         showInfoSeekController ||
         activePanel != PlayerSidePanel.None
+}
+
+internal fun shouldShowImmersiveChapterBar(
+    hasChapters: Boolean,
+    showClickableControllers: Boolean,
+    showJumpModePausedInfoController: Boolean,
+    isSeeking: Boolean
+): Boolean {
+    return hasChapters &&
+        !showClickableControllers &&
+        !showJumpModePausedInfoController &&
+        !isSeeking
+}
+
+internal fun shouldShowImmersivePersistentSeek(
+    showPersistentSeek: Boolean,
+    hasChapters: Boolean,
+    showClickableControllers: Boolean,
+    showJumpModePausedInfoController: Boolean,
+    isSeeking: Boolean
+): Boolean {
+    return showPersistentSeek &&
+        !hasChapters &&
+        !showClickableControllers &&
+        !showJumpModePausedInfoController &&
+        !isSeeking
 }
 
 @Composable
@@ -185,6 +213,20 @@ fun VideoPlayerController(
     var jumpModeDownHoldConsumed by remember { mutableStateOf(false) }
     var showInitialOnlineCountTip by remember { mutableStateOf(false) }
     var onlineCountTipVideoKey: Pair<Long, Long>? by remember { mutableStateOf(null) }
+    val hasVideoProgressChapters = uiState.videoProgressChapters.isNotEmpty()
+    val showImmersiveChapterBar = shouldShowImmersiveChapterBar(
+        hasChapters = hasVideoProgressChapters,
+        showClickableControllers = showClickableControllers,
+        showJumpModePausedInfoController = showJumpModePausedInfoController,
+        isSeeking = isSeeking
+    )
+    val showImmersivePersistentSeek = shouldShowImmersivePersistentSeek(
+        showPersistentSeek = Prefs.showPersistentSeek,
+        hasChapters = hasVideoProgressChapters,
+        showClickableControllers = showClickableControllers,
+        showJumpModePausedInfoController = showJumpModePausedInfoController,
+        isSeeking = isSeeking
+    )
     val videoListPanelState = remember(uiState.availableVideoList, uiState.cid) {
         resolveVideoListPanelState(
             currentCid = uiState.cid,
@@ -596,6 +638,31 @@ fun VideoPlayerController(
             }
         }
         content()
+        if (showImmersiveChapterBar) {
+            VideoChapterImmersiveBar(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+                duration = seekerState.value.totalDuration,
+                position = seekerState.value.currentTime,
+                bufferedPercentage = seekerState.value.bufferedPercentage,
+                chapters = uiState.videoProgressChapters,
+                sponsorBlockProgressMarks = uiState.sponsorBlockProgressMarks,
+                watchedProgressMarks = uiState.watchedProgressMarks
+            )
+        } else if (showImmersivePersistentSeek) {
+            VideoProgressSeek(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+                duration = seekerState.value.totalDuration,
+                position = seekerState.value.currentTime,
+                bufferedPercentage = seekerState.value.bufferedPercentage,
+                isPersistentSeek = true,
+                segmentMarks = uiState.sponsorBlockProgressMarks,
+                watchedSegmentMarks = uiState.watchedProgressMarks
+            )
+        }
         PlayerTouchGestureOverlay(
             isPlaying = isPlaying,
             controlsVisible = showClickableControllers || showJumpModePausedInfoController,
@@ -646,7 +713,7 @@ fun VideoPlayerController(
                 opacity = uiState.subtitleState.opacity,
                 padding = resolveSubtitleBottomPadding(
                     basePadding = uiState.subtitleState.bottomPadding,
-                    liftForBottomController = showPrimaryInfoController
+                    liftForBottomController = showPrimaryInfoController || showImmersiveChapterBar
                 ),
             )
         }
@@ -696,6 +763,7 @@ fun VideoPlayerController(
             sponsorBlockProgressMarks = uiState.sponsorBlockProgressMarks,
             watchedProgressMarks = uiState.watchedProgressMarks,
             videoHeatmap = uiState.videoHeatmap,
+            videoProgressChapters = uiState.videoProgressChapters,
             clock = uiState.clock,
             videoShot = uiState.videoShot,
             videoShotCache = videoShotCache,

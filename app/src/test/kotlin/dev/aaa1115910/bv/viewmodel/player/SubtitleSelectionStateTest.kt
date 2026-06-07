@@ -4,6 +4,7 @@ import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.biliapi.entity.video.SubtitleAiStatus
 import dev.aaa1115910.biliapi.entity.video.SubtitleAiType
 import dev.aaa1115910.biliapi.entity.video.SubtitleType
+import dev.aaa1115910.bv.subtitle.translation.SubtitleTranslationConfig
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -55,6 +56,23 @@ class SubtitleSelectionStateTest {
         assertEquals(false, next.secondarySubtitleCustom)
         assertTrue(next.subtitleData.isEmpty())
         assertTrue(next.secondarySubtitleData.isEmpty())
+    }
+
+    @Test
+    fun `osd secondary restore uses first available secondary when no memory exists`() {
+        val selected = resolveOsdSecondarySubtitleOption(
+            tracks = listOf(
+                subtitle(1L, "zh", "中文"),
+                subtitle(2L, "en", "英语")
+            ),
+            mainSubtitleId = 1L,
+            memory = null,
+            config = SubtitleTranslationConfig(targetLanguage = "en"),
+            preferCustom = false,
+            sourceSubtitleAvailable = true
+        )
+
+        assertEquals(2L, selected?.id)
     }
 
     private fun subtitle(

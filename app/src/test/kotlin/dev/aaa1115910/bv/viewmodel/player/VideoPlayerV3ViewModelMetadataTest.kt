@@ -348,7 +348,7 @@ class VideoPlayerV3ViewModelMetadataTest {
     }
 
     @Test
-    fun `preferred secondary subtitle can choose custom translation`() {
+    fun `preferred secondary subtitle stays off without memory`() {
         val config = SubtitleTranslationConfig(targetLanguage = "en")
             .let { it.copy(verifiedSignature = it.configSignature()) }
         val tracks = listOf(
@@ -357,6 +357,27 @@ class VideoPlayerV3ViewModelMetadataTest {
         )
 
         val option = resolvePreferredSecondarySubtitleOption(
+            tracks = tracks,
+            mainSubtitleId = 1L,
+            memory = null,
+            config = config,
+            preferCustom = true,
+            sourceSubtitleAvailable = true
+        )
+
+        assertEquals(null, option)
+    }
+
+    @Test
+    fun `osd secondary subtitle can choose custom translation`() {
+        val config = SubtitleTranslationConfig(targetLanguage = "en")
+            .let { it.copy(verifiedSignature = it.configSignature()) }
+        val tracks = listOf(
+            subtitle(id = 1L, lang = "zh", langDoc = "中文"),
+            subtitle(id = 2L, lang = "en", langDoc = "英语")
+        )
+
+        val option = resolveOsdSecondarySubtitleOption(
             tracks = tracks,
             mainSubtitleId = 1L,
             memory = null,

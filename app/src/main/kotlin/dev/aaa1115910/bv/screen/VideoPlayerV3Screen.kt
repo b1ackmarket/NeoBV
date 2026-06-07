@@ -24,7 +24,6 @@ import dev.aaa1115910.bv.component.DanmakuPlayerCompose
 import dev.aaa1115910.bv.component.controllers.PlayerUpPanelUiState
 import dev.aaa1115910.bv.component.controllers.PlayerCommentPanelUiState
 import dev.aaa1115910.bv.component.controllers.VideoPlayerController
-import dev.aaa1115910.bv.component.controllers.VideoProgressSeek
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.entity.VideoAspectRatio
@@ -389,19 +388,6 @@ fun VideoPlayerV3Screen(
                     ),
                 danmakuPlayer = danmakuPlayer
             )
-            if (Prefs.showPersistentSeek) {
-                VideoProgressSeek(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth(),
-                    duration = seekerState.value.totalDuration,
-                    position = seekerState.value.currentTime,
-                    bufferedPercentage = seekerState.value.bufferedPercentage,
-                    isPersistentSeek = true,
-                    segmentMarks = uiState.sponsorBlockProgressMarks,
-                    watchedSegmentMarks = uiState.watchedProgressMarks
-                )
-            }
         }
     }
 }

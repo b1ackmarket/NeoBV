@@ -6,12 +6,21 @@ import android.content.ContextWrapper
 import android.media.AudioManager
 import android.provider.Settings
 import android.os.SystemClock
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -21,15 +30,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.viewmodel.player.PlayerTouchDragMode
@@ -87,15 +100,22 @@ fun PlayerTouchGestureOverlay(
 
     var hintText by remember { mutableStateOf<String?>(null) }
     var hintAtUpperEighth by remember { mutableStateOf(false) }
+    var hintStyle by remember { mutableStateOf(PlayerTouchHintStyle.Default) }
     var hintHideJob by remember { mutableStateOf<Job?>(null) }
     var pendingSingleTapJob by remember { mutableStateOf<Job?>(null) }
     var lastTapAtMs by remember { mutableStateOf(0L) }
     var lastTapZone by remember { mutableStateOf<PlayerTouchTapZone?>(null) }
 
-    fun showHint(text: String, hold: Boolean, atUpperEighth: Boolean = false) {
+    fun showHint(
+        text: String,
+        hold: Boolean,
+        atUpperEighth: Boolean = false,
+        style: PlayerTouchHintStyle = PlayerTouchHintStyle.Default
+    ) {
         hintHideJob?.cancel()
         hintText = text
         hintAtUpperEighth = atUpperEighth
+        hintStyle = style
         if (!hold) {
             hintHideJob = scope.launch {
                 delay(900L)
@@ -110,6 +130,11 @@ fun PlayerTouchGestureOverlay(
             delay(700L)
             hintText = null
         }
+    }
+
+    fun hideHintNow() {
+        hintHideJob?.cancel()
+        hintText = null
     }
 
     fun singleTap() {
@@ -202,7 +227,12 @@ fun PlayerTouchGestureOverlay(
                                 tempSpeedActive = true
                                 tapSuppressed = true
                                 latestOnTempSpeedStart()
-                                showHint("倍速播放中", hold = true, atUpperEighth = true)
+                                showHint(
+                                    text = "倍速播放中",
+                                    hold = true,
+                                    atUpperEighth = true,
+                                    style = PlayerTouchHintStyle.TempSpeed
+                                )
                             }
                         }
                     }
@@ -296,7 +326,7 @@ fun PlayerTouchGestureOverlay(
                     longPressJob?.cancel()
                     if (tempSpeedActive) {
                         latestOnTempSpeedEnd()
-                        scheduleHideHint()
+                        hideHintNow()
                     } else {
                         when (dragMode) {
                             PlayerTouchDragMode.Seek -> latestOnSeekPreviewEnd(seekStarted)
@@ -315,17 +345,70 @@ fun PlayerTouchGestureOverlay(
             },
     ) {
         hintText?.let { text ->
-            Text(
+            PlayerTouchHint(
                 modifier = Modifier
                     .align(if (hintAtUpperEighth) Alignment.TopCenter else Alignment.Center)
-                    .padding(top = if (hintAtUpperEighth) (maxHeight.value / 8f).dp else 0.dp)
-                    .background(Color.Black.copy(alpha = 0.58f), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 18.dp, vertical = 10.dp),
+                    .padding(top = if (hintAtUpperEighth) (maxHeight.value / 8f).dp else 0.dp),
                 text = text,
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium
+                style = hintStyle
             )
         }
+    }
+}
+
+private enum class PlayerTouchHintStyle {
+    Default,
+    TempSpeed
+}
+
+@Composable
+private fun PlayerTouchHint(
+    text: String,
+    style: PlayerTouchHintStyle,
+    modifier: Modifier = Modifier
+) {
+    val transition = rememberInfiniteTransition(label = "temp speed hint")
+    val arrowPhase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = if (style == PlayerTouchHintStyle.TempSpeed) 3f else 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 720, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "temp speed arrows"
+    )
+    Row(
+        modifier = modifier
+            .background(Color.Black.copy(alpha = 0.58f), RoundedCornerShape(5.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (style == PlayerTouchHintStyle.TempSpeed) {
+            Row(horizontalArrangement = Arrangement.spacedBy((-5).dp)) {
+                repeat(3) { index ->
+                    val progress = (arrowPhase - index + 3f) % 3f
+                    val activeProgress = progress.takeIf { it < 1f } ?: 1f
+                    val alpha = 0.38f + (1f - activeProgress) * 0.62f
+                    Icon(
+                        modifier = Modifier
+                            .size(14.dp)
+                            .graphicsLayer {
+                                this.alpha = alpha
+                                translationX = (1f - activeProgress) * 3f
+                            },
+                        imageVector = Icons.Rounded.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.White
+                    )
+                }
+            }
+        }
+        Text(
+            text = text,
+            color = Color.White,
+            style = MaterialTheme.typography.titleSmall
+        )
     }
 }
 

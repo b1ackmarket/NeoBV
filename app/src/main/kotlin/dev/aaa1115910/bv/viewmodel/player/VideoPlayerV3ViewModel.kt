@@ -36,6 +36,14 @@ import dev.aaa1115910.bilisubtitle.SubtitleParser
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.DanmakuType
+import dev.aaa1115910.bv.danmaku.DanmakuFilterConfig
+import dev.aaa1115910.bv.danmaku.DanmakuFilterMatcher
+import dev.aaa1115910.bv.danmaku.buildDanmakuFilterRules
+import dev.aaa1115910.bv.danmaku.cacheCloudDanmakuFilterRules
+import dev.aaa1115910.bv.danmaku.currentDanmakuFilterUid
+import dev.aaa1115910.bv.danmaku.readDanmakuFilterConfigFromPrefs
+import dev.aaa1115910.bv.danmaku.shouldFetchCloudDanmakuFilterRules
+import dev.aaa1115910.bv.danmaku.summarizeDanmakuFilterRules
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.PlayerCommentItem
 import dev.aaa1115910.bv.entity.PlayerCommentPicture
@@ -70,6 +78,7 @@ import dev.aaa1115910.bv.subtitle.translation.readSubtitleTranslationConfigFromP
 import dev.aaa1115910.bv.subtitle.SecondarySubtitleOption
 import dev.aaa1115910.bv.subtitle.buildSecondarySubtitleOptions
 import dev.aaa1115910.bv.subtitle.resolveDefaultSecondarySubtitleOption
+import dev.aaa1115910.bv.subtitle.resolveRememberedSecondarySubtitleOption
 import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import dev.aaa1115910.bv.telemetry.TelemetryErrorType
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
@@ -280,7 +289,36 @@ internal fun resolvePreferredSecondarySubtitleOption(
     return resolveDefaultSecondarySubtitleOption(options, memory)
 }
 
+internal fun resolveOsdSecondarySubtitleOption(
+    tracks: List<Subtitle>,
+    mainSubtitleId: Long,
+    memory: SubtitleMemory?,
+    config: dev.aaa1115910.bv.subtitle.translation.SubtitleTranslationConfig,
+    preferCustom: Boolean,
+    sourceSubtitleAvailable: Boolean
+): SecondarySubtitleOption? {
+    val options = buildSecondarySubtitleOptions(
+        tracks = tracks,
+        currentMainSubtitleId = mainSubtitleId,
+        config = config,
+        preferCustom = preferCustom,
+        sourceSubtitleAvailable = sourceSubtitleAvailable
+    )
+    return resolveRememberedSecondarySubtitleOption(options, memory)
+}
+
 internal const val CustomSubtitleTrackId = Long.MIN_VALUE
+
+internal fun dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData.allowsDanmakuTypes(
+    enabledTypes: List<DanmakuType>
+): Boolean {
+    if (enabledTypes.isEmpty()) return false
+    return when (type) {
+        4 -> enabledTypes.contains(DanmakuType.All) || enabledTypes.contains(DanmakuType.Bottom)
+        5 -> enabledTypes.contains(DanmakuType.All) || enabledTypes.contains(DanmakuType.Top)
+        else -> enabledTypes.contains(DanmakuType.All) || enabledTypes.contains(DanmakuType.Rolling)
+    }
+}
 
 enum class SubtitleRole {
     Main,
@@ -412,6 +450,7 @@ class VideoPlayerV3ViewModel(
     private val subtitleTranslationManager = SubtitleTranslationManager()
     private var lastSubtitleTranslationPreloadAtMs = 0L
     private var lastSubtitleTranslationPreloadPositionMs = Long.MIN_VALUE
+    private var pendingBilingualSecondaryAfterMainLoad = false
     private var pendingCustomSecondaryAfterMainLoad = false
 
     private val videoPlayerListener = object : VideoPlayerListener {
@@ -479,7 +518,8 @@ class VideoPlayerV3ViewModel(
                     playerState = PlayerState.Ended,
                     sponsorBlockProgressMarks = emptyList(),
                     watchedProgressMarks = emptyList(),
-                    videoHeatmap = null
+                    videoHeatmap = null,
+                    videoProgressChapters = emptyList()
                 )
             }
             viewModelScope.launch {
@@ -671,6 +711,11 @@ class VideoPlayerV3ViewModel(
         subtitleTranslationManager.clear()
     }
 
+    private fun resetPendingSecondarySubtitleRestore() {
+        pendingBilingualSecondaryAfterMainLoad = false
+        pendingCustomSecondaryAfterMainLoad = false
+    }
+
     fun loadSubtitle(id: Long, role: SubtitleRole = SubtitleRole.Main) {
         if (id == CustomSubtitleTrackId && role == SubtitleRole.Secondary) {
             loadCustomTranslatedSubtitle()
@@ -696,7 +741,7 @@ class VideoPlayerV3ViewModel(
                 }
                 if (role == SubtitleRole.Secondary) resetCustomSubtitleTranslation()
                 if (role == SubtitleRole.Main && id == -1L) {
-                    pendingCustomSecondaryAfterMainLoad = false
+                    resetPendingSecondarySubtitleRestore()
                 }
                 return@launch
             }
@@ -730,11 +775,31 @@ class VideoPlayerV3ViewModel(
                 }
                 if (role == SubtitleRole.Secondary) resetCustomSubtitleTranslation()
                 if (role == SubtitleRole.Main) {
-                    if (pendingCustomSecondaryAfterMainLoad) {
+                    if (pendingBilingualSecondaryAfterMainLoad) {
+                        val shouldPreferCustom = Prefs.preferCustomSecondarySubtitle
+                        val config = readSubtitleTranslationConfigFromPrefs()
+                        val secondary = resolveOsdSecondarySubtitleOption(
+                            tracks = _uiState.value.subtitleList,
+                            mainSubtitleId = id,
+                            memory = _uiState.value.secondarySubtitleMemory,
+                            config = config,
+                            preferCustom = shouldPreferCustom,
+                            sourceSubtitleAvailable = subtitleData.isNotEmpty()
+                        )
+                        resetPendingSecondarySubtitleRestore()
+                        when (secondary) {
+                            SecondarySubtitleOption.CustomTranslation -> loadCustomTranslatedSubtitle()
+                            is SecondarySubtitleOption.BiliTrack -> loadSubtitle(secondary.subtitle.id, SubtitleRole.Secondary)
+                            null -> Unit
+                        }
+                    } else if (pendingCustomSecondaryAfterMainLoad) {
                         pendingCustomSecondaryAfterMainLoad = false
                         loadCustomTranslatedSubtitle()
                     } else if (_uiState.value.secondarySubtitleCustom) {
-                        startCustomSubtitleTranslation(videoPlayer?.currentPosition ?: _seekerState.value.currentTime)
+                        startCustomSubtitleTranslation(
+                            currentPositionMs = videoPlayer?.currentPosition ?: _seekerState.value.currentTime,
+                            restartInFlight = false
+                        )
                     }
                 }
             }.onFailure {
@@ -778,7 +843,7 @@ class VideoPlayerV3ViewModel(
                 secondarySubtitleData = subtitleTranslationManager.buildTranslatedSubtitles(state.subtitleData)
             )
         }
-        startCustomSubtitleTranslation(currentPosition)
+        startCustomSubtitleTranslation(currentPosition, restartInFlight = true)
     }
 
     private fun maybePreloadCustomSubtitleTranslation(currentPositionMs: Long) {
@@ -787,10 +852,13 @@ class VideoPlayerV3ViewModel(
         val now = System.currentTimeMillis()
         val positionDelta = kotlin.math.abs(currentPositionMs - lastSubtitleTranslationPreloadPositionMs)
         if (now - lastSubtitleTranslationPreloadAtMs < 3_000L && positionDelta < 8_000L) return
-        startCustomSubtitleTranslation(currentPositionMs)
+        startCustomSubtitleTranslation(currentPositionMs, restartInFlight = false)
     }
 
-    private fun startCustomSubtitleTranslation(currentPositionMs: Long) {
+    private fun startCustomSubtitleTranslation(
+        currentPositionMs: Long,
+        restartInFlight: Boolean = true
+    ) {
         val state = _uiState.value
         val config = readSubtitleTranslationConfigFromPrefs()
         if (!Prefs.enableBilingualSubtitle || !config.verified()) return
@@ -806,6 +874,7 @@ class VideoPlayerV3ViewModel(
             aid = state.aid,
             cid = state.cid,
             subtitleId = state.subtitleId,
+            restartInFlight = restartInFlight,
             onUpdate = { translated ->
                 _uiState.update { current ->
                     if (!current.secondarySubtitleCustom || current.subtitleId != state.subtitleId) {
@@ -843,21 +912,7 @@ class VideoPlayerV3ViewModel(
         loadSubtitle(targetSubtitleId)
 
         if (Prefs.enableBilingualSubtitle && Prefs.preferBilingualSubtitleOnOsd) {
-            val config = readSubtitleTranslationConfigFromPrefs()
-            when (val secondary = resolvePreferredSecondarySubtitleOption(
-                tracks = autoSubtitleTracks,
-                mainSubtitleId = targetSubtitleId,
-                memory = state.secondarySubtitleMemory,
-                config = config,
-                preferCustom = Prefs.preferCustomSecondarySubtitle,
-                sourceSubtitleAvailable = true
-            )) {
-                SecondarySubtitleOption.CustomTranslation -> {
-                    pendingCustomSecondaryAfterMainLoad = true
-                }
-                is SecondarySubtitleOption.BiliTrack -> loadSubtitle(secondary.subtitle.id, SubtitleRole.Secondary)
-                null -> Unit
-            }
+            pendingBilingualSecondaryAfterMainLoad = true
         }
     }
 
@@ -1163,7 +1218,7 @@ class VideoPlayerV3ViewModel(
         danmakuPlayer?.seekTo(time)
         // akdanmaku 会在跳转后立即播放，如果需要缓冲则会导致弹幕不同步
         danmakuPlayer?.pause()
-        maybePreloadCustomSubtitleTranslation(time)
+        startCustomSubtitleTranslation(time, restartInFlight = true)
     }
 
     fun confirmPendingPluginAction() {
@@ -1418,7 +1473,8 @@ class VideoPlayerV3ViewModel(
             it.copy(
                 sponsorBlockProgressMarks = emptyList(),
                 watchedProgressMarks = emptyList(),
-                videoHeatmap = null
+                videoHeatmap = null,
+                videoProgressChapters = emptyList()
             )
         }
 
@@ -1523,7 +1579,8 @@ class VideoPlayerV3ViewModel(
             it.copy(
                 sponsorBlockProgressMarks = emptyList(),
                 watchedProgressMarks = emptyList(),
-                videoHeatmap = null
+                videoHeatmap = null,
+                videoProgressChapters = emptyList()
             )
         }
         loadVideoJob = viewModelScope.launch(Dispatchers.IO) {
@@ -1534,10 +1591,11 @@ class VideoPlayerV3ViewModel(
                 launch {
                     updateSubtitle()
                 }
-                launch { loadDanmaku(cid) }
+                launch { loadDanmaku(avid, cid) }
                 launch { updateDanmakuMask() }
                 launch { updateVideoShot() }
                 launch { updateVideoHeatmap() }
+                launch { updateVideoProgressChapters() }
                 launch { updateVideoPages() }
                 launch { refreshOnlineCount() }
             } catch (e: CancellationException) {
@@ -1957,11 +2015,31 @@ class VideoPlayerV3ViewModel(
         videoInfoRepository.updateUgcPages(Prefs.playbackApiType)
     }
 
-    private suspend fun loadDanmaku(cid: Long) {
-        runCatching {
-            val danmakuXmlData = BiliHttpApi.getDanmakuXml(cid = cid, sessData = Prefs.sessData)
+    private suspend fun loadDanmaku(aid: Long, cid: Long) {
+        if (_uiState.value.danmakuState.enabledTypes.isEmpty()) {
+            withContext(Dispatchers.Main) {
+                updateDanmakuConfigTypeFilter(emptyList())
+            }
+            logger.fInfo { "Skip loading danmaku because it is disabled" }
+            return
+        }
 
-            danmakuXmlData.data.map {
+        val list = runCatching {
+            val danmakuData = BiliHttpApi.getDanmakuXml(cid = cid, sessData = Prefs.sessData).data
+            val filterConfig = readDanmakuFilterConfigFromPrefs()
+            val cloudRules = loadCloudDanmakuFilterRules(filterConfig)
+            val rules = buildDanmakuFilterRules(filterConfig, cloudRules)
+            val filterMatcher = DanmakuFilterMatcher(filterConfig, rules)
+            val summary = summarizeDanmakuFilterRules(filterConfig, cloudRules)
+            val enabledTypes = _uiState.value.danmakuState.enabledTypes
+            var blockedCount = 0
+
+            danmakuData.asSequence().filterNot {
+                val blocked = filterMatcher.blocks(it) ||
+                    !it.allowsDanmakuTypes(enabledTypes)
+                if (blocked) blockedCount++
+                blocked
+            }.map {
                 DanmakuItemData(
                     danmakuId = it.dmid,
                     position = (it.time * 1000).toLong(),
@@ -1974,13 +2052,35 @@ class VideoPlayerV3ViewModel(
                     textSize = it.size,
                     textColor = Color(it.color).toArgb()
                 )
+            }.toList().also {
+                logger.fInfo {
+                    "Apply danmaku filters: cloud=${summary.cloudRuleCount}, " +
+                        "localKeyword=${summary.localKeywordCount}, localRegex=${summary.localRegexCount}, " +
+                        "localUser=${summary.localUserCount}, blocked=$blockedCount"
+                }
             }
-        }.onSuccess { list ->
-            danmakuPlayer?.updateData(list)
-            logger.fInfo { "Load danmaku success, size: ${list.size}" }
         }.onFailure { error ->
             logger.fWarn { "Load danmaku failed: ${error.stackTraceToString()}" }
+        }.getOrNull() ?: return
+
+        withContext(Dispatchers.Main) {
+            danmakuPlayer?.updateData(list)
+            logger.fInfo { "Load danmaku success, size: ${list.size}" }
         }
+    }
+
+    private suspend fun loadCloudDanmakuFilterRules(
+        config: DanmakuFilterConfig
+    ): List<dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuFilterRuleData> {
+        if (!config.enabled || !config.syncCloudRules) return emptyList()
+        val uid = currentDanmakuFilterUid() ?: return emptyList()
+        if (!shouldFetchCloudDanmakuFilterRules()) return emptyList()
+        return runCatching {
+            videoPlayRepository.getDanmakuFilterRules()
+                .also { cacheCloudDanmakuFilterRules(uid, it) }
+        }.onFailure {
+            logger.fWarn { "Load cloud danmaku filters failed: ${it.message}" }
+        }.getOrDefault(emptyList())
     }
 
     private suspend fun updateSubtitle() {
@@ -2003,29 +2103,6 @@ class VideoPlayerV3ViewModel(
                 forceAiSubtitle = false
             )
             val mainSubtitleId = resolveRememberedSubtitleId(_uiState.value.subtitleMemory, autoSubtitleTracks)
-            if (Prefs.enableBilingualSubtitle) {
-                val config = readSubtitleTranslationConfigFromPrefs()
-                when (val secondary = resolvePreferredSecondarySubtitleOption(
-                    tracks = autoSubtitleTracks,
-                    mainSubtitleId = mainSubtitleId ?: -1L,
-                    memory = _uiState.value.secondarySubtitleMemory,
-                    config = config,
-                    preferCustom = Prefs.preferCustomSecondarySubtitle,
-                    sourceSubtitleAvailable = mainSubtitleId != null
-                )) {
-                    SecondarySubtitleOption.CustomTranslation -> {
-                        logger.info { "Restore custom secondary subtitle" }
-                        pendingCustomSecondaryAfterMainLoad = true
-                    }
-
-                    is SecondarySubtitleOption.BiliTrack -> {
-                        logger.info { "Restore remembered secondary subtitle: ${secondary.subtitle.id}" }
-                        loadSubtitle(secondary.subtitle.id, SubtitleRole.Secondary)
-                    }
-
-                    null -> Unit
-                }
-            }
             mainSubtitleId?.let { subtitleId ->
                 logger.info { "Restore remembered subtitle: $subtitleId" }
                 loadSubtitle(subtitleId)
@@ -2149,6 +2226,24 @@ class VideoPlayerV3ViewModel(
             logger.fInfo { "Load video heatmap points: ${videoHeatmap?.points?.size ?: 0}" }
         }.onFailure { err ->
             logger.fWarn { "Load video heatmap failed: ${err.stackTraceToString()}" }
+        }
+    }
+
+    private suspend fun updateVideoProgressChapters() {
+        val state = _uiState.value
+        runCatching {
+            val chapters = videoPlayRepository.getVideoProgressChapters(
+                aid = state.aid,
+                cid = state.cid,
+                durationMs = maxOf(
+                    videoPlayer?.duration?.coerceAtLeast(0L) ?: 0L,
+                    seekerState.value.totalDuration
+                )
+            )
+            _uiState.update { it.copy(videoProgressChapters = chapters) }
+            logger.fInfo { "Load video progress chapters: ${chapters.size}" }
+        }.onFailure { err ->
+            logger.fWarn { "Load video progress chapters failed: ${err.stackTraceToString()}" }
         }
     }
 
@@ -2574,6 +2669,7 @@ internal fun PlayerUiState.copyForVideoSwitch(
         isBuffering = true,
         videoShot = null,
         videoHeatmap = null,
+        videoProgressChapters = emptyList(),
         watchedProgressMarks = emptyList(),
         onlineCountText = null,
         mediaStatsInfo = "",
@@ -2694,7 +2790,10 @@ internal fun JumpModeState.copyForVideoSwitch(aid: Long): JumpModeState {
     }
 }
 
-internal fun buildBiliMediaStatsInfo(video: DashVideo, audio: DashAudio?): String {
+internal fun buildBiliMediaStatsInfo(
+    video: DashVideo,
+    audio: DashAudio?
+): String {
     return buildList {
         if (video.width > 0 && video.height > 0) {
             add("resolution: ${video.width} x ${video.height}")

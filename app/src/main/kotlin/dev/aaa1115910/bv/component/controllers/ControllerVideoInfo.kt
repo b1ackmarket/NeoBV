@@ -57,12 +57,16 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.VideoHeatmap
+import dev.aaa1115910.biliapi.entity.video.VideoProgressChapter
 import dev.aaa1115910.biliapi.entity.video.VideoShot
+import dev.aaa1115910.biliapi.entity.video.currentChapterAt
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.entity.ProgressSegmentMark
 import dev.aaa1115910.bv.ui.state.JumpModeState
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.LayoutConfig
+import dev.aaa1115910.bv.util.PlayerBottomOsdControl
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.touchClick
@@ -83,6 +87,7 @@ fun ControllerVideoInfo(
     sponsorBlockProgressMarks: List<ProgressSegmentMark> = emptyList(),
     watchedProgressMarks: List<ProgressSegmentMark> = emptyList(),
     videoHeatmap: VideoHeatmap? = null,
+    videoProgressChapters: List<VideoProgressChapter> = emptyList(),
     clock: Pair<Int, Int>,
     videoShot: VideoShot?,
     videoShotCache: VideoShotImageCache,
@@ -152,6 +157,7 @@ fun ControllerVideoInfo(
                 sponsorBlockProgressMarks = sponsorBlockProgressMarks,
                 watchedProgressMarks = watchedProgressMarks,
                 videoHeatmap = videoHeatmap,
+                videoProgressChapters = videoProgressChapters,
                 onDirectionLeft = onDirectionLeft,
                 onDirectionRight = onDirectionRight,
                 onSeekGoTime = onSeekGoTime,
@@ -285,6 +291,7 @@ fun ControllerVideoInfoBottom(
     sponsorBlockProgressMarks: List<ProgressSegmentMark> = emptyList(),
     watchedProgressMarks: List<ProgressSegmentMark> = emptyList(),
     videoHeatmap: VideoHeatmap? = null,
+    videoProgressChapters: List<VideoProgressChapter> = emptyList(),
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
     onSeekGoTime: () -> Unit,
@@ -304,6 +311,9 @@ fun ControllerVideoInfoBottom(
     val buttonsFocusRequester = remember { FocusRequester() }
 
     var isSeekFocused by remember { mutableStateOf(false) }
+    val previewChapterTitle = remember(videoProgressChapters, goTime, isSeeking) {
+        if (isSeeking) videoProgressChapters.currentChapterAt(goTime)?.title.orEmpty() else ""
+    }
 
     LaunchedEffect(show) {
         if (show) {
@@ -359,6 +369,16 @@ fun ControllerVideoInfoBottom(
                                     color = Color.White,
                                     style = MaterialTheme.typography.titleLarge
                                 )
+                                if (previewChapterTitle.isNotBlank()) {
+                                    Text(
+                                        modifier = Modifier.padding(top = 4.dp),
+                                        text = previewChapterTitle,
+                                        color = Color.White.copy(alpha = 0.88f),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                                 Text(
                                     modifier = Modifier.padding(top = 4.dp),
                                     text = "按确定跳转",
@@ -384,6 +404,16 @@ fun ControllerVideoInfoBottom(
                                 color = Color.White,
                                 style = MaterialTheme.typography.titleMedium
                             )
+                            if (previewChapterTitle.isNotBlank()) {
+                                Text(
+                                    modifier = Modifier.padding(top = 4.dp),
+                                    text = previewChapterTitle,
+                                    color = Color.White.copy(alpha = 0.88f),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                             Text(
                                 modifier = Modifier.padding(top = 4.dp),
                                 text = "按确定跳转",
@@ -470,28 +500,33 @@ fun ControllerVideoInfoBottom(
                 isPersistentSeek = false,
                 segmentMarks = sponsorBlockProgressMarks,
                 watchedSegmentMarks = watchedProgressMarks,
-                videoHeatmap = videoHeatmap
+                videoHeatmap = videoHeatmap,
+                chapters = videoProgressChapters
             )
         }
 
-        val icons = listOfNotNull(
+        val availableButtons = listOfNotNull(
             ControllerInfoButton(
+                control = PlayerBottomOsdControl.VideoList,
                 iconRes = R.drawable.related_videos_24px,
                 contentDescription = videoListButtonLabel,
                 onClick = onShowVideoList
             ),
             ControllerInfoButton(
+                control = PlayerBottomOsdControl.Danmaku,
                 iconRes = if (danmakuEnabled) R.drawable.danmaku_on_24px else R.drawable.danmaku_off_24px,
                 contentDescription = "弹幕开关",
                 onClick = onDanmakuSwitchChange
             ),
             ControllerInfoButton(
+                control = PlayerBottomOsdControl.Subtitle,
                 iconRes = if (subtitleEnabled) R.drawable.osd_caption_32 else R.drawable.osd_caption_off_32,
                 contentDescription = if (subtitleEnabled) "关闭字幕" else "开启字幕",
                 enabled = subtitleAvailable || subtitleEnabled,
                 onClick = onSubtitleSwitchChange
             ),
             ControllerInfoButton(
+                control = PlayerBottomOsdControl.JumpMode,
                 iconRes = if (jumpModeState.enabled) R.drawable.jump_mode_on_24px else R.drawable.jump_mode_off_24px,
                 contentDescription = when {
                     !jumpModeState.available -> "跳动模式不可用"
@@ -502,36 +537,48 @@ fun ControllerVideoInfoBottom(
                 onClick = onToggleJumpMode
             ),
             if (!fromSeason) ControllerInfoButton(
+                control = PlayerBottomOsdControl.VideoInfo,
                 iconRes = R.drawable.info_24px,
                 contentDescription = "视频信息",
                 onClick = onGoToVideoInfo
             ) else null,
             if (!fromSeason) ControllerInfoButton(
+                control = PlayerBottomOsdControl.UpPage,
                 iconRes = R.drawable.contact_page_24px,
                 contentDescription = "up主页",
                 onClick = onGoToUpPage
             ) else null,
             if (!fromSeason) ControllerInfoButton(
+                control = PlayerBottomOsdControl.RelatedVideos,
                 iconRes = R.drawable.related_videos_24px,
                 contentDescription = "相关视频",
                 onClick = onShowRelatedVideos
             ) else null,
             ControllerInfoButton(
+                control = PlayerBottomOsdControl.Comments,
                 iconRes = R.drawable.comment_24px,
                 contentDescription = "评论",
                 onClick = onShowComments
             ),
             ControllerInfoButton(
+                control = PlayerBottomOsdControl.Loop,
                 iconRes = if (isLooping) R.drawable.repeat_one_on_24px else R.drawable.repeat_one_24px,
                 contentDescription = "循环播放",
                 onClick = onToggleLoop
             ),
             ControllerInfoButton(
+                control = PlayerBottomOsdControl.Settings,
                 iconRes = R.drawable.settings_24px,
                 contentDescription = "播放设置",
                 onClick = onShowSettings
             ),
         )
+        val buttonsByControl = availableButtons.associateBy { it.control }
+        val icons = LayoutConfig.applyPlayerBottomOsd(items = availableButtons.map { it.control })
+            .mapNotNull(buttonsByControl::get)
+        val iconFocusRequesters = remember(icons.map { it.control }) {
+            icons.map { FocusRequester() }
+        }
 
         Row(
             modifier = Modifier
@@ -549,10 +596,39 @@ fun ControllerVideoInfoBottom(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
         ) {
-            icons.forEach { button ->
+            icons.forEachIndexed { index, button ->
                 val clickButton = { if (button.enabled) button.onClick() }
                 Surface(
-                    modifier = Modifier.touchClick(clickButton),
+                    modifier = Modifier
+                        .focusRequester(iconFocusRequesters[index])
+                        .onKeyEvent {
+                            if (it.type == KeyEventType.KeyUp) {
+                                if (it.key == Key.DirectionLeft || it.key == Key.DirectionRight) return@onKeyEvent true
+                                return@onKeyEvent false
+                            }
+                            when (it.key) {
+                                Key.DirectionLeft -> {
+                                    if (index == 0) {
+                                        iconFocusRequesters.lastOrNull()?.requestFocus()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+
+                                Key.DirectionRight -> {
+                                    if (index == icons.lastIndex) {
+                                        iconFocusRequesters.firstOrNull()?.requestFocus()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+
+                                else -> false
+                            }
+                        }
+                        .touchClick(clickButton),
                     onClick = clickButton,
                     shape = ClickableSurfaceDefaults.shape(
                         shape = MaterialTheme.shapes.small,
@@ -574,6 +650,7 @@ fun ControllerVideoInfoBottom(
 }
 
 private data class ControllerInfoButton(
+    val control: PlayerBottomOsdControl,
     val iconRes: Int,
     val contentDescription: String,
     val enabled: Boolean = true,

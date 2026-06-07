@@ -62,10 +62,11 @@ fun DanmakuMenuList(
     val restorerFocusRequester = remember { FocusRequester() }
 
     val focusRequester = remember { FocusRequester() }
+    val visibleMenuItems = VideoPlayerDanmakuMenuItem.entries
     var selectedDanmakuMenuItem by remember { mutableStateOf(VideoPlayerDanmakuMenuItem.Switch) }
     val menuItemRequesters = remember {
         mutableStateListOf<FocusRequester>().apply {
-            addAll(VideoPlayerDanmakuMenuItem.entries.map { FocusRequester() })
+            addAll(visibleMenuItems.map { FocusRequester() })
         }
     }
     val shouldFocusItems = focusState.focusState == MenuFocusState.Items
@@ -73,7 +74,9 @@ fun DanmakuMenuList(
     LaunchedEffect(focusState.focusState, selectedDanmakuMenuItem) {
         if (focusState.focusState == MenuFocusState.Menu) {
             val index = resolveParentMenuFocusIndex(
-                selectedIndex = selectedDanmakuMenuItem.ordinal,
+                selectedIndex = visibleMenuItems.indexOf(selectedDanmakuMenuItem)
+                    .takeIf { it >= 0 }
+                    ?: 0,
                 itemCount = menuItemRequesters.size
             )
             menuItemRequesters[index].requestFocus()
@@ -239,7 +242,7 @@ fun DanmakuMenuList(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(8.dp)
         ) {
-            itemsIndexed(VideoPlayerDanmakuMenuItem.entries) { index, item ->
+            itemsIndexed(visibleMenuItems) { index, item ->
                 val selectItem = {
                     val result = resolveParentMenuTouch(
                         current = selectedDanmakuMenuItem,
