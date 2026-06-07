@@ -47,11 +47,14 @@ import dev.aaa1115910.bv.component.HomePageSettingItem
 import dev.aaa1115910.bv.component.PersonalTopNavItem
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
+import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.LayoutConfig
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.resolveDefaultDensity
 import kotlin.math.roundToInt
 
@@ -70,6 +73,7 @@ fun UISetting(
     var showPersistentSeek by remember { mutableStateOf(Prefs.showPersistentSeek) }
     var enableFocusPreview by remember { mutableStateOf(Prefs.enableFocusPreview) }
     var enableFocusPreviewMuted by remember { mutableStateOf(Prefs.enableFocusPreviewMuted) }
+    var enableLayoutWebConfig by remember { mutableStateOf(Prefs.enableLayoutWebConfig) }
 
     val density by Prefs.densityFlow.collectAsState(
         resolveDefaultDensity(
@@ -105,19 +109,21 @@ fun UISetting(
                         onClick = { showStartupPageDialog = true }
                     )
                 }
-                item {
-                    SettingListItem(
-                        title = stringResource(R.string.settings_ui_homepage_title),
-                        supportText = stringResource(R.string.settings_ui_homepage_text),
-                        onClick = { showHomepageDialog = true }
-                    )
-                }
-                item {
-                    SettingListItem(
-                        title = stringResource(R.string.settings_ui_personal_page_title),
-                        supportText = stringResource(R.string.settings_ui_personal_page_text),
-                        onClick = { showPersonalPageDialog = true }
-                    )
+                if (!enableLayoutWebConfig) {
+                    item {
+                        SettingListItem(
+                            title = stringResource(R.string.settings_ui_homepage_title),
+                            supportText = stringResource(R.string.settings_ui_homepage_text),
+                            onClick = { showHomepageDialog = true }
+                        )
+                    }
+                    item {
+                        SettingListItem(
+                            title = stringResource(R.string.settings_ui_personal_page_title),
+                            supportText = stringResource(R.string.settings_ui_personal_page_text),
+                            onClick = { showPersonalPageDialog = true }
+                        )
+                    }
                 }
                 item {
                     SettingSwitchListItem(
@@ -160,6 +166,20 @@ fun UISetting(
                         onCheckedChange = {
                             enableFocusPreviewMuted = it
                             Prefs.enableFocusPreviewMuted = it
+                        }
+                    )
+                }
+                item {
+                    SettingSwitchListItem(
+                        title = "布局自定义",
+                        supportText = "开启后可到 ${HttpServer.getServerAddress("/layout")} 调整各页面 tab 顺序与隐藏；关闭后恢复默认布局，置顶设置保留",
+                        checked = enableLayoutWebConfig,
+                        onCheckedChange = {
+                            enableLayoutWebConfig = it
+                            Prefs.enableLayoutWebConfig = it
+                            if (!it) {
+                                LayoutConfig.reset()
+                            }
                         }
                     )
                 }
@@ -307,9 +327,29 @@ private fun UIDensityDialog(
                             },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(imageVector = Icons.Rounded.ArrowDropUp, contentDescription = null)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .touchClick {
+                                    onDensityChange(densityState.step(direction = 1))
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(imageVector = Icons.Rounded.ArrowDropUp, contentDescription = null)
+                        }
                         Text(text = "${densityState.displayDensity}")
-                        Icon(imageVector = Icons.Rounded.ArrowDropDown, contentDescription = null)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .touchClick {
+                                    onDensityChange(densityState.step(direction = -1))
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(imageVector = Icons.Rounded.ArrowDropDown, contentDescription = null)
+                        }
                     }
                 },
                 confirmButton = {}

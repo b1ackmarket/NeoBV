@@ -6,6 +6,7 @@ import dev.aaa1115910.biliapi.http.BiliHttpApi.getRegionDynamic
 import dev.aaa1115910.biliapi.http.entity.BiliResponse
 import dev.aaa1115910.biliapi.http.entity.BiliResponseWithoutData
 import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData
+import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuFilterData
 import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuResponse
 import dev.aaa1115910.biliapi.http.entity.dynamic.DynamicData
 import dev.aaa1115910.biliapi.http.entity.history.HistoryData
@@ -124,6 +125,12 @@ object BiliHttpApi {
         prettyPrint = true
     }
 
+    private fun buildCookie(vararg values: Pair<String, String?>): String {
+        return values.mapNotNull { (name, value) ->
+            value?.takeIf { it.isNotBlank() }?.let { "$name=$it" }
+        }.joinToString("; ")
+    }
+
     var wbiImgKey: String? = null
     var wbiSubKey: String? = null
     private var wbiLastRefreshDate = 0L
@@ -192,15 +199,34 @@ object BiliHttpApi {
         header("Cookie", "SESSDATA=$sessData;")
     }.body()
 
-    suspend fun getWeeklySeriesList(): BiliResponse<WeeklySeriesListData> =
+    suspend fun getWeeklySeriesList(
+        sessData: String = "",
+        biliJct: String = "",
+        buvid3: String = ""
+    ): BiliResponse<WeeklySeriesListData> =
         client.get("/x/web-interface/popular/series/list") {
             header("Referer", "https://www.bilibili.com/v/popular/weekly")
+            buildCookie(
+                "SESSDATA" to sessData,
+                "bili_jct" to biliJct,
+                "buvid3" to buvid3
+            ).takeIf { it.isNotBlank() }?.let { header("Cookie", it) }
         }.body()
 
-    suspend fun getWeeklySeriesOne(number: Int): BiliResponse<WeeklySeriesOneData> =
+    suspend fun getWeeklySeriesOne(
+        number: Int,
+        sessData: String = "",
+        biliJct: String = "",
+        buvid3: String = ""
+    ): BiliResponse<WeeklySeriesOneData> =
         client.get("/x/web-interface/popular/series/one") {
             parameter("number", number)
             header("Referer", "https://www.bilibili.com/v/popular/weekly")
+            buildCookie(
+                "SESSDATA" to sessData,
+                "bili_jct" to biliJct,
+                "buvid3" to buvid3
+            ).takeIf { it.isNotBlank() }?.let { header("Cookie", it) }
         }.body()
 
     suspend fun getPopularPreciousAllData(sessData: String = ""): BiliResponse<PopularVideoData> =
@@ -468,6 +494,49 @@ object BiliHttpApi {
         return DanmakuResponse(chatServer, chatId, maxLimit, state, realName, source, data)
     }
 
+    suspend fun getDanmakuFilterRules(
+        sessData: String = "",
+        dedeUserID: Long? = null,
+        uidCkMd5: String = ""
+    ): BiliResponse<DanmakuFilterData> = client.get("/x/dm/filter/user") {
+        buildCookie(
+            "SESSDATA" to sessData,
+            "DedeUserID" to dedeUserID?.takeIf { it > 0L }?.toString(),
+            "DedeUserID__ckMd5" to uidCkMd5
+        ).takeIf { it.isNotBlank() }?.let { header("Cookie", it) }
+    }.body()
+
+    suspend fun addDanmakuFilterRule(
+        type: Int,
+        filter: String,
+        csrf: String,
+        sessData: String = "",
+        dedeUserID: Long? = null,
+        uidCkMd5: String = ""
+    ): BiliResponseWithoutData = client.post("/x/dm/filter/user/add") {
+        header(
+            "Cookie",
+            buildCookie(
+                "SESSDATA" to sessData,
+                "bili_jct" to csrf,
+                "DedeUserID" to dedeUserID?.takeIf { it > 0L }?.toString(),
+                "DedeUserID__ckMd5" to uidCkMd5
+            )
+        )
+        header("Referer", "https://www.bilibili.com")
+        setBody(
+            FormDataContent(
+                Parameters.build {
+                    append("type", type.toString())
+                    append("filter", filter)
+                    append("csrf", csrf)
+                    append("csrf_token", csrf)
+                    append("jsonp", "jsonp")
+                }
+            )
+        )
+    }.body()
+
     /**
      * 获取动态列表
      *
@@ -539,7 +608,7 @@ object BiliHttpApi {
         sessData: String = ""
     ): BiliResponse<HistoryData> = client.get("/x/web-interface/history/cursor") {
         parameter("max", max)
-        parameter("business", business)
+        if (business.isNotBlank()) parameter("business", business)
         parameter("view_at", viewAt)
         parameter("ps", pageSize)
         header("Cookie", "SESSDATA=$sessData;")

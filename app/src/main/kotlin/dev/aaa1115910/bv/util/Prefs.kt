@@ -217,6 +217,18 @@ object Prefs {
     var defaultDanmakuSpeedFactor by pref(PrefKeys.prefDefaultDanmakuSpeedFactorKey, 1f)
     var defaultDanmakuArea by pref(PrefKeys.prefDefaultDanmakuAreaKey, 0.5f)
     var defaultDanmakuMask by pref(PrefKeys.prefDefaultDanmakuMask, false)
+    var enableDanmakuFilter by pref(PrefKeys.prefEnableDanmakuFilterKey, true)
+    var syncCloudDanmakuFilter by pref(PrefKeys.prefSyncCloudDanmakuFilterKey, true)
+    var danmakuFilterCaseSensitive by pref(PrefKeys.prefDanmakuFilterCaseSensitiveKey, false)
+    var localDanmakuFilterKeywords by pref(PrefKeys.prefLocalDanmakuFilterKeywordsKey, "")
+    var localDanmakuFilterRegexes by pref(PrefKeys.prefLocalDanmakuFilterRegexesKey, "")
+    var localDanmakuFilterUserHashes by pref(PrefKeys.prefLocalDanmakuFilterUserHashesKey, "")
+    var cloudDanmakuFilterUid by pref(PrefKeys.prefCloudDanmakuFilterUidKey, 0L)
+    var cloudDanmakuFilterSyncedAt by pref(PrefKeys.prefCloudDanmakuFilterSyncedAtKey, 0L)
+    var cloudDanmakuFilterKeywords by pref(PrefKeys.prefCloudDanmakuFilterKeywordsKey, "")
+    var cloudDanmakuFilterRegexes by pref(PrefKeys.prefCloudDanmakuFilterRegexesKey, "")
+    var cloudDanmakuFilterUserHashes by pref(PrefKeys.prefCloudDanmakuFilterUserHashesKey, "")
+    var enableDanmakuFilterWebConfig by pref(PrefKeys.prefEnableDanmakuFilterWebConfigKey, false)
     var defaultLiveDanmakuSourceMode by pref(
         PrefKeys.prefDefaultLiveDanmakuSourceModeKey,
         PrefDefaultValues.defaultLiveDanmakuSourceMode,
@@ -340,8 +352,10 @@ object Prefs {
         restore = { PersonalTopNavItem.entries.getOrElse(it) { PersonalTopNavItem.ToView } }
     )
     var showHotword by pref(PrefKeys.prefShowHotwordKey, true)
-    var enableFocusPreview by pref(PrefKeys.prefEnableFocusPreviewKey, true)
+    var enableFocusPreview by pref(PrefKeys.prefEnableFocusPreviewKey, false)
     var enableFocusPreviewMuted by pref(PrefKeys.prefEnableFocusPreviewMutedKey, true)
+    var enableLayoutWebConfig by pref(PrefKeys.prefEnableLayoutWebConfigKey, false)
+    var layoutConfigJson by pref(PrefKeys.prefLayoutConfigJsonKey, "")
 
     // =========================================================================
     // 隐私
@@ -518,6 +532,18 @@ private object PrefKeys {
     val prefDefaultDanmakuSpeedFactorKey = floatPreferencesKey("ddsf")
     val prefDefaultDanmakuAreaKey = floatPreferencesKey("dda")
     val prefDefaultDanmakuMask = booleanPreferencesKey("prefer_enable_webmark")
+    val prefEnableDanmakuFilterKey = booleanPreferencesKey("enable_danmaku_filter")
+    val prefSyncCloudDanmakuFilterKey = booleanPreferencesKey("sync_cloud_danmaku_filter")
+    val prefDanmakuFilterCaseSensitiveKey = booleanPreferencesKey("danmaku_filter_case_sensitive")
+    val prefLocalDanmakuFilterKeywordsKey = stringPreferencesKey("local_danmaku_filter_keywords")
+    val prefLocalDanmakuFilterRegexesKey = stringPreferencesKey("local_danmaku_filter_regexes")
+    val prefLocalDanmakuFilterUserHashesKey = stringPreferencesKey("local_danmaku_filter_user_hashes")
+    val prefCloudDanmakuFilterUidKey = longPreferencesKey("cloud_danmaku_filter_uid")
+    val prefCloudDanmakuFilterSyncedAtKey = longPreferencesKey("cloud_danmaku_filter_synced_at")
+    val prefCloudDanmakuFilterKeywordsKey = stringPreferencesKey("cloud_danmaku_filter_keywords")
+    val prefCloudDanmakuFilterRegexesKey = stringPreferencesKey("cloud_danmaku_filter_regexes")
+    val prefCloudDanmakuFilterUserHashesKey = stringPreferencesKey("cloud_danmaku_filter_user_hashes")
+    val prefEnableDanmakuFilterWebConfigKey = booleanPreferencesKey("enable_danmaku_filter_web_config")
     val prefDefaultLiveDanmakuSourceModeKey = intPreferencesKey("live_danmaku_source_mode")
 
     // 播放器 - 字幕
@@ -565,6 +591,8 @@ private object PrefKeys {
     val prefShowHotwordKey = booleanPreferencesKey("shw")
     val prefEnableFocusPreviewKey = booleanPreferencesKey("enable_focus_preview")
     val prefEnableFocusPreviewMutedKey = booleanPreferencesKey("enable_focus_preview_muted")
+    val prefEnableLayoutWebConfigKey = booleanPreferencesKey("enable_layout_web_config")
+    val prefLayoutConfigJsonKey = stringPreferencesKey("layout_config_json")
 
     // 隐身模式
     val prefIncognitoModeKey = booleanPreferencesKey("im")

@@ -72,6 +72,7 @@ fun AudioVideoSetting(
     var enableVolumeNormalization by remember { mutableStateOf(Prefs.enableVolumeNormalization) }
     var enableSoftwareVideoRenderer by remember { mutableStateOf(Prefs.enableSoftwareVideoDecoder) }
     var enableBilingualSubtitle by remember { mutableStateOf(Prefs.enableBilingualSubtitle) }
+    var enableDanmakuFilterWebConfig by remember { mutableStateOf(Prefs.enableDanmakuFilterWebConfig) }
     var sponsorBlockEnabled by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -160,6 +161,15 @@ fun AudioVideoSetting(
             onCheckedChange = {
                 enableBilingualSubtitle = it
                 Prefs.enableBilingualSubtitle = it
+            }
+        )
+        SettingSwitchListItem(
+            title = "弹幕屏蔽",
+            supportText = "开启后可到 ${HttpServer.getServerAddress("/danmaku")} 调整关键词、正则、用户屏蔽和 B 站云端规则",
+            checked = enableDanmakuFilterWebConfig,
+            onCheckedChange = {
+                enableDanmakuFilterWebConfig = it
+                Prefs.enableDanmakuFilterWebConfig = it
             }
         )
         SettingSwitchListItem(

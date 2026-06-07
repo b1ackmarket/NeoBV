@@ -35,6 +35,7 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
+import dev.aaa1115910.bv.util.touchClick
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -111,7 +112,10 @@ fun AboutSetting(
                     Prefs.receiveAlphaUpdates = it
                 }
             )
-            Button(onClick = { showUpdateDialog = true }) {
+            Button(
+                modifier = Modifier.touchClick { showUpdateDialog = true },
+                onClick = { showUpdateDialog = true }
+            ) {
                 Text(text = stringResource(R.string.settings_version_check_update_button))
             }
         }

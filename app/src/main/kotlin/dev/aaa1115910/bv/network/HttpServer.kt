@@ -1,10 +1,17 @@
 package dev.aaa1115910.bv.network
 
 import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.danmaku.DanmakuFilterConfig
+import dev.aaa1115910.bv.danmaku.cacheCloudDanmakuFilterRules
+import dev.aaa1115910.bv.danmaku.currentDanmakuFilterUid
+import dev.aaa1115910.bv.danmaku.readDanmakuFilterConfigFromPrefs
+import dev.aaa1115910.bv.danmaku.writeDanmakuFilterConfigToPrefs
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.PrefsSponsorBlockConfigStore
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.SkipPolicy
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.SponsorBlockCategoryStyle
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.SponsorBlockConfig
+import dev.aaa1115910.bv.repository.LiveRepository
+import dev.aaa1115910.biliapi.repositories.VideoPlayRepository
 import dev.aaa1115910.bv.subtitle.translation.DefaultSubtitleTranslationPrompt
 import dev.aaa1115910.bv.subtitle.translation.DefaultSubtitleTranslationTestSentence
 import dev.aaa1115910.bv.subtitle.translation.SubtitleLanguages
@@ -13,6 +20,7 @@ import dev.aaa1115910.bv.subtitle.translation.SubtitleTranslationProviderType
 import dev.aaa1115910.bv.subtitle.translation.readSubtitleTranslationConfigFromPrefs
 import dev.aaa1115910.bv.subtitle.translation.testSubtitleTranslationConnection
 import dev.aaa1115910.bv.subtitle.translation.writeSubtitleTranslationConfigToPrefs
+import dev.aaa1115910.bv.util.LayoutConfig
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs
 import io.ktor.http.Parameters
@@ -63,7 +71,9 @@ object HttpServer {
             logsUiStaticModule()
             logsApiModule()
             sponsorBlockModule()
+            danmakuFilterModule()
             subtitleModule()
+            layoutModule()
         }
         try {
             newServer.start(wait = false)
@@ -293,8 +303,8 @@ object HttpServer {
                 )
                 val store = PrefsSponsorBlockConfigStore()
                 runBlocking {
-                    store.setEnabled(newConfig.enabled)
-                    store.writeConfig(newConfig.copy(enabled = newConfig.enabled))
+                    val enabled = store.isEnabled()
+                    store.writeConfig(newConfig.copy(enabled = enabled))
                 }
                 call.respondText(
                     text = """{"success":true}""",
@@ -308,7 +318,7 @@ object HttpServer {
                     val enabled = store.isEnabled()
                     store.readConfig().copy(enabled = enabled)
                 }
-                val checkedEnabled = if (config.enabled) "checked" else ""
+                val enabledStatusText = if (config.enabled) "已启用" else "未启用"
                 val categoryRows = SponsorBlockConfig.supportedCategories.joinToString("\n") { category ->
                     val displayName = sponsorBlockCategoryDisplayName(category)
                     val description = sponsorBlockCategoryDescription(category)
@@ -496,8 +506,8 @@ object HttpServer {
                               <div class="section">
                                 <div class="section-title">基础设置</div>
                                 <div class="toggle-row">
-                                  <label class="switch"><input id="enabled" type="checkbox" $checkedEnabled /> 启用空降助手</label>
-                                  <span style="color: var(--muted);">服务器状态：正常</span>
+                                  <span>空降助手状态：$enabledStatusText</span>
+                                  <span style="color: var(--muted);">启用/关闭请回到电视端设置；本页只保存分类细项。</span>
                                 </div>
                               </div>
                               <div class="section">
@@ -525,7 +535,7 @@ object HttpServer {
 
                             async function saveConfig() {
                               const payload = {
-                                enabled: document.getElementById('enabled').checked,
+                                enabled: ${config.enabled},
                                 categoryPolicy: Object.fromEntries(
                                   categories.map(category => [category, getPolicy(category)])
                                 )
@@ -612,6 +622,615 @@ object HttpServer {
                 )
             }
         }
+    }
+
+    private fun Application.layoutModule() {
+        routing {
+            get("/api/layout/config") {
+                if (!Prefs.enableLayoutWebConfig) {
+                    return@get call.respondText(
+                        text = """{"error":"layout web config disabled"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.Forbidden
+                    )
+                }
+                call.respondText(
+                    text = layoutConfigJson(),
+                    contentType = ContentType.Application.Json
+                )
+            }
+
+            post("/api/layout/config") {
+                if (!Prefs.enableLayoutWebConfig) {
+                    return@post call.respondText(
+                        text = """{"error":"layout web config disabled"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.Forbidden
+                    )
+                }
+                val body = call.receiveText()
+                val element = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull()
+                    ?: return@post call.respondText(
+                        text = """{"error":"invalid config"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.BadRequest
+                    )
+                val reset = element["reset"]?.jsonPrimitive?.booleanOrNull == true
+                if (reset) {
+                    LayoutConfig.reset()
+                } else {
+                    val state = runCatching { json.decodeFromString<dev.aaa1115910.bv.util.LayoutConfigState>(body) }
+                        .getOrNull()
+                        ?: return@post call.respondText(
+                            text = """{"error":"invalid config"}""",
+                            contentType = ContentType.Application.Json,
+                            status = HttpStatusCode.BadRequest
+                        )
+                    LayoutConfig.write(state)
+                }
+                call.respondText(
+                    text = """{"success":true}""",
+                    contentType = ContentType.Application.Json
+                )
+            }
+
+            get("/layout") {
+                if (!Prefs.enableLayoutWebConfig) {
+                    return@get call.respondText(
+                        text = layoutDisabledHtml(),
+                        contentType = ContentType.Text.Html.withCharset(Charsets.UTF_8),
+                        status = HttpStatusCode.Forbidden
+                    )
+                }
+                call.respondText(
+                    text = layoutConfigHtml(),
+                    contentType = ContentType.Text.Html.withCharset(Charsets.UTF_8)
+                )
+            }
+        }
+    }
+
+    private fun Application.danmakuFilterModule() {
+        routing {
+            get("/api/danmaku/config") {
+                if (!Prefs.enableDanmakuFilterWebConfig) {
+                    return@get call.respondText(
+                        text = """{"error":"danmaku filter web config disabled"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.Forbidden
+                    )
+                }
+                call.respondText(
+                    text = readDanmakuFilterConfigFromPrefs().toJson(),
+                    contentType = ContentType.Application.Json
+                )
+            }
+
+            post("/api/danmaku/config") {
+                if (!Prefs.enableDanmakuFilterWebConfig) {
+                    return@post call.respondText(
+                        text = """{"error":"danmaku filter web config disabled"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.Forbidden
+                    )
+                }
+                val config = parseDanmakuFilterConfig(call.receiveText())
+                    ?: return@post call.respondText(
+                        text = """{"error":"invalid config"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.BadRequest
+                    )
+                writeDanmakuFilterConfigToPrefs(config)
+                call.respondText(
+                    text = """{"success":true}""",
+                    contentType = ContentType.Application.Json
+                )
+            }
+
+            post("/api/danmaku/sync") {
+                if (!Prefs.enableDanmakuFilterWebConfig) {
+                    return@post call.respondText(
+                        text = """{"error":"danmaku filter web config disabled"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.Forbidden
+                    )
+                }
+                val uid = currentDanmakuFilterUid()
+                    ?: return@post call.respondText(
+                        text = """{"error":"请先登录 B 站账号"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.Unauthorized
+                    )
+                val rules = runCatching {
+                    BVApp.koinApplication.koin.get<VideoPlayRepository>()
+                        .getDanmakuFilterRules()
+                }.getOrElse { error ->
+                    return@post call.respondText(
+                        text = """{"error":"${jsonEscape(error.message ?: "同步失败")}"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.InternalServerError
+                    )
+                }
+                cacheCloudDanmakuFilterRules(uid, rules)
+                Prefs.syncCloudDanmakuFilter = true
+                call.respondText(
+                    text = """{"success":true,"count":${rules.size},"config":${readDanmakuFilterConfigFromPrefs().toJson()}}""",
+                    contentType = ContentType.Application.Json
+                )
+            }
+
+            post("/api/danmaku/upload") {
+                if (!Prefs.enableDanmakuFilterWebConfig) {
+                    return@post call.respondText(
+                        text = """{"error":"danmaku filter web config disabled"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.Forbidden
+                    )
+                }
+                currentDanmakuFilterUid()
+                    ?: return@post call.respondText(
+                        text = """{"error":"请先登录 B 站账号"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.Unauthorized
+                    )
+                val uploaded = runCatching {
+                    BVApp.koinApplication.koin.get<VideoPlayRepository>()
+                        .uploadLocalDanmakuFilterRules(
+                            keywords = Prefs.localDanmakuFilterKeywords.toRuleLinesForServer(),
+                            regexes = Prefs.localDanmakuFilterRegexes.toRuleLinesForServer()
+                        )
+                }.getOrElse { error ->
+                    return@post call.respondText(
+                        text = """{"error":"${jsonEscape(error.message ?: "上传失败")}"}""",
+                        contentType = ContentType.Application.Json,
+                        status = HttpStatusCode.InternalServerError
+                    )
+                }
+                call.respondText(
+                    text = """{"success":true,"uploaded":$uploaded}""",
+                    contentType = ContentType.Application.Json
+                )
+            }
+
+            get("/danmaku") {
+                if (!Prefs.enableDanmakuFilterWebConfig) {
+                    return@get call.respondText(
+                        text = danmakuFilterDisabledHtml(),
+                        contentType = ContentType.Text.Html.withCharset(Charsets.UTF_8)
+                    )
+                }
+                call.respondText(
+                    text = danmakuFilterConfigHtml(),
+                    contentType = ContentType.Text.Html.withCharset(Charsets.UTF_8)
+                )
+            }
+        }
+    }
+
+    private fun DanmakuFilterConfig.toJson(): String {
+        return buildString {
+            append('{')
+            append("\"enabled\":").append(enabled).append(',')
+            append("\"syncCloudRules\":").append(syncCloudRules).append(',')
+            append("\"caseSensitive\":").append(caseSensitive).append(',')
+            append("\"localKeywords\":\"").append(jsonEscape(localKeywords)).append("\",")
+            append("\"localRegexes\":\"").append(jsonEscape(localRegexes)).append("\",")
+            append("\"localUserHashes\":\"").append(jsonEscape(localUserHashes)).append("\",")
+            append("\"login\":").append(currentDanmakuFilterUid() != null).append(',')
+            append("\"uid\":").append(Prefs.uid.takeIf { it > 0L } ?: 0L).append(',')
+            append("\"cloudSyncedAt\":").append(Prefs.cloudDanmakuFilterSyncedAt)
+            append('}')
+        }
+    }
+
+    private fun parseDanmakuFilterConfig(body: String): DanmakuFilterConfig? {
+        val parsed = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull() ?: return null
+        val current = readDanmakuFilterConfigFromPrefs()
+        return DanmakuFilterConfig(
+            enabled = parsed["enabled"]?.jsonPrimitive?.booleanOrNull ?: current.enabled,
+            syncCloudRules = parsed["syncCloudRules"]?.jsonPrimitive?.booleanOrNull
+                ?: current.syncCloudRules,
+            caseSensitive = parsed["caseSensitive"]?.jsonPrimitive?.booleanOrNull
+                ?: current.caseSensitive,
+            localKeywords = parsed["localKeywords"]?.jsonPrimitive?.contentOrNull?.take(12000)
+                ?: current.localKeywords,
+            localRegexes = parsed["localRegexes"]?.jsonPrimitive?.contentOrNull?.take(12000)
+                ?: current.localRegexes,
+            localUserHashes = parsed["localUserHashes"]?.jsonPrimitive?.contentOrNull?.take(12000)
+                ?: current.localUserHashes
+        )
+    }
+
+    private fun danmakuFilterDisabledHtml(): String {
+        return """
+            <!doctype html>
+            <html lang="zh-CN">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>弹幕屏蔽未开启</title>
+              <style>
+                body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #101318; color: #f4f7fb; font-family: system-ui, sans-serif; }
+                .card { max-width: 520px; padding: 28px; border: 1px solid rgba(255,255,255,.12); border-radius: 18px; background: rgba(255,255,255,.06); line-height: 1.6; }
+              </style>
+            </head>
+            <body><div class="card"><h1>弹幕屏蔽未开启</h1><p>请先在软件设置的“画面音频”里开启“弹幕屏蔽”。</p></div></body>
+            </html>
+        """.trimIndent()
+    }
+
+    private fun danmakuFilterConfigHtml(): String {
+        return """
+            <!doctype html>
+            <html lang="zh-CN">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>弹幕屏蔽</title>
+              <style>
+                :root { color-scheme: dark; --bg:#101318; --panel:#181d25; --panel2:#202733; --text:#f4f7fb; --muted:#aeb8c8; --accent:#8ee6d1; --danger:#ff8a8a; --border:rgba(255,255,255,.12); }
+                * { box-sizing:border-box; }
+                body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+                main { width:min(980px, calc(100vw - 28px)); margin:28px auto; display:grid; gap:16px; }
+                h1 { margin:0; font-size:30px; }
+                p { margin:8px 0 0; color:var(--muted); line-height:1.55; }
+                .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; }
+                .card { background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.035)); border:1px solid var(--border); border-radius:18px; padding:16px; }
+                .card h2 { margin:0 0 12px; font-size:18px; }
+                label { display:flex; align-items:flex-start; gap:10px; margin:11px 0; color:var(--text); line-height:1.45; }
+                label span { display:grid; gap:2px; }
+                small { color:var(--muted); }
+                textarea { width:100%; min-height:220px; resize:vertical; border:1px solid var(--border); border-radius:14px; background:var(--panel2); color:var(--text); padding:12px; line-height:1.45; font:15px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+                button { border:0; border-radius:999px; padding:10px 16px; background:var(--accent); color:#071613; font-weight:800; cursor:pointer; }
+                .actions { display:flex; justify-content:flex-end; align-items:center; gap:12px; flex-wrap:wrap; }
+                #result { min-height:22px; color:var(--muted); }
+                #result.error { color:var(--danger); }
+              </style>
+            </head>
+            <body>
+              <main>
+                <section>
+                  <h1>弹幕屏蔽</h1>
+                  <p>配置会在播放视频时应用。云端同步需要登录 B 站账号，缓存按账号区分；上传按钮会把本地关键词和正则写入当前账号的云端屏蔽词库。</p>
+                </section>
+                <section class="grid">
+                  <div class="card">
+                    <h2>基础</h2>
+                    <label><input id="enabled" type="checkbox"><span>启用弹幕屏蔽<small>关闭后本地和云端规则都不会生效。</small></span></label>
+                    <label><input id="syncCloudRules" type="checkbox"><span>应用 B 站云端屏蔽词<small>开启后播放时使用已同步的账号云端规则；缓存过期或账号变化时才会重新拉取。</small></span></label>
+                    <label><input id="caseSensitive" type="checkbox"><span>区分大小写<small>仅影响关键词和正则，本地规则每行一条。</small></span></label>
+                  </div>
+                  <div class="card">
+                    <h2>本地关键词</h2>
+                    <textarea id="localKeywords" placeholder="每行一个关键词"></textarea>
+                  </div>
+                  <div class="card">
+                    <h2>本地正则</h2>
+                    <textarea id="localRegexes" placeholder="每行一个正则表达式"></textarea>
+                  </div>
+                  <div class="card">
+                    <h2>本地用户 Hash</h2>
+                    <textarea id="localUserHashes" placeholder="每行一个发送者 hash"></textarea>
+                  </div>
+                </section>
+                <section class="actions">
+                  <div id="result"></div>
+                  <button onclick="syncCloud()">同步云端到本地</button>
+                  <button onclick="uploadLocal()">上传本地到云端</button>
+                  <button onclick="save()">保存配置</button>
+                </section>
+              </main>
+              <script>
+                const ids = ['enabled','syncCloudRules','caseSensitive','localKeywords','localRegexes','localUserHashes'];
+                const el = (id) => document.getElementById(id);
+                let resultTimer = 0;
+                function showResult(text, error = false) {
+                  clearTimeout(resultTimer);
+                  el('result').textContent = text;
+                  el('result').className = error ? 'error' : '';
+                  resultTimer = setTimeout(() => { el('result').textContent = ''; el('result').className = ''; }, 3000);
+                }
+                async function load() {
+                  const response = await fetch('/api/danmaku/config');
+                  if (!response.ok) throw new Error(await response.text());
+                  const config = await response.json();
+                  applyConfig(config);
+                }
+                function applyConfig(config) {
+                  ids.forEach(id => {
+                    const node = el(id);
+                    if (!node) return;
+                    if (node.type === 'checkbox') node.checked = Boolean(config[id]);
+                    else node.value = config[id] || '';
+                  });
+                  if (!config.login) showResult('当前未登录 B 站账号，云端同步和上传不可用', true);
+                }
+                async function save(show = true) {
+                  const config = {};
+                  ids.forEach(id => {
+                    const node = el(id);
+                    config[id] = node.type === 'checkbox' ? node.checked : node.value;
+                  });
+                  const response = await fetch('/api/danmaku/config', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify(config)
+                  });
+                  if (!response.ok) {
+                    showResult(await response.text(), true);
+                    return false;
+                  }
+                  if (show) showResult('已保存，重新进入播放器后生效');
+                  return true;
+                }
+                async function syncCloud() {
+                  const response = await fetch('/api/danmaku/sync', { method:'POST' });
+                  const text = await response.text();
+                  if (!response.ok) return showResult(text, true);
+                  const result = JSON.parse(text);
+                  applyConfig(result.config);
+                  showResult('已同步 ' + (result.count || 0) + ' 条云端规则');
+                }
+                async function uploadLocal() {
+                  if (!await save(false)) return;
+                  const response = await fetch('/api/danmaku/upload', { method:'POST' });
+                  const text = await response.text();
+                  if (!response.ok) return showResult(text, true);
+                  const result = JSON.parse(text);
+                  showResult('已上传 ' + (result.uploaded || 0) + ' 条本地规则');
+                }
+                load().catch(error => showResult(String(error), true));
+              </script>
+            </body>
+            </html>
+        """.trimIndent()
+    }
+
+    private fun layoutConfigJson(): String {
+        val liveCategories = runCatching {
+            runBlocking {
+                BVApp.koinApplication.koin.get<LiveRepository>().getCategories()
+            }
+        }.getOrDefault(emptyList())
+        val state = LayoutConfig.toEditableState(liveCategories)
+        val groups = state.groups.entries.joinToString(",") { (groupId, items) ->
+            val groupName = dev.aaa1115910.bv.util.LayoutConfigGroup.entries
+                .firstOrNull { it.id == groupId }
+                ?.displayName
+                ?: groupId
+            val itemJson = items.joinToString(",") { item ->
+                """{"id":"${jsonEscape(item.id)}","label":"${jsonEscape(item.label)}","hidden":${item.hidden}}"""
+            }
+            """"${jsonEscape(groupId)}":{"label":"${jsonEscape(groupName)}","items":[$itemJson]}"""
+        }
+        return """{"groups":{$groups}}"""
+    }
+
+    private fun layoutDisabledHtml(): String {
+        return """
+            <!doctype html>
+            <html lang="zh-CN">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>布局自定义未开启</title>
+              <style>
+                body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #101318; color: #f4f7fb; font-family: system-ui, sans-serif; }
+                .card { max-width: 520px; padding: 28px; border: 1px solid rgba(255,255,255,.12); border-radius: 18px; background: rgba(255,255,255,.06); line-height: 1.6; }
+              </style>
+            </head>
+            <body><div class="card"><h1>布局自定义未开启</h1><p>请先在软件设置的“界面设置”里开启“布局自定义”。</p></div></body>
+            </html>
+        """.trimIndent()
+    }
+
+    private fun layoutConfigHtml(): String {
+        return """
+            <!doctype html>
+            <html lang="zh-CN">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>布局自定义</title>
+              <style>
+                :root { color-scheme: dark; --bg:#101318; --panel:#181d25; --panel2:#202733; --text:#f4f7fb; --muted:#aeb8c8; --accent:#8ee6d1; --danger:#ff8a8a; --border:rgba(255,255,255,.12); }
+                * { box-sizing: border-box; }
+                body { margin:0; background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+                .page { width:min(1040px, calc(100vw - 28px)); margin:28px auto; display:grid; gap:18px; }
+                .hero { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; flex-wrap:wrap; }
+                h1 { margin:0; font-size:30px; }
+                p { margin:8px 0 0; color:var(--muted); }
+                .groups { display:grid; gap:16px; }
+                .card { background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.035)); border:1px solid var(--border); border-radius:18px; padding:16px; }
+                .card h2 { margin:0 0 12px; font-size:18px; }
+                .items { display:grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap:10px; }
+                .item { display:grid; grid-template-columns:auto auto 1fr; align-items:center; gap:9px; padding:10px 11px; border:1px solid var(--border); border-radius:12px; background:var(--panel2); min-width:0; cursor:grab; touch-action:none; user-select:none; }
+                .item:active { cursor:grabbing; }
+                .item.hidden { opacity:.52; }
+                .item.dragging { opacity:.42; border-color:var(--accent); transform:scale(.985); }
+                .handle { color:var(--muted); font-weight:800; letter-spacing:2px; cursor:grab; padding:4px; }
+                .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+                button { border:0; border-radius:999px; padding:8px 12px; background:var(--accent); color:#071613; font-weight:700; cursor:pointer; }
+                button.secondary { background:#d1d7e8; }
+                button.danger { background:var(--danger); color:#220707; }
+                .bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+                .actions { display:grid; justify-items:end; gap:8px; }
+                .action-buttons { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+                #result { color:var(--muted); min-height:22px; text-align:right; }
+                #result.error { color:var(--danger); }
+              </style>
+            </head>
+            <body>
+              <main class="page">
+                <div class="hero">
+                  <div>
+                    <h1>布局自定义</h1>
+                    <p>调整各页面 tab 的顺序，或隐藏暂时不用的入口。每组至少会保留一个入口。</p>
+                  </div>
+                  <div class="actions">
+                    <div class="action-buttons">
+                      <button class="secondary" onclick="save()">保存布局</button>
+                      <button class="danger" onclick="resetLayout()">重置布局</button>
+                    </div>
+                    <div id="result"></div>
+                  </div>
+                </div>
+                <div id="groups" class="groups"></div>
+              </main>
+              <script>
+                const el = (id) => document.getElementById(id);
+                let state = { groups: {} };
+                let groupLabels = {};
+                let resultTimer = 0;
+                let dragging = null;
+                const dragStartThreshold = 6;
+                function showResult(text, error = false) {
+                  clearTimeout(resultTimer);
+                  el('result').textContent = text;
+                  el('result').className = error ? 'error' : '';
+                  resultTimer = setTimeout(() => { el('result').textContent = ''; el('result').className = ''; }, 3000);
+                }
+                function toggle(groupId, index) {
+                  const items = state.groups[groupId];
+                  if (!items) return;
+                  const visibleCount = items.filter(item => !item.hidden).length;
+                  if (!items[index].hidden && visibleCount <= 1) {
+                    showResult('每组至少保留一个入口', true);
+                    return;
+                  }
+                  items[index].hidden = !items[index].hidden;
+                  render();
+                }
+                function escapeHtml(text) {
+                  return String(text).replace(/[&<>"']/g, (char) => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                  }[char]));
+                }
+                function reorder(groupId, fromIndex, toIndex) {
+                  const items = state.groups[groupId];
+                  if (!items || fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+                  if (fromIndex >= items.length || toIndex >= items.length) return;
+                  const [item] = items.splice(fromIndex, 1);
+                  items.splice(toIndex, 0, item);
+                  render();
+                }
+                function pointerItemFromEvent(event) {
+                  const element = document.elementFromPoint(event.clientX, event.clientY);
+                  return element ? element.closest('.item') : null;
+                }
+                function startPointerDrag(event, groupId, index, row) {
+                  if (event.target && event.target.tagName === 'INPUT') return;
+                  dragging = {
+                    groupId,
+                    index,
+                    pointerId: event.pointerId,
+                    startX: event.clientX,
+                    startY: event.clientY,
+                    active: false
+                  };
+                  row.setPointerCapture?.(event.pointerId);
+                  document.addEventListener('pointermove', movePointerDrag, { passive:false });
+                  document.addEventListener('pointerup', endPointerDrag);
+                  document.addEventListener('pointercancel', endPointerDrag);
+                }
+                function movePointerDrag(event) {
+                  if (!dragging || dragging.pointerId !== event.pointerId) return;
+                  const distance = Math.hypot(event.clientX - dragging.startX, event.clientY - dragging.startY);
+                  if (!dragging.active && distance < dragStartThreshold) return;
+                  dragging.active = true;
+                  event.preventDefault();
+                  const current = document.querySelector('.item[data-group-id="' + dragging.groupId + '"][data-index="' + dragging.index + '"]');
+                  current?.classList.add('dragging');
+                  const target = pointerItemFromEvent(event);
+                  if (!target || target.dataset.groupId !== dragging.groupId) return;
+                  const targetIndex = Number(target.dataset.index);
+                  if (!Number.isFinite(targetIndex) || targetIndex === dragging.index) return;
+                  const groupId = dragging.groupId;
+                  reorder(groupId, dragging.index, targetIndex);
+                  dragging = {
+                    ...dragging,
+                    index: targetIndex
+                  };
+                  const moved = document.querySelector('.item[data-group-id="' + groupId + '"][data-index="' + targetIndex + '"]');
+                  moved?.classList.add('dragging');
+                }
+                function endPointerDrag(event) {
+                  if (!dragging || dragging.pointerId !== event.pointerId) return;
+                  dragging = null;
+                  document.removeEventListener('pointermove', movePointerDrag);
+                  document.removeEventListener('pointerup', endPointerDrag);
+                  document.removeEventListener('pointercancel', endPointerDrag);
+                  document.querySelectorAll('.item.dragging').forEach(item => item.classList.remove('dragging'));
+                }
+                function render() {
+                  el('groups').innerHTML = '';
+                  Object.keys(state.groups).forEach(groupId => {
+                    const card = document.createElement('section');
+                    card.className = 'card';
+                    const title = document.createElement('h2');
+                    title.textContent = groupLabels[groupId] || groupId;
+                    card.appendChild(title);
+                    const list = document.createElement('div');
+                    list.className = 'items';
+                    state.groups[groupId].forEach((item, index) => {
+                      const row = document.createElement('div');
+                      row.className = 'item' + (item.hidden ? ' hidden' : '');
+                      row.dataset.groupId = groupId;
+                      row.dataset.index = String(index);
+                      row.innerHTML =
+                        '<input type="checkbox" ' + (item.hidden ? '' : 'checked') + ' aria-label="显示" />' +
+                        '<div class="handle" aria-hidden="true">::</div>' +
+                        '<div class="name" title="' + escapeHtml(item.label) + '">' + escapeHtml(item.label) + '</div>';
+                      row.querySelector('input').addEventListener('change', () => toggle(groupId, index));
+                      row.addEventListener('pointerdown', (event) => {
+                        startPointerDrag(event, groupId, index, row);
+                      });
+                      list.appendChild(row);
+                    });
+                    card.appendChild(list);
+                    el('groups').appendChild(card);
+                  });
+                }
+                async function load() {
+                  const response = await fetch('/api/layout/config');
+                  if (!response.ok) throw new Error(await response.text());
+                  const payload = await response.json();
+                  groupLabels = {};
+                  state = { groups: {} };
+                  Object.entries(payload.groups || {}).forEach(([groupId, group]) => {
+                    groupLabels[groupId] = group.label || groupId;
+                    state.groups[groupId] = (group.items || []).map(item => ({ id:item.id, label:item.label, hidden:Boolean(item.hidden) }));
+                  });
+                  render();
+                }
+                async function save() {
+                  const response = await fetch('/api/layout/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(state)
+                  });
+                  if (!response.ok) return showResult(await response.text(), true);
+                  showResult('已保存，重启应用或重新进入对应页面后生效');
+                }
+                async function resetLayout() {
+                  const response = await fetch('/api/layout/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reset: true })
+                  });
+                  if (!response.ok) return showResult(await response.text(), true);
+                  await load();
+                  showResult('已重置布局');
+                }
+                load().catch(error => showResult(String(error), true));
+              </script>
+            </body>
+            </html>
+        """.trimIndent()
     }
 
     private fun SubtitleTranslationConfig.toJson(): String {
@@ -776,6 +1395,7 @@ object HttpServer {
                 .switch-row { display: grid; gap: 12px; }
                 .switch { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font-size: 15px; }
                 .switch input { width: 18px; height: 18px; }
+                .switch-note { margin: 6px 0 0 28px; color: var(--muted); font-size: 13px; line-height: 1.45; }
                 .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
                 .provider-block { display: none; margin-top: 14px; }
                 .provider-block.active { display: block; }
@@ -819,8 +1439,14 @@ object HttpServer {
                   <div class="section">
                     <div class="section-title">基础设置</div>
                     <div class="switch-row">
-                      <label class="switch"><input id="preferBilingualSubtitleOnOsd" type="checkbox" /> 优先使用双语字幕</label>
-                      <label class="switch"><input id="preferCustomSecondarySubtitle" type="checkbox" /> 优先使用自定义字幕</label>
+                      <div>
+                        <label class="switch"><input id="preferBilingualSubtitleOnOsd" type="checkbox" /> 优先使用双语字幕</label>
+                        <div class="switch-note">开启后，底部 OSD 字幕按钮会先恢复主字幕，再按副字幕排序尝试恢复副字幕。</div>
+                      </div>
+                      <div>
+                        <label class="switch"><input id="preferCustomSecondarySubtitle" type="checkbox" /> 优先使用自定义字幕</label>
+                        <div class="switch-note">开启后，自定义翻译字幕会排在副字幕列表前面；仍需要当前视频已有主字幕作为翻译源。</div>
+                      </div>
                     </div>
                     <div class="grid" style="margin-top: 14px;">
                       <label>翻译服务
@@ -877,10 +1503,10 @@ object HttpServer {
                       </div>
                     </div>
                   </div>
-                  <div class="section">
+                  <div id="openAiPromptSection" class="section">
                     <div class="section-title">Prompt</div>
                     <textarea id="openAiPrompt"></textarea>
-                    <div class="hint">可用占位符：{targetlanguage}、{items}、{context}。机器翻译服务会忽略 Prompt。</div>
+                    <div class="hint">可用占位符：{targetlanguage}、{items}、{context}。</div>
                   </div>
                   <div class="section">
                     <div class="section-title">上下文和批量</div>
@@ -953,8 +1579,10 @@ object HttpServer {
                 }
                 function showProvider() {
                   document.querySelectorAll('.provider-block').forEach(node => node.classList.remove('active'));
-                  const node = el('provider-' + el('providerType').value);
+                  const providerType = el('providerType').value;
+                  const node = el('provider-' + providerType);
                   if (node) node.classList.add('active');
+                  el('openAiPromptSection').style.display = providerType === 'OpenAiCompatible' ? 'block' : 'none';
                 }
                 function showStatus(message, isError = false, autoClear = true) {
                   window.clearTimeout(resultTimer);
@@ -1203,6 +1831,14 @@ object HttpServer {
             </body>
             </html>
         """.trimIndent()
+    }
+
+    private fun String.toRuleLinesForServer(): List<String> {
+        return lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .toList()
     }
 
     private fun jsonEscape(s: String): String {
