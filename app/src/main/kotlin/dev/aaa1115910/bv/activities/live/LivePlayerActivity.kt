@@ -14,25 +14,38 @@ import dev.aaa1115910.bv.screen.live.LivePlayerScreen
 import dev.aaa1115910.bv.ui.theme.BVTheme
 
 class LivePlayerActivity : ImmersiveComponentActivity() {
-    private val castPlaybackSession = object : CastPlaybackSession {
-        override fun play() = Unit
+    @Volatile
+    var castController: LiveCastController? = null
 
-        override fun pause() = Unit
+    private val castPlaybackSession = object : CastPlaybackSession {
+        override fun play() {
+            castController?.play()
+        }
+
+        override fun pause() {
+            castController?.pause()
+        }
 
         override fun stop() {
-            finish()
+            castController?.stop() ?: finish()
         }
 
         override fun seekTo(positionMs: Long) = Unit
 
-        override fun setSpeed(speed: Float) = Unit
+        override fun setSpeed(speed: Float) {
+            castController?.setSpeed(speed)
+        }
 
-        override fun setQuality(qualityId: Int) = Unit
+        override fun setQuality(qualityId: Int) {
+            castController?.setQuality(qualityId)
+        }
 
-        override fun setDanmakuEnabled(enabled: Boolean) = Unit
+        override fun setDanmakuEnabled(enabled: Boolean) {
+            castController?.setDanmakuEnabled(enabled)
+        }
 
         override fun snapshot(): CastPlaybackSnapshot =
-            CastPlaybackSnapshot(
+            castController?.snapshot() ?: CastPlaybackSnapshot(
                 state = CastTransportState.PLAYING,
                 roomId = intent.getIntExtra("room_id", 0).toLong(),
                 title = intent.getStringExtra("title").orEmpty(),
@@ -85,4 +98,14 @@ class LivePlayerActivity : ImmersiveComponentActivity() {
     private fun keepScreenAwake() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
+}
+
+interface LiveCastController {
+    fun play()
+    fun pause()
+    fun stop()
+    fun setSpeed(speed: Float)
+    fun setQuality(qualityId: Int)
+    fun setDanmakuEnabled(enabled: Boolean)
+    fun snapshot(): CastPlaybackSnapshot
 }

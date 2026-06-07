@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.screen.live
 
 import android.app.Activity
+import android.os.Looper
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -50,8 +51,12 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.activities.live.LiveCastController
+import dev.aaa1115910.bv.activities.live.LivePlayerActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.cast.CastPlaybackSnapshot
+import dev.aaa1115910.bv.cast.CastTransportState
 import dev.aaa1115910.bv.component.controllers.LiveDanmakuMenuState
 import dev.aaa1115910.bv.component.controllers.LiveBottomMenuController
 import dev.aaa1115910.bv.component.controllers.LiveBottomMenuItem
@@ -173,17 +178,22 @@ fun LivePlayerScreen() {
     var liveUpPanelFace by remember { mutableStateOf("") }
     var liveUpPanelFollowing by remember { mutableStateOf(false) }
     val liveScope = rememberCoroutineScope()
-    val initialLiveDanmakuEnabled = remember {
-        !activity.intent.hasExtra("danmaku_enabled") ||
+    val initialLiveDanmakuTypes = remember {
+        val enabled = if (activity.intent.hasExtra("danmaku_enabled")) {
             activity.intent.getBooleanExtra("danmaku_enabled", true)
+        } else {
+            Prefs.defaultLiveDanmakuEnabled
+        }
+        if (enabled) {
+            Prefs.defaultLiveDanmakuTypes.takeIf { it.isNotEmpty() } ?: DanmakuType.entries
+        } else {
+            emptyList()
+        }
     }
     var liveDanmakuState by remember {
         mutableStateOf(
             LiveDanmakuMenuState(
-                enabledTypes = Prefs.defaultLiveDanmakuTypes.takeIf {
-                    Prefs.defaultLiveDanmakuEnabled && initialLiveDanmakuEnabled
-                }
-                    ?: emptyList(),
+                enabledTypes = initialLiveDanmakuTypes,
                 scale = Prefs.defaultDanmakuScale,
                 opacity = Prefs.defaultDanmakuOpacity,
                 speedFactor = Prefs.defaultDanmakuSpeedFactor,
@@ -704,6 +714,117 @@ fun LivePlayerScreen() {
     LaunchedEffect(activeOverlay) {
         if (activeOverlay == LiveOverlayPanel.None) {
             screenFocusRequester.requestFocus()
+        }
+    }
+
+    DisposableEffect(
+        activity,
+        player,
+        playbackSource,
+        liveQualityMenuOptions,
+        liveDanmakuState,
+        lastNonEmptyDanmakuTypes,
+        selectedQuality,
+        isLoading,
+        errorMessage,
+        roomId,
+        title
+    ) {
+        val liveActivity = activity as? LivePlayerActivity
+        if (liveActivity == null) {
+            onDispose { }
+        } else {
+            val controller = object : LiveCastController {
+                private fun runOnMain(block: () -> Unit) {
+                    if (Looper.myLooper() == Looper.getMainLooper()) {
+                        block()
+                    } else {
+                        activity.runOnUiThread(block)
+                    }
+                }
+
+                override fun play() {
+                    runOnMain {
+                        player.start()
+                        liveDanmakuSession.start()
+                    }
+                }
+
+                override fun pause() {
+                    runOnMain {
+                        player.pause()
+                        liveDanmakuSession.pause()
+                    }
+                }
+
+                override fun stop() {
+                    runOnMain {
+                        player.stop()
+                        liveDanmakuSession.pause()
+                        if (!activity.isFinishing) {
+                            activity.finish()
+                        }
+                    }
+                }
+
+                override fun setSpeed(speed: Float) {
+                    runOnMain {
+                        player.speed = speed
+                    }
+                }
+
+                override fun setQuality(qualityId: Int) {
+                    if (qualityId <= 0) return
+                    runOnMain {
+                        if (selectedQuality != qualityId) {
+                            selectedQuality = qualityId
+                            selectedLineIndex = 0
+                            statusText = "切换到 ${liveQualityMenuOptions.firstOrNull { it.qn == qualityId }?.desc ?: qualityId}"
+                        }
+                    }
+                }
+
+                override fun setDanmakuEnabled(enabled: Boolean) {
+                    runOnMain {
+                        val nextTypes = if (enabled) {
+                            lastNonEmptyDanmakuTypes.takeIf { it.isNotEmpty() } ?: DanmakuType.entries
+                        } else {
+                            emptyList()
+                        }
+                        liveDanmakuState = liveDanmakuState.copy(enabledTypes = nextTypes)
+                        Prefs.defaultLiveDanmakuEnabled = nextTypes.isNotEmpty()
+                        if (nextTypes.isNotEmpty()) {
+                            lastNonEmptyDanmakuTypes = nextTypes
+                            Prefs.defaultLiveDanmakuTypes = nextTypes
+                        }
+                    }
+                }
+
+                override fun snapshot(): CastPlaybackSnapshot {
+                    val state = when {
+                        isLoading -> CastTransportState.TRANSITIONING
+                        playbackSource == null && errorMessage != null -> CastTransportState.STOPPED
+                        player.isPlaying -> CastTransportState.PLAYING
+                        playbackSource != null -> CastTransportState.PAUSED
+                        else -> CastTransportState.STOPPED
+                    }
+                    return CastPlaybackSnapshot(
+                        state = state,
+                        speed = player.speed,
+                        roomId = roomId.toLong(),
+                        title = title,
+                        qualityId = playbackSource?.currentQuality ?: selectedQuality,
+                        availableQuality = liveQualityMenuOptions.associate { it.qn to it.desc },
+                        danmakuEnabled = liveDanmakuState.enabledTypes.isNotEmpty()
+                    )
+                }
+            }
+            liveActivity.castController = controller
+            onDispose {
+                if (liveActivity.castController === controller) {
+                    liveActivity.castController = null
+                }
+            }
         }
     }
 
