@@ -53,6 +53,7 @@ android {
         versionCode = AppConfiguration.versionCode
         versionName = AppConfiguration.versionName
         buildConfigField("boolean", "FIREBASE_AVAILABLE", AppConfiguration.googleServicesAvailable.toString())
+        buildConfigField("int", "CAST_RECEIVER_HTTP_PORT", "9837")
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -87,6 +88,7 @@ android {
                 "proguard-rules.pro"
             )
             applicationIdSuffix = ".debug"
+            buildConfigField("int", "CAST_RECEIVER_HTTP_PORT", "9958")
             if (signingProp.exists()) {
                 signingConfig = signingConfigs.getByName("debug")
             }

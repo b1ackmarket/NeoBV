@@ -1683,8 +1683,12 @@ class VideoPlayerV3ViewModel(
             logger.fInfo { "Video available audio: $availableAudioList" }
 
             // 4. 计算目标清晰度、音质和编码 (已抽取业务逻辑)
+            val preferredQualityId = _uiState.value.mediaProfileState.qualityId
             val targetQualityId =
-                calculateTargetQuality(resolutionMap.keys, Prefs.defaultQuality.code)
+                calculateTargetQuality(
+                    availableQualities = resolutionMap.keys,
+                    defaultQualityCode = preferredQualityId.takeIf { it > 0 } ?: Prefs.defaultQuality.code
+                )
             val targetAudio = calculateTargetAudio(availableAudioList, Prefs.defaultAudio)
             val targetCodec = getTargetVideoCodec()
 

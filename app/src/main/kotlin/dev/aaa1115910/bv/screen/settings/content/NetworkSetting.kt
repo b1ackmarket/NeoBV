@@ -35,6 +35,9 @@ import dev.aaa1115910.biliapi.repositories.ChannelRepository
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.SpeedTestActivity
+import dev.aaa1115910.bv.cast.CastReceiverService
+import dev.aaa1115910.bv.cast.server.CastNetworkUtil
+import dev.aaa1115910.bv.cast.server.CastReceiverConfig
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
@@ -53,6 +56,7 @@ fun NetworkSetting(
     var proxyHttpServer by remember { mutableStateOf(Prefs.proxyHttpServer) }
     var proxyGRPCServer by remember { mutableStateOf(Prefs.proxyGRPCServer) }
     var preferOfficialCdn by remember { mutableStateOf(Prefs.preferOfficialCdn) }
+    var enableCastReceiver by remember { mutableStateOf(Prefs.enableCastReceiver) }
     var showProxyHttpServerEditDialog by remember { mutableStateOf(false) }
     var showProxyGRPCServerEditDialog by remember { mutableStateOf(false) }
 
@@ -116,6 +120,27 @@ fun NetworkSetting(
                         onCheckedChange = { enable ->
                             preferOfficialCdn = enable
                             Prefs.preferOfficialCdn = enable
+                        }
+                    )
+                }
+
+                item {
+                    SettingSwitchListItem(
+                        title = "接收手机投屏",
+                        supportText = if (enableCastReceiver) {
+                            "已广播 NeoBV 投屏接收器；描述地址 http://${CastNetworkUtil.localIpv4Address()}:${CastReceiverConfig.HTTP_PORT}/bilibili/description.xml"
+                        } else {
+                            "启动 SSDP/DLNA/Bilibili Nirvana PoC 接收器，并记录手机投屏请求"
+                        },
+                        checked = enableCastReceiver,
+                        onCheckedChange = { enable ->
+                            enableCastReceiver = enable
+                            Prefs.enableCastReceiver = enable
+                            if (enable) {
+                                CastReceiverService.start(context.applicationContext)
+                            } else {
+                                CastReceiverService.stop(context.applicationContext)
+                            }
                         }
                     )
                 }

@@ -123,6 +123,8 @@ object Prefs {
     var proxyGRPCServer by pref(PrefKeys.prefProxyGRPCServerKey, "")
     var preferOfficialCdn by pref(PrefKeys.prefPreferOfficialCdn, PrefDefaultValues.preferOfficialCdn)
     var enablePersonalizedRecommendation by pref(PrefKeys.prefEnablePersonalizedRecommendationKey, true)
+    var enableCastReceiver by pref(PrefKeys.prefEnableCastReceiverKey, false)
+    var castReceiverUuid by pref(PrefKeys.prefCastReceiverUuidKey, "")
 
     // =========================================================================
     // 播放器 - 视频
@@ -508,6 +510,8 @@ private object PrefKeys {
     val prefProxyGRPCServerKey = stringPreferencesKey("proxy_grpc_server")
     val prefPreferOfficialCdn = booleanPreferencesKey("prefer_official_cdn")
     val prefEnablePersonalizedRecommendationKey = booleanPreferencesKey("enable_personalized_recommendation")
+    val prefEnableCastReceiverKey = booleanPreferencesKey("enable_cast_receiver")
+    val prefCastReceiverUuidKey = stringPreferencesKey("cast_receiver_uuid")
 
     // 播放器 - 视频
     val prefDefaultQualityKey = intPreferencesKey("dq")

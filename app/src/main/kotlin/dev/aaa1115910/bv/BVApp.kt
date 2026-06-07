@@ -1,9 +1,11 @@
 package dev.aaa1115910.bv
 
+import android.app.Activity
 import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.os.Build
+import android.os.Bundle
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
@@ -21,6 +23,7 @@ import dev.aaa1115910.bv.plugin.core.PluginManager
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.HttpSponsorBlockApi
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.PrefsSponsorBlockConfigStore
 import dev.aaa1115910.bv.plugin.impl.sponsorblock.SponsorBlockPlugin
+import dev.aaa1115910.bv.cast.CastReceiverService
 import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import dev.aaa1115910.bv.util.LogCatcherUtil
@@ -70,8 +73,32 @@ class BVApp : Application(), KoinComponent {
         initProxy()
         initPlugins()
         HttpServer.startServer()
+        if (BuildConfig.DEBUG) Prefs.enableCastReceiver = true
+        ensureCastReceiverRunning()
+        registerCastReceiverAutoRestart()
 
         BiliHttpApi.init(buvid3 = Prefs.buvid3)
+    }
+
+    private fun ensureCastReceiverRunning() {
+        if (Prefs.enableCastReceiver) CastReceiverService.start(this)
+    }
+
+    private fun registerCastReceiverAutoRestart() {
+        registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityResumed(activity: Activity) {
+                if (Prefs.enableCastReceiver) {
+                    CastReceiverService.start(activity.applicationContext)
+                }
+            }
+
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+            override fun onActivityStarted(activity: Activity) = Unit
+            override fun onActivityPaused(activity: Activity) = Unit
+            override fun onActivityStopped(activity: Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+            override fun onActivityDestroyed(activity: Activity) = Unit
+        })
     }
 
     private fun initCoreLibraries() {

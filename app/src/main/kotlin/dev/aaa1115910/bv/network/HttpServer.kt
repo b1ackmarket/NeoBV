@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.network
 
 import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.danmaku.DanmakuFilterConfig
 import dev.aaa1115910.bv.danmaku.cacheCloudDanmakuFilterRules
 import dev.aaa1115910.bv.danmaku.currentDanmakuFilterUid
@@ -56,7 +57,11 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 object HttpServer {
-    private const val SERVER_PORT = 2944
+    private const val RELEASE_SERVER_PORT = 2944
+    private const val DEBUG_SERVER_PORT = 2945
+    private val serverPort: Int
+        get() = if (BuildConfig.APPLICATION_ID.endsWith(".debug")) DEBUG_SERVER_PORT else RELEASE_SERVER_PORT
+
     var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
     private val json = Json { ignoreUnknownKeys = true }
     private var currentMpdContent: String? = null
@@ -65,7 +70,7 @@ object HttpServer {
 
     fun startServer() {
         if (server != null) return
-        val newServer = embeddedServer(CIO, port = SERVER_PORT) {
+        val newServer = embeddedServer(CIO, port = serverPort) {
             homeModule()
             searchInputModule()
             logsUiStaticModule()
@@ -92,7 +97,7 @@ object HttpServer {
 
     fun getServerAddress(path: String = "/"): String {
         val host = getLocalIpv4Address()
-        return "http://$host:$SERVER_PORT$path"
+        return "http://$host:$serverPort$path"
     }
 
     fun setMpdContent(content: String) {
@@ -277,7 +282,7 @@ object HttpServer {
                 val enabled = runBlocking { store.isEnabled() }
                 val host = getLocalIpv4Address()
                 call.respondText(
-                    text = """{"enabled":$enabled,"address":"http://$host:$SERVER_PORT/sponsorblock"}""",
+                    text = """{"enabled":$enabled,"address":"http://$host:$serverPort/sponsorblock"}""",
                     contentType = ContentType.Application.Json
                 )
             }
