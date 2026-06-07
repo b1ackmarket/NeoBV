@@ -12,7 +12,11 @@ data class LiveLineOption(
     val label: String,
     val url: String,
     val qn: Int = 0,
-    val codecName: String = ""
+    val codecName: String = "",
+    val sourceProtocol: String = "",
+    val sourceFormat: String = "",
+    val sourceType: String = "",
+    val container: String = ""
 )
 
 data class LiveQualityOption(
@@ -55,7 +59,7 @@ data class LivePlaybackSource(
 object LiveStreamResolver {
     private const val QnOriginal = 10000
     private const val QnHighBitrate = 25000
-    private val defaultPreferredProtocols = listOf("http_stream", "http_hls")
+    private val defaultPreferredProtocols = listOf("http_hls", "http_stream")
     private val liveQualityOrder = listOf(30000, 25000, 20000, 15000, 10000, 400, 250, 150, 80)
 
     private data class LiveRouteCandidate(
@@ -64,6 +68,8 @@ object LiveStreamResolver {
         val url: String,
         val score: Int,
         val codecName: String,
+        val protocolName: String,
+        val formatName: String,
         val acceptQns: Set<Int>,
         val currentQn: Int
     )
@@ -169,7 +175,14 @@ object LiveStreamResolver {
             ?.contentOrNull
             ?: return null
 
-        val fallbackLines = listOf(LiveLineOption(label = "默认线路", url = fallbackUrl))
+        val fallbackLines = listOf(
+            LiveLineOption(
+                label = "默认线路（${fallbackUrl.toLiveSourceType()}）",
+                url = fallbackUrl,
+                sourceType = fallbackUrl.toLiveSourceType(),
+                container = fallbackUrl.toLiveContainer()
+            )
+        )
         return LivePlaybackSource(
             playUrl = fallbackUrl,
             lines = fallbackLines,
@@ -249,6 +262,7 @@ object LiveStreamResolver {
 
             resolveFromFormats(
                 formats = stream["format"].asJsonArrayOrNull() ?: JsonArray(emptyList()),
+                protocolName = protocolName,
                 preferM3u8 = protocolName == "http_hls",
                 preferHighBitrate = preferHighBitrate,
                 requestedQn = requestedQn,
@@ -259,12 +273,21 @@ object LiveStreamResolver {
             ?: emptyList()
 
         return lines.mapIndexed { index, candidate ->
-            val boostSuffix = if (candidate.url.contains("gotcha204b", ignoreCase = true)) "（204b）" else ""
+            val sourceType = buildLiveSourceType(
+                protocolName = candidate.protocolName,
+                formatName = candidate.formatName,
+                url = candidate.url
+            )
+            val boostSuffix = candidate.url.toLiveBoostSuffix()
             LiveLineOption(
-                label = "线路${index + 1}$boostSuffix",
+                label = "线路${index + 1}（$sourceType$boostSuffix）",
                 url = candidate.url,
                 qn = candidate.currentQn,
-                codecName = candidate.codecName
+                codecName = candidate.codecName,
+                sourceProtocol = candidate.protocolName,
+                sourceFormat = candidate.formatName,
+                sourceType = sourceType,
+                container = candidate.url.toLiveContainer()
             )
         }
     }
@@ -281,12 +304,21 @@ object LiveStreamResolver {
                     .thenByDescending { it.bandwidth }
             )
             .mapIndexed { index, variant ->
-                val boostSuffix = if (variant.url.contains("gotcha204b", ignoreCase = true)) "（204b）" else ""
+                val sourceType = buildLiveSourceType(
+                    protocolName = "http_hls",
+                    formatName = variant.url.toLiveContainer().takeIf { it == "m3u8" } ?: "",
+                    url = variant.url
+                )
+                val boostSuffix = variant.url.toLiveBoostSuffix()
                 LiveLineOption(
-                    label = "线路${index + 1}$boostSuffix",
+                    label = "线路${index + 1}（$sourceType$boostSuffix）",
                     url = variant.url,
                     qn = variant.qn,
-                    codecName = variant.stream.ifBlank { variant.codecs.toLiveCodecNameOrEmpty() }
+                    codecName = variant.stream.ifBlank { variant.codecs.toLiveCodecNameOrEmpty() },
+                    sourceProtocol = "http_hls",
+                    sourceFormat = sourceType.substringAfter('/', missingDelimiterValue = ""),
+                    sourceType = sourceType,
+                    container = variant.url.toLiveContainer()
                 )
             }
     }
@@ -587,6 +619,7 @@ object LiveStreamResolver {
 
     private fun resolveFromFormats(
         formats: JsonArray,
+        protocolName: String,
         preferM3u8: Boolean,
         preferHighBitrate: Boolean,
         requestedQn: Int,
@@ -638,6 +671,8 @@ object LiveStreamResolver {
                             requestedQn = requestedQn
                         ),
                         codecName = codecName,
+                        protocolName = protocolName,
+                        formatName = formatName,
                         acceptQns = acceptQns,
                         currentQn = currentQn
                     )
@@ -836,6 +871,52 @@ private fun String.toLiveCodecNameOrEmpty(): String {
         else -> ""
     }
 }
+
+private fun buildLiveSourceType(
+    protocolName: String,
+    formatName: String,
+    url: String
+): String {
+    val normalizedProtocol = protocolName.lowercase()
+    val normalizedFormat = formatName.lowercase().ifBlank { url.toLiveContainer() }
+    return when (normalizedProtocol) {
+        "http_hls" -> when (normalizedFormat) {
+            "fmp4" -> "HLS/fMP4"
+            "ts" -> "HLS/TS"
+            else -> "HLS/${normalizedFormat.uppercase().ifBlank { "m3u8" }}"
+        }
+
+        "http_stream" -> when (normalizedFormat) {
+            "flv" -> "Stream/FLV"
+            else -> "Stream/${normalizedFormat.uppercase().ifBlank { "URL" }}"
+        }
+
+        else -> url.toLiveSourceType()
+    }
+}
+
+private fun String.toLiveSourceType(): String =
+    when (toLiveContainer()) {
+        "m3u8" -> "HLS/m3u8"
+        "flv" -> "Stream/FLV"
+        else -> "URL"
+    }
+
+private fun String.toLiveContainer(): String {
+    val path = substringBefore('?').substringBefore('#').lowercase()
+    return when {
+        path.endsWith(".m3u8") -> "m3u8"
+        path.endsWith(".flv") -> "flv"
+        else -> ""
+    }
+}
+
+private fun String.toLiveBoostSuffix(): String =
+    when {
+        contains("gotcha204b", ignoreCase = true) -> " 204b"
+        contains("gotcha204", ignoreCase = true) -> " 204"
+        else -> ""
+    }
 
 private fun String.toQueryParamOrNull(name: String): String? {
     val query = runCatching { java.net.URI(this).rawQuery }.getOrNull()

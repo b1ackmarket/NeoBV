@@ -8,7 +8,7 @@ import kotlin.test.assertNull
 
 class LiveStreamResolverTest {
     @Test
-    fun `default live url chooses http stream before hls stream`() {
+    fun `default live url chooses hls stream before http stream`() {
         val playInfo = Json.parseToJsonElement(
             """
             {
@@ -63,14 +63,17 @@ class LiveStreamResolverTest {
         ).jsonObject
 
         assertEquals(
-            "https://flv.example.com/live-bvc/12345/live_12345.flv?token=flv",
+            "https://hls.example.com/live-bvc/12345/live_12345/index.m3u8?token=hls",
             LiveStreamResolver.resolvePlayableUrl(playInfo)
         )
 
         val source = LiveStreamResolver.resolvePlayableSource(playInfo)
         assertEquals(1, source?.lines?.size)
         assertEquals(0, source?.currentLineIndex)
-        assertEquals("线路1", source?.lines?.firstOrNull()?.label)
+        assertEquals("线路1（HLS/TS）", source?.lines?.firstOrNull()?.label)
+        assertEquals("http_hls", source?.lines?.firstOrNull()?.sourceProtocol)
+        assertEquals("ts", source?.lines?.firstOrNull()?.sourceFormat)
+        assertEquals("m3u8", source?.lines?.firstOrNull()?.container)
     }
 
     @Test
@@ -531,7 +534,7 @@ class LiveStreamResolverTest {
             "https://d1--cn-gotcha204b.bilivideo.com/live-bvc/12345/live_9adj_987/index.m3u8?token=fmp4",
             source?.playUrl
         )
-        assertEquals("线路1（204b）", source?.lines?.firstOrNull()?.label)
+        assertEquals("线路1（HLS/fMP4 204b）", source?.lines?.firstOrNull()?.label)
     }
 
     @Test
@@ -575,7 +578,7 @@ class LiveStreamResolverTest {
             "https://d1--cn-gotcha09.bilivideo.com/live-bvc/12345/live_9adj_987/index.m3u8?token=ts",
             source?.playUrl
         )
-        assertEquals("线路1", source?.lines?.firstOrNull()?.label)
+        assertEquals("线路1（HLS/TS）", source?.lines?.firstOrNull()?.label)
     }
 
     @Test
@@ -619,7 +622,7 @@ class LiveStreamResolverTest {
             "https://d1--cn-gotcha01.bilivideo.com/live-bvc/12345/live_9adj_987/index.m3u8?token=fmp4",
             source?.playUrl
         )
-        assertEquals("线路1", source?.lines?.firstOrNull()?.label)
+        assertEquals("线路1（HLS/fMP4）", source?.lines?.firstOrNull()?.label)
     }
 
     @Test

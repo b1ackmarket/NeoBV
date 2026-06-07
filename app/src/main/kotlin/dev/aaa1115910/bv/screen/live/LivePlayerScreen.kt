@@ -1247,6 +1247,11 @@ private fun buildLiveStatsText(
             )
             source.playUrl.toQueryParamOrNull("qn")?.let { appendLine("play_url qn: $it") }
             appendLine("line: ${source.currentLineIndex + 1}/${source.lines.size.coerceAtLeast(1)}")
+            source.currentLineOrNull()?.let { line ->
+                appendLine("source type: ${line.sourceType.ifBlank { "-" }}")
+                appendLine("source protocol: ${line.sourceProtocol.ifBlank { "-" }}")
+                appendLine("container/url: ${line.container.ifBlank { source.playUrl.toLiveContainerOrDash() }}")
+            }
             source.playUrl.toHostOrNull()?.let { appendLine("stream host: $it") }
             liveStartTime.toLiveUptimeTextOrNull()?.let { appendLine("live uptime: $it") }
             (
@@ -1274,6 +1279,7 @@ private fun String.toLiveStatsPlayerDebugText(): String {
         .filterNot { it.startsWith("speed:", ignoreCase = true) }
         .filterNot { it.startsWith("stream host:", ignoreCase = true) }
         .filterNot { it.startsWith("video fps:", ignoreCase = true) }
+        .filterNot { it.startsWith("buffered:", ignoreCase = true) }
         .joinToString("\n")
 }
 
@@ -1372,6 +1378,18 @@ private fun LivePlaybackSource.toLiveBitrateBoostStatsText(): String =
     } else {
         "off"
     }
+
+private fun LivePlaybackSource.currentLineOrNull(): dev.aaa1115910.bv.repository.LiveLineOption? =
+    lines.getOrNull(currentLineIndex)
+
+private fun String.toLiveContainerOrDash(): String {
+    val path = substringBefore('?').substringBefore('#').lowercase()
+    return when {
+        path.endsWith(".m3u8") -> "m3u8"
+        path.endsWith(".flv") -> "flv"
+        else -> "-"
+    }
+}
 
 private fun Int.toLiveQualityStatsText(
     source: LivePlaybackSource,
