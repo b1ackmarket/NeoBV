@@ -270,6 +270,11 @@ class VideoPlayerV3Activity : ImmersiveComponentActivity() {
         } else {
             emptyList()
         }
-        playerViewModel.updateDanmakuState(DanmakuSettingAction.SetEnabledTypes(enabledTypes))
+        playerViewModel.updateDanmakuState(
+            DanmakuSettingAction.SetEnabledTypes(
+                types = enabledTypes,
+                persist = false
+            )
+        )
     }
 }

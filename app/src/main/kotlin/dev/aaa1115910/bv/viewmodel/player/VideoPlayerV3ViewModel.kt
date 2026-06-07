@@ -1092,11 +1092,14 @@ class VideoPlayerV3ViewModel(
         _uiState.update { it.copy(danmakuState = new) }
 
         // ===== 副作用处理 =====
+        val persistEnabledTypes = action !is DanmakuSettingAction.SetEnabledTypes || action.persist
         if (new.enabledTypes != old.enabledTypes) {
             updateDanmakuConfigTypeFilter(new.enabledTypes)
-            Prefs.defaultDanmakuEnabled = new.enabledTypes.isNotEmpty()
-            if (new.enabledTypes.isNotEmpty()) {
-                Prefs.defaultDanmakuTypes = new.enabledTypes
+            if (persistEnabledTypes) {
+                Prefs.defaultDanmakuEnabled = new.enabledTypes.isNotEmpty()
+                if (new.enabledTypes.isNotEmpty()) {
+                    Prefs.defaultDanmakuTypes = new.enabledTypes
+                }
             }
         }
         if (new.scale != old.scale) {
@@ -2874,7 +2877,10 @@ sealed interface DanmakuSettingAction {
     data class SetArea(val value: Float) : DanmakuSettingAction
     data class SetSpeedFactor(val value: Float) : DanmakuSettingAction
     data class SetMaskEnabled(val enabled: Boolean) : DanmakuSettingAction
-    data class SetEnabledTypes(val types: List<DanmakuType>) : DanmakuSettingAction
+    data class SetEnabledTypes(
+        val types: List<DanmakuType>,
+        val persist: Boolean = true
+    ) : DanmakuSettingAction
     data object ToggleEnabled : DanmakuSettingAction
 }
 

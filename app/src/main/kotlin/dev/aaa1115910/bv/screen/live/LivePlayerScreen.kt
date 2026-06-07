@@ -792,10 +792,8 @@ fun LivePlayerScreen() {
                             emptyList()
                         }
                         liveDanmakuState = liveDanmakuState.copy(enabledTypes = nextTypes)
-                        Prefs.defaultLiveDanmakuEnabled = nextTypes.isNotEmpty()
                         if (nextTypes.isNotEmpty()) {
                             lastNonEmptyDanmakuTypes = nextTypes
-                            Prefs.defaultLiveDanmakuTypes = nextTypes
                         }
                     }
                 }
