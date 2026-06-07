@@ -18,7 +18,6 @@ import dev.aaa1115910.bv.component.HomePageSettingItem
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.PersonalTopNavItem
 import dev.aaa1115910.bv.component.controllers.DanmakuType
-import dev.aaa1115910.bv.component.controllers.LiveDanmakuSourceMode
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.live.LiveDefaultQuality
@@ -155,6 +154,7 @@ object Prefs {
         restore = { PlayerType.entries.getOrElse(it) { PlayerType.Media3 } }
     )
     var enableSoftwareVideoDecoder by pref(PrefKeys.prefEnableSoftwareVideoDecoder, false)
+    var preferLiveHighBitrate by pref(PrefKeys.prefPreferLiveHighBitrateKey, PrefDefaultValues.preferLiveHighBitrate)
     var actionAfterPlay by pref(
         PrefKeys.prefActionAfterPlayKey,
         ActionAfterPlayItems.AutoNextOrRelated,
@@ -231,17 +231,6 @@ object Prefs {
     var cloudDanmakuFilterRegexes by pref(PrefKeys.prefCloudDanmakuFilterRegexesKey, "")
     var cloudDanmakuFilterUserHashes by pref(PrefKeys.prefCloudDanmakuFilterUserHashesKey, "")
     var enableDanmakuFilterWebConfig by pref(PrefKeys.prefEnableDanmakuFilterWebConfigKey, false)
-    var defaultLiveDanmakuSourceMode by pref(
-        PrefKeys.prefDefaultLiveDanmakuSourceModeKey,
-        PrefDefaultValues.defaultLiveDanmakuSourceMode,
-        save = { it.ordinal },
-        restore = { value ->
-            LiveDanmakuSourceMode.entries.getOrElse(value) {
-                PrefDefaultValues.defaultLiveDanmakuSourceMode
-            }
-        }
-    )
-
     // =========================================================================
     // 播放器 - 字幕
     // =========================================================================
@@ -440,10 +429,10 @@ internal object PrefDefaultValues {
     const val enableFfmpegAudioRenderer = true
     const val showVideoInfo = true
     const val preferOfficialCdn = true
+    const val preferLiveHighBitrate = false
     const val enableCrashReportCollection = true
     val enableAnonymousUsageCollection = BuildConfig.BUILD_TYPE == "alpha"
     val firstPersonalTopNavItem = PersonalTopNavItem.History
-    val defaultLiveDanmakuSourceMode = LiveDanmakuSourceMode.HistoryOnly
 }
 
 /**
@@ -519,6 +508,7 @@ private object PrefKeys {
     val prefDefaultVideoCodecKey = intPreferencesKey("dvc")
     val prefPlayerTypeKey = intPreferencesKey("pt")
     val prefEnableSoftwareVideoDecoder = booleanPreferencesKey("enable_software_video_decoder")
+    val prefPreferLiveHighBitrateKey = booleanPreferencesKey("prefer_live_high_bitrate")
     val prefActionAfterPlayKey = intPreferencesKey("action_after_play")
 
     // 播放器 - 音频
@@ -548,7 +538,6 @@ private object PrefKeys {
     val prefCloudDanmakuFilterRegexesKey = stringPreferencesKey("cloud_danmaku_filter_regexes")
     val prefCloudDanmakuFilterUserHashesKey = stringPreferencesKey("cloud_danmaku_filter_user_hashes")
     val prefEnableDanmakuFilterWebConfigKey = booleanPreferencesKey("enable_danmaku_filter_web_config")
-    val prefDefaultLiveDanmakuSourceModeKey = intPreferencesKey("live_danmaku_source_mode")
 
     // 播放器 - 字幕
     val prefDefaultSubtitleFontSizeKey = intPreferencesKey("dsfs")

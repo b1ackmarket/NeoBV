@@ -19,6 +19,7 @@ class LiveRoomContextTest {
                 "cover": "https://example.com/cover.jpg",
                 "keyframe": "https://example.com/keyframe.jpg",
                 "live_status": 1,
+                "live_start_time": 1780761600,
                 "live_screen_type": 1,
                 "area_name": "点唱",
                 "parent_area_name": "聊天室",
@@ -48,6 +49,7 @@ class LiveRoomContextTest {
 
         assertTrue(context.isChatRoom)
         assertEquals(1962114200, context.roomId)
+        assertEquals(1780761600L, context.liveStartTime)
         assertEquals(2, context.voiceMembers.size)
         assertEquals("Hy-蝴蝶效应-招主持", context.voiceMembers.first().nickname)
         assertTrue(context.voiceMembers.first().isMute)

@@ -45,7 +45,7 @@ class LiveDataWebSocketTest {
     }
 
     @Test
-    fun `live auth packet requests protocol version 3 with uid`() {
+    fun `live auth packet requests protocol version 2 with uid`() {
         val packet = LiveDataWebSocket.buildLiveAuthPacket(
             roomId = 1234,
             uid = 5678L,
@@ -61,8 +61,15 @@ class LiveDataWebSocketTest {
         val body = Json.parseToJsonElement(packet.copyOfRange(16, packet.size).decodeToString()).jsonObject
         assertEquals("5678", body["uid"]?.jsonPrimitive?.content)
         assertEquals("1234", body["roomid"]?.jsonPrimitive?.content)
-        assertEquals("3", body["protover"]?.jsonPrimitive?.content)
+        assertEquals("2", body["protover"]?.jsonPrimitive?.content)
         assertEquals("token", body["key"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `live auth uid falls back to guest when session cookie is unavailable`() {
+        assertEquals(0L, LiveDataWebSocket.normalizeLiveDanmakuUid(uid = 5678L, sessData = ""))
+        assertEquals(5678L, LiveDataWebSocket.normalizeLiveDanmakuUid(uid = 5678L, sessData = "sess"))
+        assertEquals(0L, LiveDataWebSocket.normalizeLiveDanmakuUid(uid = 0L, sessData = "sess"))
     }
 
     @Test

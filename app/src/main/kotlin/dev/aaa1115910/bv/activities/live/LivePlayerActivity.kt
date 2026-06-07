@@ -36,7 +36,7 @@ class LivePlayerActivity : ImmersiveComponentActivity() {
                 state = CastTransportState.PLAYING,
                 roomId = intent.getIntExtra("room_id", 0).toLong(),
                 title = intent.getStringExtra("title").orEmpty(),
-                danmakuEnabled = true
+                danmakuEnabled = intent.getBooleanExtra("danmaku_enabled", true)
             )
     }
 
@@ -54,6 +54,7 @@ class LivePlayerActivity : ImmersiveComponentActivity() {
                     putExtra("title", title)
                     putExtra("up_name", upName)
                     putExtra("online", online)
+                    putExtra("danmaku_enabled", true)
                 }
             )
         }

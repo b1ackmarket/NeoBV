@@ -76,19 +76,28 @@ object LiveDataWebSocket {
         val realRoomId =
             BiliLiveHttpApi.getLiveRoomPlayInfo(roomId).data?.roomId
                 ?: throw CancellationException("No live room info")
+        val authUid = normalizeLiveDanmakuUid(uid = uid, sessData = sessData)
         val danmuInfo =
-            BiliLiveHttpApi.getLiveDanmuInfo(realRoomId).data ?: throw CancellationException("No live danmaku info")
+            BiliLiveHttpApi.getLiveDanmuInfo(
+                roomId = realRoomId,
+                uid = authUid,
+                sessData = sessData.takeIf { authUid > 0L }.orEmpty(),
+                biliJct = biliJct.takeIf { authUid > 0L }.orEmpty(),
+                uidCkMd5 = uidCkMd5.takeIf { authUid > 0L }.orEmpty(),
+                sid = sid.takeIf { authUid > 0L }.orEmpty(),
+                buvid3 = buvid3
+            ).data ?: throw CancellationException("No live danmaku info")
         val endpoints = buildLiveDanmakuEndpoints(danmuInfo.hostList)
             .ifEmpty { throw CancellationException("No live danmaku endpoint") }
         val session = LiveDanmakuSocketSession(
             roomId = realRoomId,
-            uid = uid,
+            uid = authUid,
             cookieHeader = buildLiveCookieHeader(
-                uid = uid,
-                sessData = sessData,
-                biliJct = biliJct,
-                uidCkMd5 = uidCkMd5,
-                sid = sid,
+                uid = authUid,
+                sessData = sessData.takeIf { authUid > 0L }.orEmpty(),
+                biliJct = biliJct.takeIf { authUid > 0L }.orEmpty(),
+                uidCkMd5 = uidCkMd5.takeIf { authUid > 0L }.orEmpty(),
+                sid = sid.takeIf { authUid > 0L }.orEmpty(),
                 buvid3 = buvid3
             ),
             token = danmuInfo.token,
@@ -128,11 +137,14 @@ object LiveDataWebSocket {
             ?: throw CancellationException("No live danmaku host")
     }
 
+    internal fun normalizeLiveDanmakuUid(uid: Long, sessData: String): Long =
+        if (uid > 0L && sessData.isNotBlank()) uid else 0L
+
     internal fun buildLiveAuthPacket(roomId: Int, uid: Long, token: String): ByteArray {
         val data = buildJsonObject {
             put("uid", uid)
             put("roomid", roomId)
-            put("protover", 3)
+            put("protover", 2)
             put("platform", "web")
             put("type", 2)
             put("key", token)
@@ -501,7 +513,7 @@ object LiveDataWebSocket {
             onDebug(LiveDataWebSocketDebugEvent.StateChanged(LiveDataWebSocketState.Connecting))
             onDebug(LiveDataWebSocketDebugEvent.HostChanged(endpoint.displayName()))
             onDebug(
-                LiveDataWebSocketDebugEvent.Error(
+                LiveDataWebSocketDebugEvent.Info(
                     "connect stage=$connectionStage endpoint=${endpoint.displayName()} " +
                         "idx=${endpointIndex + 1}/${endpoints.size} retry=$reconnectAttempt " +
                         "cookie=${if (cookieHeader.isNotBlank()) "yes" else "no"} token=${token.length}"
@@ -553,7 +565,7 @@ object LiveDataWebSocket {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 connectionStage = "opened"
                 onDebug(
-                    LiveDataWebSocketDebugEvent.Error(
+                    LiveDataWebSocketDebugEvent.Info(
                         "opened http=${response.code} ${endpoint.displayName()} " +
                             "protocol=${response.header("sec-websocket-protocol").orEmpty().ifBlank { "-" }}"
                     )
@@ -562,7 +574,7 @@ object LiveDataWebSocket {
                 connectionStage = if (sent) "auth_sent" else "auth_send_failed"
                 logger.info { "Live danmaku auth sent: room=$roomId endpoint=${endpoint.displayName()} sent=$sent uid=$uid" }
                 onDebug(
-                    LiveDataWebSocketDebugEvent.Error(
+                    LiveDataWebSocketDebugEvent.Info(
                         "auth sent=$sent stage=$connectionStage ${endpoint.displayName()} uid=$uid token=${token.length}"
                     )
                 )
@@ -648,6 +660,7 @@ enum class LiveDataWebSocketState {
 sealed interface LiveDataWebSocketDebugEvent {
     data class StateChanged(val state: LiveDataWebSocketState) : LiveDataWebSocketDebugEvent
     data class HostChanged(val host: String) : LiveDataWebSocketDebugEvent
+    data class Info(val message: String) : LiveDataWebSocketDebugEvent
     data class Error(val reason: String) : LiveDataWebSocketDebugEvent
     data object RawMessage : LiveDataWebSocketDebugEvent
     data class DanmakuParsed(val count: Int) : LiveDataWebSocketDebugEvent

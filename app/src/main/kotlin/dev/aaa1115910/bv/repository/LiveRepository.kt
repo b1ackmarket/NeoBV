@@ -2,7 +2,6 @@ package dev.aaa1115910.bv.repository
 
 import dev.aaa1115910.biliapi.http.BiliLiveHttpApi
 import dev.aaa1115910.biliapi.http.entity.live.RoomPlayInfoData
-import dev.aaa1115910.biliapi.http.entity.live.DanmakuEvent
 import dev.aaa1115910.biliapi.repositories.AuthRepository
 import dev.aaa1115910.bv.entity.live.LiveCategory
 import dev.aaa1115910.bv.entity.live.LiveCategoryType
@@ -15,10 +14,10 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import io.github.oshai.kotlinlogging.KotlinLogging
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.core.annotation.Single
 
 @Single
@@ -42,23 +41,9 @@ class LiveRepository(
             roomId = roomInfo?.roomId ?: roomId,
             ownerMid = roomInfo?.uid ?: 0L,
             isPortrait = roomInfo?.isPortrait ?: false,
-            liveStatus = roomInfo?.liveStatus ?: 0
+            liveStatus = roomInfo?.liveStatus ?: 0,
+            liveStartTime = roomInfo?.liveTime?.toLong() ?: 0L
         )
-    }
-
-    suspend fun getHistoryDanmaku(roomId: Int): List<DanmakuEvent> {
-        val history = BiliLiveHttpApi.getLiveDanmuHistory(roomId).data ?: return emptyList()
-        return history.room.map { item ->
-            DanmakuEvent(
-                content = item.text,
-                mid = item.uid,
-                username = item.nickname,
-                medalName = item.medal?.name,
-                medalLevel = item.medal?.level,
-                eventTimeMs = item.toEventTimeMs(),
-                rndTimeMs = item.rnd.takeIf { it > 0L }?.let(::normalizeLiveTimestampMs)
-            )
-        }
     }
 
     suspend fun resolveRoomId(roomId: Int): Int {
@@ -153,15 +138,35 @@ class LiveRepository(
         qn: Int = 10000,
         lineIndex: Int = 0
     ): LivePlaybackSource? {
+        val roomInfo = runCatching {
+            BiliLiveHttpApi.getLiveRoomPlayInfo(roomId).data
+        }.getOrNull()
         val response = BiliLiveHttpApi.getLivePlayUrl(
             roomId = roomId,
             qn = qn,
             sessData = authRepository.sessionData.orEmpty()
         )
         val playInfo = response.data ?: return null
+        val masterVariants = roomInfo
+            ?.takeIf { it.roomId > 0 && it.uid > 0L }
+            ?.let {
+                runCatching {
+                    BiliLiveHttpApi.getLiveMasterPlaylist(
+                        roomId = it.roomId,
+                        mid = it.uid,
+                        qn = qn,
+                        sessData = authRepository.sessionData.orEmpty()
+                    )
+                }.getOrNull()
+            }
+            ?.let(LiveStreamResolver::parseMasterPlaylist)
+            .orEmpty()
         return LiveStreamResolver.resolvePlayableSource(
             playInfo = playInfo,
-            requestedLineIndex = lineIndex
+            requestedLineIndex = lineIndex,
+            masterVariants = masterVariants,
+            masterRequestedQn = qn,
+            preferHighBitrate = dev.aaa1115910.bv.util.Prefs.preferLiveHighBitrate
         )
     }
 
@@ -313,6 +318,10 @@ internal fun JsonObject.toLiveRoomContext(
         liveStatus = roomInfo?.get("live_status")?.jsonPrimitive?.intOrNull
             ?: playInfo?.liveStatus
             ?: 0,
+        liveStartTime = roomInfo?.get("live_start_time")?.jsonPrimitive?.longOrNull
+            ?: roomInfo?.get("live_time")?.jsonPrimitive?.longOrNull
+            ?: playInfo?.liveTime?.toLong()
+            ?: 0L,
         title = roomInfo?.get("title")?.jsonPrimitive?.contentOrNull.orEmpty(),
         cover = roomInfo?.get("cover")?.jsonPrimitive?.contentOrNull.orEmpty(),
         keyframe = roomInfo?.get("keyframe")?.jsonPrimitive?.contentOrNull.orEmpty(),
@@ -326,21 +335,3 @@ internal fun JsonObject.toLiveRoomContext(
 private fun JsonElement?.asJsonObjectOrNull(): JsonObject? = this as? JsonObject
 
 private fun JsonElement?.asJsonArrayOrNull(): JsonArray? = this as? JsonArray
-
-private fun dev.aaa1115910.biliapi.http.entity.live.HistoryDanmaku.HistoryDanmakuItem.toEventTimeMs(): Long {
-    rnd.takeIf { it > 0L }?.let { return normalizeLiveTimestampMs(it) }
-    return runCatching {
-        val parsed = SimpleDateFormat("HH:mm:ss", Locale.US).parse(timeline) ?: return@runCatching System.currentTimeMillis()
-        val parsedCalendar = Calendar.getInstance().apply { time = parsed }
-        Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, parsedCalendar.get(Calendar.HOUR_OF_DAY))
-            set(Calendar.MINUTE, parsedCalendar.get(Calendar.MINUTE))
-            set(Calendar.SECOND, parsedCalendar.get(Calendar.SECOND))
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-    }.getOrDefault(System.currentTimeMillis())
-}
-
-private fun normalizeLiveTimestampMs(value: Long): Long {
-    return if (value < 10_000_000_000L) value * 1000L else value
-}

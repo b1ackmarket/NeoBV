@@ -49,19 +49,9 @@ import kotlinx.coroutines.delay
 enum class LiveMenuNavItem {
     Quality,
     Line,
-    DanmakuSource,
     Danmaku,
-    Stats
-}
-
-enum class LiveDanmakuSourceMode {
-    WebSocketAndHistory,
-    WebSocketOnly,
-    HistoryOnly;
-
-    fun usesWebSocket(): Boolean = this != HistoryOnly
-
-    fun usesHistory(): Boolean = this != WebSocketOnly
+    Stats,
+    BitrateBoost
 }
 
 @Composable
@@ -73,13 +63,13 @@ fun LiveMenuController(
     lineOptions: List<LiveLineOption>,
     currentLineIndex: Int,
     danmakuState: LiveDanmakuMenuState,
-    danmakuSourceMode: LiveDanmakuSourceMode,
     showStats: Boolean,
+    preferHighBitrate: Boolean,
     onQualitySelected: (LiveQualityOption) -> Unit,
     onLineSelected: (Int) -> Unit,
     onDanmakuStateChange: (LiveDanmakuMenuState) -> Unit,
-    onDanmakuSourceModeChange: (LiveDanmakuSourceMode) -> Unit,
-    onShowStatsChange: (Boolean) -> Unit
+    onShowStatsChange: (Boolean) -> Unit,
+    onPreferHighBitrateChange: (Boolean) -> Unit
 ) {
     var selectedNav by remember { mutableStateOf(LiveMenuNavItem.Quality) }
     var focusState by remember { mutableStateOf(MenuFocusState.MenuNav) }
@@ -153,20 +143,6 @@ fun LiveMenuController(
                                     }
                                 )
 
-                                LiveMenuNavItem.DanmakuSource -> RadioMenuList(
-                                    modifier = Modifier.padding(horizontal = 8.dp),
-                                    items = LiveDanmakuSourceMode.entries.map { it.toDisplayName() },
-                                    selected = danmakuSourceMode.ordinal,
-                                    requestFocusWhen = focusState == MenuFocusState.Items,
-                                    onSelectedChanged = { index ->
-                                        onDanmakuSourceModeChange(LiveDanmakuSourceMode.entries[index])
-                                    },
-                                    onFocusBackToParent = {
-                                        focusState = MenuFocusState.MenuNav
-                                        navItemRequesters[selectedNav.ordinal].requestFocus()
-                                    }
-                                )
-
                                 LiveMenuNavItem.Danmaku -> DanmakuMenuList(
                                     currentEnabledTypes = danmakuState.enabledTypes,
                                     currentScale = danmakuState.scale,
@@ -218,6 +194,18 @@ fun LiveMenuController(
                                         }
                                     }
                                 )
+
+                                LiveMenuNavItem.BitrateBoost -> RadioMenuList(
+                                    modifier = Modifier.padding(horizontal = 8.dp),
+                                    items = listOf("关闭", "开启"),
+                                    selected = if (preferHighBitrate) 1 else 0,
+                                    requestFocusWhen = focusState != MenuFocusState.MenuNav,
+                                    onSelectedChanged = { index -> onPreferHighBitrateChange(index == 1) },
+                                    onFocusBackToParent = {
+                                        focusState = MenuFocusState.MenuNav
+                                        navItemRequesters[selectedNav.ordinal].requestFocus()
+                                    }
+                                )
                             }
 
                             LazyColumn(
@@ -237,8 +225,7 @@ fun LiveMenuController(
                                             Key.DirectionCenter,
                                             Key.Enter -> {
                                                 focusState = if (
-                                                    selectedNav == LiveMenuNavItem.Danmaku ||
-                                                    selectedNav == LiveMenuNavItem.Stats
+                                                    selectedNav.opensMenuPanel()
                                                 ) {
                                                     MenuFocusState.Menu
                                                 } else {
@@ -263,7 +250,7 @@ fun LiveMenuController(
                                         onClick = {
                                             selectedNav = item
                                             focusState =
-                                                if (item == LiveMenuNavItem.Danmaku || item == LiveMenuNavItem.Stats) {
+                                                if (item.opensMenuPanel()) {
                                                     MenuFocusState.Menu
                                                 } else {
                                                     MenuFocusState.Items
@@ -293,13 +280,12 @@ data class LiveDanmakuMenuState(
 private fun LiveMenuNavItem.toDisplayName(): String = when (this) {
     LiveMenuNavItem.Quality -> "画质"
     LiveMenuNavItem.Line -> "线路"
-    LiveMenuNavItem.DanmakuSource -> "弹幕源"
     LiveMenuNavItem.Danmaku -> "弹幕"
     LiveMenuNavItem.Stats -> "统计信息"
+    LiveMenuNavItem.BitrateBoost -> "码率增强"
 }
 
-fun LiveDanmakuSourceMode.toDisplayName(): String = when (this) {
-    LiveDanmakuSourceMode.WebSocketAndHistory -> "长连接+轮询"
-    LiveDanmakuSourceMode.WebSocketOnly -> "仅长连接"
-    LiveDanmakuSourceMode.HistoryOnly -> "仅轮询"
-}
+private fun LiveMenuNavItem.opensMenuPanel(): Boolean =
+    this == LiveMenuNavItem.Danmaku ||
+        this == LiveMenuNavItem.Stats ||
+        this == LiveMenuNavItem.BitrateBoost

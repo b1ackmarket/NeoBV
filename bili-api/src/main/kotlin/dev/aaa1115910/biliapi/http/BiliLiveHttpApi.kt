@@ -2,7 +2,6 @@ package dev.aaa1115910.biliapi.http
 
 import dev.aaa1115910.biliapi.http.entity.BiliResponse
 import dev.aaa1115910.biliapi.http.entity.live.DanmuInfoData
-import dev.aaa1115910.biliapi.http.entity.live.HistoryDanmaku
 import dev.aaa1115910.biliapi.http.entity.live.RoomPlayInfoData
 import dev.aaa1115910.biliapi.http.plugins.BiliUserAgent
 import dev.aaa1115910.biliapi.http.util.encApiSign
@@ -17,10 +16,10 @@ import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
-import io.ktor.client.request.forms.FormDataContent
 import io.ktor.http.Parameters
 import io.ktor.http.URLProtocol
 import io.ktor.serialization.kotlinx.json.json
@@ -68,14 +67,47 @@ object BiliLiveHttpApi {
     /**
      * 获取直播间[roomId]的弹幕连接地址等信息，例如 token
      */
-    suspend fun getLiveDanmuInfo(roomId: Int): BiliResponse<DanmuInfoData> =
+    suspend fun getLiveDanmuInfo(
+        roomId: Int,
+        uid: Long = 0L,
+        sessData: String = "",
+        biliJct: String = "",
+        uidCkMd5: String = "",
+        sid: String = "",
+        buvid3: String = BiliHttpApi.buvid3
+    ): BiliResponse<DanmuInfoData> =
         client.get("/xlive/web-room/v1/index/getDanmuInfo") {
             parameter("id", roomId)
             parameter("type", 0)
             parameter("web_location", "444.8")
             header("Referer", "https://live.bilibili.com/")
             header("Origin", "https://live.bilibili.com")
+            buildLiveDanmakuCookieHeader(
+                uid = uid,
+                sessData = sessData,
+                biliJct = biliJct,
+                uidCkMd5 = uidCkMd5,
+                sid = sid,
+                buvid3 = buvid3
+            ).takeIf { it.isNotBlank() }?.let { header("Cookie", it) }
         }.body()
+
+    private fun buildLiveDanmakuCookieHeader(
+        uid: Long = 0L,
+        sessData: String = "",
+        biliJct: String = "",
+        uidCkMd5: String = "",
+        sid: String = "",
+        buvid3: String = ""
+    ): String =
+        buildList {
+            if (uid > 0L) add("DedeUserID=$uid")
+            if (uidCkMd5.isNotBlank()) add("DedeUserID__ckMd5=$uidCkMd5")
+            if (sessData.isNotBlank()) add("SESSDATA=$sessData")
+            if (biliJct.isNotBlank()) add("bili_jct=$biliJct")
+            if (sid.isNotBlank()) add("sid=$sid")
+            if (buvid3.isNotBlank()) add("buvid3=$buvid3")
+        }.joinToString("; ")
 
     /**
      * 获取直播间[roomId]的信息
@@ -83,14 +115,6 @@ object BiliLiveHttpApi {
     suspend fun getLiveRoomPlayInfo(roomId: Int): BiliResponse<RoomPlayInfoData> =
         client.get("/xlive/web-room/v1/index/getRoomPlayInfo") {
             parameter("room_id", roomId)
-        }.body()
-
-    /**
-     * 获取直播间[roomId]的历史弹幕
-     */
-    suspend fun getLiveDanmuHistory(roomId: Int): BiliResponse<HistoryDanmaku> =
-        client.get("/xlive/web-room/v1/dM/gethistory") {
-            parameter("roomid", roomId)
         }.body()
 
     suspend fun getRecommendedLives(
@@ -154,7 +178,7 @@ object BiliLiveHttpApi {
         parameter("room_id", roomId)
         parameter("protocol", "0,1")
         parameter("format", "0,1,2")
-        parameter("codec", "0,1")
+        parameter("codec", "0,1,2")
         parameter("qn", qn)
         parameter("platform", "web")
         parameter("ptype", 8)
@@ -229,6 +253,31 @@ object BiliLiveHttpApi {
             buildLiveCookie(sessData, csrf, buvid3).takeIf { it.isNotBlank() }?.let { header("Cookie", it) }
         }.bodyAsText()
     }
+
+    suspend fun getLiveMasterPlaylist(
+        roomId: Int,
+        mid: Long,
+        qn: Int = 10000,
+        sessData: String = ""
+    ): String = client.get("/xlive/play-gateway/master/url") {
+        parameter("cid", roomId)
+        parameter("mid", mid)
+        parameter("qn", qn)
+        parameter("pt", "web")
+        parameter("p2p_type", -1)
+        parameter("net", 0)
+        parameter("free_type", 0)
+        parameter("build", 0)
+        parameter("feature", 2)
+        parameter("drm_type", 0)
+        parameter("cam_id", 0)
+        header("Referer", "https://live.bilibili.com/$roomId")
+        header("Origin", "https://live.bilibili.com")
+        if (sessData.isNotBlank()) {
+            header("Cookie", "SESSDATA=$sessData;")
+        }
+    }.bodyAsText()
+
 }
 
 private fun buildLiveCookie(

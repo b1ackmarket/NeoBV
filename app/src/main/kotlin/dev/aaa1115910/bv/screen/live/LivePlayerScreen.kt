@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.media3.common.PlaybackException
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -54,13 +55,11 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.controllers.LiveDanmakuMenuState
 import dev.aaa1115910.bv.component.controllers.LiveBottomMenuController
 import dev.aaa1115910.bv.component.controllers.LiveBottomMenuItem
-import dev.aaa1115910.bv.component.controllers.LiveDanmakuSourceMode
 import dev.aaa1115910.bv.component.controllers.LiveMenuController
 import dev.aaa1115910.bv.component.controllers.PlayerCommentPanelUiState
 import dev.aaa1115910.bv.component.controllers.PlayerSidePanels
 import dev.aaa1115910.bv.component.controllers.PlayerUpPanelUiState
 import dev.aaa1115910.bv.component.controllers.DanmakuType
-import dev.aaa1115910.bv.component.controllers.toDisplayName
 import dev.aaa1115910.bv.component.LiveDanmakuOverlay
 import dev.aaa1115910.bv.entity.PlayerCommentItem
 import dev.aaa1115910.bv.entity.PlayerCommentSort
@@ -79,10 +78,12 @@ import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.VideoPlayerListener
 import dev.aaa1115910.bv.player.impl.exo.ExoPlayerFactory
 import dev.aaa1115910.bv.repository.LivePlaybackSource
+import dev.aaa1115910.bv.repository.LiveQualityOption
 import dev.aaa1115910.bv.repository.LiveJumpModeQueue
 import dev.aaa1115910.bv.repository.LiveJumpModeRepository
 import dev.aaa1115910.bv.repository.LiveRepository
 import dev.aaa1115910.bv.repository.LiveRoomContext
+import dev.aaa1115910.bv.repository.LiveStreamResolver
 import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import dev.aaa1115910.bv.telemetry.TelemetryErrorType
 import dev.aaa1115910.bv.telemetry.TelemetryScreen
@@ -97,9 +98,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.ArrayDeque
 import java.util.Calendar
 import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 private fun currentClockText(): String {
     val calendar = Calendar.getInstance()
@@ -108,29 +110,18 @@ private fun currentClockText(): String {
     return "$hour:$minute"
 }
 
-private const val LiveDanmakuPollIntervalMs = 5_000L
 private const val LiveJumpModeHoldMs = 3_000L
 private const val LiveHistoryHeartbeatIntervalSec = 60
 
-private enum class LiveDanmakuEventSource {
-    WebSocket,
-    HistoryPoll
-}
-
 private data class LiveDanmakuDebugStats(
-    val sourceMode: LiveDanmakuSourceMode = LiveDanmakuSourceMode.HistoryOnly,
     val wsState: LiveDataWebSocketState = LiveDataWebSocketState.Disabled,
     val wsHost: String = "",
+    val wsInfo: String = "",
     val wsError: String = "",
     val wsRecv: Long = 0L,
     val wsDanmaku: Long = 0L,
     val wsLastDanmakuAtMs: Long = 0L,
-    val historyPolls: Long = 0L,
-    val historyHits: Long = 0L,
-    val historyNew: Long = 0L,
-    val overlayEmitted: Long = 0L,
-    val deduped: Long = 0L,
-    val queue: Int = 0
+    val overlayEmitted: Long = 0L
 )
 
 @Composable
@@ -161,18 +152,15 @@ fun LivePlayerScreen() {
     var selectedQuality by remember { mutableStateOf(Prefs.defaultLiveQuality.qn) }
     var selectedLineIndex by remember { mutableStateOf(0) }
     var showLiveStats by remember { mutableStateOf(Prefs.showPlayerStats) }
+    var preferLiveHighBitrate by remember { mutableStateOf(Prefs.preferLiveHighBitrate) }
     var liveStatsText by remember { mutableStateOf("") }
     var liveDanmakuDebugText by remember { mutableStateOf("") }
-    var liveDanmakuSourceMode by remember { mutableStateOf(Prefs.defaultLiveDanmakuSourceMode) }
+    var liveQualityMenuOptions by remember { mutableStateOf<List<LiveQualityOption>>(emptyList()) }
     var liveDanmakuDebugStats by remember {
-        mutableStateOf(LiveDanmakuDebugStats(sourceMode = liveDanmakuSourceMode))
+        mutableStateOf(LiveDanmakuDebugStats())
     }
     var liveDanmakuSocketJob by remember { mutableStateOf<Job?>(null) }
-    var liveChatReleaseJob by remember { mutableStateOf<Job?>(null) }
     var liveChatMessages by remember { mutableStateOf<List<PlayerCommentItem>>(emptyList()) }
-    val liveChatSeenKeys = remember { linkedSetOf<String>() }
-    val pendingLiveDanmakuEvents = remember { ArrayDeque<DanmakuEvent>() }
-    val pendingLiveDanmakuKeys = remember { linkedSetOf<String>() }
     var lastNonEmptyDanmakuTypes by remember {
         mutableStateOf(
             Prefs.defaultLiveDanmakuTypes.takeIf { it.isNotEmpty() } ?: DanmakuType.entries
@@ -183,10 +171,16 @@ fun LivePlayerScreen() {
     var liveUpPanelFace by remember { mutableStateOf("") }
     var liveUpPanelFollowing by remember { mutableStateOf(false) }
     val liveScope = rememberCoroutineScope()
+    val initialLiveDanmakuEnabled = remember {
+        !activity.intent.hasExtra("danmaku_enabled") ||
+            activity.intent.getBooleanExtra("danmaku_enabled", true)
+    }
     var liveDanmakuState by remember {
         mutableStateOf(
             LiveDanmakuMenuState(
-                enabledTypes = Prefs.defaultLiveDanmakuTypes.takeIf { Prefs.defaultLiveDanmakuEnabled }
+                enabledTypes = Prefs.defaultLiveDanmakuTypes.takeIf {
+                    Prefs.defaultLiveDanmakuEnabled && initialLiveDanmakuEnabled
+                }
                     ?: emptyList(),
                 scale = Prefs.defaultDanmakuScale,
                 opacity = Prefs.defaultDanmakuOpacity,
@@ -206,7 +200,7 @@ fun LivePlayerScreen() {
                     userAgent = "Mozilla/5.0",
                     referer = "https://live.bilibili.com/",
                     enableFfmpegAudioRenderer = false,
-                    enableSoftwareVideoDecoder = false,
+                    enableSoftwareVideoDecoder = Prefs.enableSoftwareVideoDecoder,
                     enableVolumeNormalization = Prefs.enableVolumeNormalization
                 )
             )
@@ -247,15 +241,12 @@ fun LivePlayerScreen() {
     }
 
     fun appendLiveChatMessage(item: PlayerCommentItem): Boolean {
-        val key = item.liveChatDedupeKey()
-        if (!liveChatSeenKeys.add(key)) return false
-        while (liveChatSeenKeys.size > 500) liveChatSeenKeys.remove(liveChatSeenKeys.first())
         liveChatMessages = (liveChatMessages + item).takeLast(200)
         return true
     }
 
     fun resetLiveDanmakuDebugStats() {
-        liveDanmakuDebugStats = LiveDanmakuDebugStats(sourceMode = liveDanmakuSourceMode)
+        liveDanmakuDebugStats = LiveDanmakuDebugStats()
         liveDanmakuDebugText = ""
     }
 
@@ -288,78 +279,15 @@ fun LivePlayerScreen() {
         isLoading = true
         selectedLineIndex = 0
         liveDanmakuSocketJob?.cancel()
-        liveChatReleaseJob?.cancel()
         liveDanmakuSocketJob = null
         liveDanmakuSession.clear()
         liveChatMessages = emptyList()
-        liveChatSeenKeys.clear()
-        pendingLiveDanmakuEvents.clear()
-        pendingLiveDanmakuKeys.clear()
         resetLiveDanmakuDebugStats()
         liveUpPanelVideos = emptyList()
         liveUpPanelFace = ""
         liveUpPanelFollowing = false
         statusText = "切换到 ${target.title}"
         return true
-    }
-
-    fun markInitialHistoryDanmakuSeen(events: List<DanmakuEvent>) {
-        liveDanmakuSession.markSeen(events.takeLast(50))
-    }
-
-    fun enqueueLiveDanmakuEvents(events: List<DanmakuEvent>, source: LiveDanmakuEventSource) {
-        if (events.isEmpty()) return
-        val limitedEvents = events.takeLast(50)
-        val acceptedEvents = mutableListOf<DanmakuEvent>()
-        var dedupedCount = 0
-        limitedEvents.forEach { event ->
-            if (liveDanmakuSession.hasSeen(event) || !pendingLiveDanmakuKeys.add(event.looseStableKey())) {
-                dedupedCount++
-            } else {
-                acceptedEvents += event
-            }
-        }
-        if (dedupedCount > 0) {
-            updateLiveDanmakuDebugStats { it.copy(deduped = it.deduped + dedupedCount) }
-        }
-        if (source == LiveDanmakuEventSource.HistoryPoll) {
-            updateLiveDanmakuDebugStats { it.copy(historyNew = it.historyNew + acceptedEvents.size) }
-        }
-        if (acceptedEvents.isEmpty()) return
-        pendingLiveDanmakuEvents.addAll(acceptedEvents)
-        while (pendingLiveDanmakuEvents.size > 120) {
-            val removed = pendingLiveDanmakuEvents.removeFirst()
-            pendingLiveDanmakuKeys.remove(removed.looseStableKey())
-            updateLiveDanmakuDebugStats { it.copy(deduped = it.deduped + 1) }
-        }
-        updateLiveDanmakuDebugStats { it.copy(queue = pendingLiveDanmakuEvents.size) }
-        if (liveChatReleaseJob?.isActive == true) return
-        liveChatReleaseJob = liveScope.launch {
-            while (pendingLiveDanmakuEvents.isNotEmpty()) {
-                val batchSize = pendingLiveDanmakuEvents.size.coerceAtLeast(1)
-                val gapMs = (LiveDanmakuPollIntervalMs / batchSize).coerceIn(120L, 1_000L)
-                val event = pendingLiveDanmakuEvents.removeFirst()
-                pendingLiveDanmakuKeys.remove(event.looseStableKey())
-                val shouldEmitOverlay = currentLiveDanmakuState.enabledTypes.isNotEmpty()
-                liveDanmakuSession.markSeen(event)
-                if (shouldEmitOverlay) {
-                    liveDanmakuSession.addSeenDanmaku(
-                        event = event,
-                        isPlaying = player.isPlaying
-                    )
-                }
-                appendLiveChatMessage(event.toLiveCommentItem(prefix = "live"))
-                updateLiveDanmakuDebugStats {
-                    it.copy(
-                        overlayEmitted = it.overlayEmitted + if (shouldEmitOverlay) 1 else 0,
-                        queue = pendingLiveDanmakuEvents.size
-                    )
-                }
-                delay(gapMs)
-            }
-            updateLiveDanmakuDebugStats { it.copy(queue = 0) }
-            liveChatReleaseJob = null
-        }
     }
 
     fun handleLiveJumpModeKeyUp(key: Key, offset: Int): Boolean {
@@ -378,14 +306,19 @@ fun LivePlayerScreen() {
         return hadPendingHold
     }
 
-    fun appendLiveChatMessages(items: List<PlayerCommentItem>) {
-        if (items.isEmpty()) return
-        val newItems = items.filter { item ->
-            liveChatSeenKeys.add(item.liveChatDedupeKey())
+    fun handleLiveDanmakuEvent(event: DanmakuEvent) {
+        val shouldEmitOverlay = currentLiveDanmakuState.enabledTypes.isNotEmpty() &&
+                liveDanmakuSession.overlayController.allows(event)
+        if (shouldEmitOverlay) {
+            liveDanmakuSession.addDanmaku(
+                event = event,
+                isPlaying = player.isPlaying
+            )
         }
-        if (newItems.isEmpty()) return
-        while (liveChatSeenKeys.size > 500) liveChatSeenKeys.remove(liveChatSeenKeys.first())
-        liveChatMessages = (liveChatMessages + newItems).takeLast(200)
+        appendLiveChatMessage(event.toLiveCommentItem(prefix = "live"))
+        updateLiveDanmakuDebugStats {
+            it.copy(overlayEmitted = it.overlayEmitted + if (shouldEmitOverlay) 1 else 0)
+        }
     }
 
     val loadLiveUpPanelVideos = fun() {
@@ -420,12 +353,16 @@ fun LivePlayerScreen() {
         player.setPlayerEventListener(
             object : VideoPlayerListener {
                 override fun onError(error: Exception) {
+                    val detailedMessage = error.toLivePlayerErrorText()
                     FirebaseTelemetry.reportLiveError(
                         type = TelemetryErrorType.DecodeError,
                         throwable = error,
-                        extras = mapOf("stage" to "player_error")
+                        extras = mapOf(
+                            "stage" to "player_error",
+                            "detail" to detailedMessage
+                        )
                     )
-                    errorMessage = error.message ?: "直播播放失败"
+                    errorMessage = detailedMessage
                     isLoading = false
                 }
 
@@ -529,22 +466,23 @@ fun LivePlayerScreen() {
         }
     }
 
-    LaunchedEffect(roomContext?.roomId, liveDanmakuSourceMode) {
+    LaunchedEffect(roomContext?.roomId, roomContext?.liveStatus) {
         val resolvedRoomId = roomContext?.roomId ?: return@LaunchedEffect
-        if ((roomContext?.liveStatus ?: 0) != 1) return@LaunchedEffect
-        if (!liveDanmakuSourceMode.usesWebSocket()) {
+        if ((roomContext?.liveStatus ?: 0) != 1) {
             liveDanmakuSocketJob?.cancel()
             liveDanmakuSocketJob = null
             updateLiveDanmakuDebugStats {
                 it.copy(
-                    sourceMode = liveDanmakuSourceMode,
                     wsState = LiveDataWebSocketState.Disabled,
-                    wsHost = ""
+                    wsHost = "",
+                    wsInfo = "",
+                    wsError = ""
                 )
             }
             return@LaunchedEffect
         }
         liveDanmakuSocketJob?.cancel()
+        resetLiveDanmakuDebugStats()
         liveDanmakuSocketJob = LiveDataWebSocket.connectLiveEvent(
             roomId = resolvedRoomId,
             uid = Prefs.uid,
@@ -559,8 +497,15 @@ fun LivePlayerScreen() {
                         is LiveDataWebSocketDebugEvent.StateChanged -> {
                             updateLiveDanmakuDebugStats {
                                 it.copy(
-                                    sourceMode = liveDanmakuSourceMode,
-                                    wsState = debugEvent.state
+                                    wsState = debugEvent.state,
+                                    wsError = if (
+                                        debugEvent.state == LiveDataWebSocketState.Connecting ||
+                                        debugEvent.state == LiveDataWebSocketState.Authed
+                                    ) {
+                                        ""
+                                    } else {
+                                        it.wsError
+                                    }
                                 )
                             }
                         }
@@ -568,6 +513,12 @@ fun LivePlayerScreen() {
                         is LiveDataWebSocketDebugEvent.HostChanged -> {
                             updateLiveDanmakuDebugStats {
                                 it.copy(wsHost = debugEvent.host)
+                            }
+                        }
+
+                        is LiveDataWebSocketDebugEvent.Info -> {
+                            updateLiveDanmakuDebugStats {
+                                it.copy(wsInfo = debugEvent.message)
                             }
                         }
 
@@ -603,10 +554,7 @@ fun LivePlayerScreen() {
             when (event) {
                 is DanmakuEvent -> {
                     liveScope.launch {
-                        enqueueLiveDanmakuEvents(
-                            events = listOf(event),
-                            source = LiveDanmakuEventSource.WebSocket
-                        )
+                        handleLiveDanmakuEvent(event)
                     }
                 }
 
@@ -623,34 +571,13 @@ fun LivePlayerScreen() {
         liveDanmakuSession.overlayController.applyState(liveDanmakuState)
     }
 
-    LaunchedEffect(roomContext?.roomId, roomContext?.liveStatus, liveDanmakuSourceMode) {
-        val resolvedRoomId = roomContext?.roomId ?: return@LaunchedEffect
-        if ((roomContext?.liveStatus ?: 0) != 1) return@LaunchedEffect
-        if (!liveDanmakuSourceMode.usesHistory()) return@LaunchedEffect
-        while (isActive) {
-            delay(LiveDanmakuPollIntervalMs)
-            if (!player.isPlaying) continue
-            val events = withContext(Dispatchers.IO) {
-                runCatching { liveRepository.getHistoryDanmaku(resolvedRoomId) }
-                    .getOrElse { emptyList() }
-            }
-            updateLiveDanmakuDebugStats {
-                it.copy(
-                    sourceMode = liveDanmakuSourceMode,
-                    historyPolls = it.historyPolls + 1,
-                    historyHits = it.historyHits + events.size
-                )
-            }
-            if (events.isNotEmpty()) {
-                enqueueLiveDanmakuEvents(
-                    events = events,
-                    source = LiveDanmakuEventSource.HistoryPoll
-                )
-            }
-        }
-    }
-
-    LaunchedEffect(showLiveStats, playbackSource, player.videoWidth, player.videoHeight) {
+    LaunchedEffect(
+        showLiveStats,
+        playbackSource,
+        player.videoWidth,
+        player.videoHeight,
+        roomContext?.liveStartTime
+    ) {
         if (!showLiveStats) {
             liveStatsText = ""
             return@LaunchedEffect
@@ -660,9 +587,21 @@ fun LivePlayerScreen() {
                 playerDebugInfo = player.debugInfo,
                 playbackSource = playbackSource,
                 videoWidth = player.videoWidth,
-                videoHeight = player.videoHeight
+                videoHeight = player.videoHeight,
+                liveStartTime = roomContext?.liveStartTime ?: 0L
             )
             delay(1_000)
+        }
+    }
+
+    LaunchedEffect(playbackSource) {
+        val source = playbackSource
+        liveQualityMenuOptions = if (source == null) {
+            emptyList()
+        } else {
+            source.qualities.map { quality ->
+                quality.copy(desc = LiveStreamResolver.buildPlaybackQualityLabel(source, quality))
+            }
         }
     }
 
@@ -677,7 +616,7 @@ fun LivePlayerScreen() {
         }
     }
 
-    LaunchedEffect(roomContext?.roomId, selectedQuality, selectedLineIndex, reloadToken) {
+    LaunchedEffect(roomContext?.roomId, selectedQuality, selectedLineIndex, preferLiveHighBitrate, reloadToken) {
         if (roomId == 0) {
             errorMessage = "直播间参数无效"
             isLoading = false
@@ -696,16 +635,14 @@ fun LivePlayerScreen() {
         }
         val playbackResult = withContext(Dispatchers.IO) {
             runCatching {
-                val source = liveRepository.resolvePlayableSource(
+                liveRepository.resolvePlayableSource(
                     roomId = resolvedRoomId,
                     qn = selectedQuality,
                     lineIndex = selectedLineIndex
                 )
-                val history = liveRepository.getHistoryDanmaku(resolvedRoomId)
-                source to history
             }
         }
-        val (resolvedSource, historyDanmaku) = playbackResult.getOrElse {
+        val resolvedSource = playbackResult.getOrElse {
             FirebaseTelemetry.reportLiveError(
                 type = FirebaseTelemetry.classifyThrowable(it),
                 throwable = it,
@@ -735,16 +672,10 @@ fun LivePlayerScreen() {
             player.stop()
             liveDanmakuSession.clear()
             liveChatMessages = emptyList()
-            liveChatSeenKeys.clear()
-            pendingLiveDanmakuEvents.clear()
-            pendingLiveDanmakuKeys.clear()
-            resetLiveDanmakuDebugStats()
-            liveChatReleaseJob?.cancel()
             player.setOptions()
             player.playUrl(resolvedSource.playUrl, null)
             player.prepare()
             player.start()
-            markInitialHistoryDanmakuSeen(historyDanmaku)
             selectedQuality = resolvedSource.currentQuality
             selectedLineIndex = resolvedSource.currentLineIndex
         }
@@ -775,7 +706,6 @@ fun LivePlayerScreen() {
         onDispose {
             liveJumpModeHoldJob?.cancel()
             liveDanmakuSocketJob?.cancel()
-            liveChatReleaseJob?.cancel()
             player.pause()
             player.release()
             liveDanmakuSession.release()
@@ -1015,13 +945,13 @@ fun LivePlayerScreen() {
             modifier = Modifier
                 .align(Alignment.CenterEnd),
             show = activeOverlay == LiveOverlayPanel.RightMenu && playbackSource != null,
-            qualityOptions = playbackSource?.qualities.orEmpty(),
+            qualityOptions = liveQualityMenuOptions,
             currentQuality = playbackSource?.currentQuality ?: selectedQuality,
             lineOptions = playbackSource?.lines.orEmpty(),
             currentLineIndex = playbackSource?.currentLineIndex ?: selectedLineIndex,
             danmakuState = liveDanmakuState,
-            danmakuSourceMode = liveDanmakuSourceMode,
             showStats = showLiveStats,
+            preferHighBitrate = preferLiveHighBitrate,
             onQualitySelected = { quality ->
                 if (quality.qn != selectedQuality) {
                     selectedQuality = quality.qn
@@ -1047,24 +977,25 @@ fun LivePlayerScreen() {
                 Prefs.defaultDanmakuArea = newState.area
                 Prefs.defaultDanmakuMask = newState.maskEnabled
             },
-            onDanmakuSourceModeChange = { mode ->
-                if (mode == liveDanmakuSourceMode) return@LiveMenuController
-                liveDanmakuSourceMode = mode
-                Prefs.defaultLiveDanmakuSourceMode = mode
-                resetLiveDanmakuDebugStats()
-                liveDanmakuSocketJob?.cancel()
-                liveDanmakuSocketJob = null
-                pendingLiveDanmakuEvents.clear()
-                pendingLiveDanmakuKeys.clear()
-                liveChatReleaseJob?.cancel()
-                liveDanmakuSession.clear()
-                liveChatMessages = emptyList()
-                liveChatSeenKeys.clear()
-                statusText = "直播弹幕源：${mode.toDisplayName()}"
-            },
             onShowStatsChange = { show ->
                 showLiveStats = show
                 Prefs.showPlayerStats = show
+            },
+            onPreferHighBitrateChange = { enabled ->
+                if (enabled != preferLiveHighBitrate) {
+                    preferLiveHighBitrate = enabled
+                    Prefs.preferLiveHighBitrate = enabled
+                    statusText = if (enabled) {
+                        "码率增强已开启，正在重载直播流…"
+                    } else {
+                        "码率增强已关闭，正在重载直播流…"
+                    }
+                    player.stop()
+                    playbackSource = null
+                    errorMessage = null
+                    isLoading = true
+                    selectedLineIndex = 0
+                }
             }
         )
 
@@ -1073,6 +1004,7 @@ fun LivePlayerScreen() {
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(start = 8.dp, top = 56.dp)
+                    .widthIn(max = 620.dp)
                     .clip(MaterialTheme.shapes.medium)
                     .background(Color.Black.copy(alpha = 0.3f))
             ) {
@@ -1080,7 +1012,9 @@ fun LivePlayerScreen() {
                     modifier = Modifier.padding(8.dp),
                     text = liveStatsText,
                     color = Color.White,
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
+                    softWrap = true,
+                    overflow = TextOverflow.Clip
                 )
             }
         }
@@ -1276,25 +1210,6 @@ private fun SuperChatEvent.toLiveCommentItem(): PlayerCommentItem {
     )
 }
 
-internal fun PlayerCommentItem.liveChatDedupeKey(): String {
-    val authorKey = mid.takeIf { it > 0 }?.toString() ?: username
-    return "$authorKey|$message"
-}
-
-internal fun filterNewLiveChatItems(
-    items: List<PlayerCommentItem>,
-    seenKeys: Set<String>,
-    maxItems: Int = 50
-): List<PlayerCommentItem> {
-    val emittedKeys = mutableSetOf<String>()
-    return items
-        .filter { item ->
-            val key = item.liveChatDedupeKey()
-            key !in seenKeys && emittedKeys.add(key)
-        }
-        .takeLast(maxItems)
-}
-
 private fun Long.toLiveChatTimeText(): String {
     val calendar = Calendar.getInstance().apply {
         timeInMillis = if (this@toLiveChatTimeText < 10_000_000_000L) {
@@ -1311,38 +1226,63 @@ private fun buildLiveStatsText(
     playerDebugInfo: String,
     playbackSource: LivePlaybackSource?,
     videoWidth: Int,
-    videoHeight: Int
+    videoHeight: Int,
+    liveStartTime: Long
 ): String {
     return buildString {
         val source = playbackSource
         if (source != null) {
-            appendLine("live quality: ${source.currentQuality}")
+            val currentMasterVariant = LiveStreamResolver.resolveCurrentMasterVariant(
+                source = source,
+                videoWidth = videoWidth,
+                videoHeight = videoHeight
+            )
+            appendLine(
+                "api current_qn: ${source.currentQuality.toLiveQualityStatsText(source, videoWidth, videoHeight)}"
+            )
+            source.playUrl.toQueryParamOrNull("qn")?.let { appendLine("play_url qn: $it") }
             appendLine("line: ${source.currentLineIndex + 1}/${source.lines.size.coerceAtLeast(1)}")
-            source.playUrl.toHostOrNull()?.let { appendLine("host: $it") }
+            source.playUrl.toHostOrNull()?.let { appendLine("stream host: $it") }
+            liveStartTime.toLiveUptimeTextOrNull()?.let { appendLine("live uptime: $it") }
+            (
+                playerDebugInfo.toLiveVideoFpsOrNull()
+                    ?: currentMasterVariant?.frameRate?.toLiveFrameRateTextOrNull()
+                )?.let { appendLine("video fps: $it") }
+            appendLine("live bitrate boost: ${source.toLiveBitrateBoostStatsText()}")
+            if (source.masterRequestedQn > 0) {
+                appendLine("master requested qn: ${source.masterRequestedQn}")
+            }
+            currentMasterVariant?.let { variant ->
+                appendLine("master variant:")
+                variant.toStatsLines().forEach { line ->
+                    appendLine("  $line")
+                }
+            }
         }
-        if (videoWidth > 0 && videoHeight > 0) {
-            appendLine("resolution: ${videoWidth}x$videoHeight")
-        }
-        append(playerDebugInfo)
+        append(playerDebugInfo.toLiveStatsPlayerDebugText())
     }.trim()
+}
+
+private fun String.toLiveStatsPlayerDebugText(): String {
+    return lineSequence()
+        .filterNot { it.startsWith("mime type:", ignoreCase = true) }
+        .filterNot { it.startsWith("speed:", ignoreCase = true) }
+        .filterNot { it.startsWith("stream host:", ignoreCase = true) }
+        .filterNot { it.startsWith("video fps:", ignoreCase = true) }
+        .joinToString("\n")
 }
 
 private fun buildLiveDanmakuDebugText(stats: LiveDanmakuDebugStats): String {
     return buildString {
         appendLine("live danmaku debug")
-        appendLine("danmaku source: ${stats.sourceMode.toDebugName()}")
         appendLine("ws state: ${stats.wsState.toDebugName()}")
         appendWrappedDebugLine("ws host", stats.wsHost.ifBlank { "-" })
+        if (stats.wsInfo.isNotBlank()) appendWrappedDebugLine("ws info", stats.wsInfo)
         if (stats.wsError.isNotBlank()) appendWrappedDebugLine("ws error", stats.wsError)
         appendLine("ws recv: ${stats.wsRecv}")
         appendLine("ws danmaku: ${stats.wsDanmaku}")
         appendLine("ws last: ${stats.wsLastDanmakuAtMs.toElapsedText()}")
-        appendLine("history polls: ${stats.historyPolls}")
-        appendLine("history hits: ${stats.historyHits}")
-        appendLine("history new: ${stats.historyNew}")
         appendLine("overlay emitted: ${stats.overlayEmitted}")
-        appendLine("deduped: ${stats.deduped}")
-        appendLine("queue: ${stats.queue}")
     }.trim()
 }
 
@@ -1378,12 +1318,6 @@ private fun String.wrapDebugValue(maxLineLength: Int): List<String> {
     return chunks
 }
 
-private fun LiveDanmakuSourceMode.toDebugName(): String = when (this) {
-    LiveDanmakuSourceMode.WebSocketAndHistory -> "websocket + history"
-    LiveDanmakuSourceMode.WebSocketOnly -> "websocket"
-    LiveDanmakuSourceMode.HistoryOnly -> "history"
-}
-
 private fun LiveDataWebSocketState.toDebugName(): String = name
     .lowercase(Locale.US)
     .replace('_', ' ')
@@ -1398,6 +1332,112 @@ private fun Long.toElapsedText(): String {
     }
 }
 
+private fun Exception.toLivePlayerErrorText(): String {
+    val playbackException = this as? PlaybackException
+    val cause = cause
+    val baseMessage = message ?: "直播播放失败"
+    val errorCode = playbackException?.errorCodeName?.takeIf { it.isNotBlank() }
+    val causeText = cause?.let {
+        listOfNotNull(
+            it.javaClass.simpleName,
+            it.message?.takeIf(String::isNotBlank)
+        ).joinToString(": ")
+    }
+    return buildString {
+        append(baseMessage)
+        errorCode?.let { append(" ($it)") }
+        causeText?.let { append(": ").append(it) }
+    }
+}
+
+private fun Long.toLiveUptimeTextOrNull(nowMs: Long = System.currentTimeMillis()): String? {
+    if (this <= 0L) return null
+    val startMs = if (this < 10_000_000_000L) this * 1000L else this
+    val elapsedMs = (nowMs - startMs).coerceAtLeast(0L)
+    return elapsedMs.formatHourMinSec()
+}
+
 private fun String.toHostOrNull(): String? {
     return runCatching { java.net.URI(this).host }.getOrNull()?.takeIf { it.isNotBlank() }
 }
+
+private fun LivePlaybackSource.toLiveBitrateBoostStatsText(): String =
+    if (playUrl.contains("gotcha204b", ignoreCase = true)) {
+        "on (gotcha204b)"
+    } else {
+        "off"
+    }
+
+private fun Int.toLiveQualityStatsText(
+    source: LivePlaybackSource,
+    videoWidth: Int,
+    videoHeight: Int
+): String {
+    val desc = LiveStreamResolver.buildPlaybackQualityLabel(
+        source = source,
+        videoWidth = videoWidth,
+        videoHeight = videoHeight
+    )
+    return if (desc.isNullOrBlank()) toString() else "$this ($desc)"
+}
+
+private fun String.toQueryParamOrNull(name: String): String? {
+    val query = runCatching { java.net.URI(this).rawQuery }.getOrNull()
+        ?: substringAfter('?', missingDelimiterValue = "")
+            .substringBefore('#')
+            .takeIf { it.isNotBlank() }
+        ?: return null
+    return query
+        .split('&')
+        .firstNotNullOfOrNull { part ->
+            val key = part.substringBefore('=', missingDelimiterValue = part)
+            if (key == name) part.substringAfter('=', missingDelimiterValue = "") else null
+        }
+        ?.takeIf { it.isNotBlank() }
+}
+
+private fun dev.aaa1115910.bv.repository.LiveMasterVariant.toStatsLines(): List<String> {
+    val resolution = if (width > 0 && height > 0) "${width}x$height" else "-"
+    val fps = frameRate.toLiveFrameRateTextOrNull()?.let { "${it}fps" } ?: "-"
+    val bitrate = bandwidth.takeIf { it > 0L }?.let { "${it / 1000}kbps" } ?: "-"
+    val streamText = stream.takeIf { it.isNotBlank() } ?: "-"
+    return listOf(
+        "$inferredDisplayName qn=$qn res=$resolution fps=$fps",
+        "    bw=$bitrate stream=$streamText"
+    )
+}
+
+private fun String.toLiveVideoFpsOrNull(): String? =
+    lineSequence()
+        .firstOrNull { it.startsWith("video fps:", ignoreCase = true) }
+        ?.substringAfter(':')
+        ?.trim()
+        ?.removeSuffixIgnoreCase("FPS")
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+        ?: lineSequence()
+        .firstOrNull { it.startsWith("video info:", ignoreCase = true) }
+        ?.substringAfter(':')
+        ?.split(',')
+        ?.map { it.trim() }
+        ?.firstOrNull { it.endsWith("FPS", ignoreCase = true) }
+        ?.removeSuffixIgnoreCase("FPS")
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+
+private fun Float.toLiveFrameRateTextOrNull(): String? {
+    if (this <= 0f || isNaN()) return null
+    val rounded = roundToInt()
+    return if (abs(this - rounded) < 0.05f) {
+        rounded.toString()
+    } else {
+        String.format(Locale.US, "%.1f", this)
+    }
+}
+
+private fun String.removeSuffixIgnoreCase(suffix: String): String =
+    if (endsWith(suffix, ignoreCase = true)) {
+        dropLast(suffix.length)
+    } else {
+        this
+    }

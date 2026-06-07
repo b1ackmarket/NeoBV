@@ -6,16 +6,6 @@ import org.junit.jupiter.api.Test
 
 class BiliLiveHttpApiTest {
     @Test
-    fun `get history live room danmaku`() {
-        Assertions.assertDoesNotThrow {
-            runBlocking {
-                val response = BiliLiveHttpApi.getLiveDanmuHistory(roomId = 22739471)
-                println(response)
-            }
-        }
-    }
-
-    @Test
     fun `get live event websocket connect url and token`() {
         Assertions.assertDoesNotThrow {
             runBlocking {

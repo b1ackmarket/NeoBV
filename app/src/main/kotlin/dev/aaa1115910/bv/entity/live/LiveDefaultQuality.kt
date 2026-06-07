@@ -4,15 +4,15 @@ enum class LiveDefaultQuality(
     val qn: Int,
     val displayName: String
 ) {
-    Smooth(80, "360P流畅"),
-    High(150, "480P高清"),
-    Super(250, "720P超清"),
-    BlueRay(400, "1080P蓝光"),
-    Original(10000, "1080P原画"),
-    HighBitrate(25000, "1080P高码率"),
-    R2K(15000, "2K原画"),
-    R4K(20000, "4K原画"),
-    Dolby(30000, "杜比视界");
+    Smooth(80, "流畅"),
+    High(150, "高清"),
+    Super(250, "超清"),
+    BlueRay(400, "蓝光"),
+    Original(10000, "原画"),
+    R2K(15000, "2K"),
+    R4K(20000, "4K"),
+    HighBitrate(25000, "原画真彩"),
+    Dolby(30000, "杜比");
 
     companion object {
         fun fromQn(qn: Int): LiveDefaultQuality =

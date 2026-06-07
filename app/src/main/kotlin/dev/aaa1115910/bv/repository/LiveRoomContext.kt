@@ -5,6 +5,7 @@ data class LiveRoomContext(
     val ownerMid: Long,
     val isPortrait: Boolean,
     val liveStatus: Int,
+    val liveStartTime: Long = 0L,
     val title: String = "",
     val cover: String = "",
     val keyframe: String = "",
