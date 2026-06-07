@@ -14,7 +14,7 @@ import kotlinx.serialization.json.jsonPrimitive
 object CastContentParser {
     private val json = Json { ignoreUnknownKeys = true }
     private val keyValueRegex = Regex(
-        pattern = """(?i)(aid|avid|av|bvid|bv|cid|epid|ep_id|seasonid|season_id|roomid|room_id|seekts|seek_ts|progress|qn|quality|userDesireQn|speed|play_speed|userDesireSpeed|danmakuSwitchSave|danmakuState|danmakuStatus|title|part_title|partTitle)["'\s:=]+([^\s"'&,<>{}\]]+)"""
+        pattern = """(?i)(aid|avid|av|bvid|bv|cid|epid|ep_id|seasonid|season_id|roomid|room_id|seekts|seek_ts|progress|qn|quality|userDesireQn|speed|play_speed|userDesireSpeed|danmakuSwitchSave|danmakuState|danmakuStatus|danmaku_switch|dm_switch|dmSwitch|barrageSwitch|title|part_title|partTitle)["'\s:=]+([^\s"'&,<>{}\]]+)"""
     )
     private val projectionExtKeys = listOf("nva_ext", "_nva_ext_")
 
@@ -61,6 +61,10 @@ object CastContentParser {
         normalizeAlias(fields, "danmakuSwitchSave", "danmaku_enabled")
         normalizeAlias(fields, "danmakuState", "danmaku_enabled")
         normalizeAlias(fields, "danmakuStatus", "danmaku_enabled")
+        normalizeAlias(fields, "danmaku_switch", "danmaku_enabled")
+        normalizeAlias(fields, "dm_switch", "danmaku_enabled")
+        normalizeAlias(fields, "dmSwitch", "danmaku_enabled")
+        normalizeAlias(fields, "barrageSwitch", "danmaku_enabled")
         normalizeAlias(fields, "partTitle", "part_title")
 
         val bvid = fields.firstString("bvid")?.takeIf { it.startsWith("BV", ignoreCase = true) }

@@ -149,7 +149,9 @@ fun LivePlayerScreen() {
     var lastBackPressedAt by remember { mutableStateOf(0L) }
     var clockText by remember { mutableStateOf(currentClockText()) }
     var reloadToken by remember { mutableStateOf(0) }
-    var selectedQuality by remember { mutableStateOf(Prefs.defaultLiveQuality.qn) }
+    var selectedQuality by remember {
+        mutableStateOf(activity.intent.getIntExtra("cast_quality", Prefs.defaultLiveQuality.qn))
+    }
     var selectedLineIndex by remember { mutableStateOf(0) }
     var showLiveStats by remember { mutableStateOf(Prefs.showPlayerStats) }
     var preferLiveHighBitrate by remember { mutableStateOf(Prefs.preferLiveHighBitrate) }
@@ -463,6 +465,9 @@ fun LivePlayerScreen() {
             }
             liveUpPanelFace = card.card.face
             liveUpPanelFollowing = card.following
+            if (upName.isBlank()) {
+                upName = card.card.name
+            }
         }
     }
 

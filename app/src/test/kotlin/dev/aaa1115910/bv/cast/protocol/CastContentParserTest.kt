@@ -78,12 +78,14 @@ class CastContentParserTest {
         val content = CastContentParser.parse(
             path = "/bilibili/live",
             queryParameters = Parameters.Empty,
-            body = "room_id=27183290&title=%E7%9B%B4%E6%92%AD"
+            body = "room_id=27183290&title=%E7%9B%B4%E6%92%AD&userDesireQn=10000&dm_switch=0"
         )
 
         assertNotNull(content)
         assertEquals(27183290, content.roomId)
         assertEquals("直播", content.title)
+        assertEquals(10000, content.quality)
+        assertEquals(false, content.danmakuEnabled)
     }
 
     @Test

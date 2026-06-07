@@ -46,6 +46,7 @@ class CastPlaybackLauncher(private val appContext: Context) {
                 putExtra("title", content.title ?: "投屏直播 $roomId")
                 putExtra("up_name", "")
                 putExtra("online", 0)
+                content.quality?.let { putExtra("cast_quality", it) }
                 content.danmakuEnabled?.let { putExtra("danmaku_enabled", it) }
             }
         )
