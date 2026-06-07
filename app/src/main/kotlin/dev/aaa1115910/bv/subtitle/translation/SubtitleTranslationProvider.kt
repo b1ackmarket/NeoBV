@@ -105,7 +105,7 @@ class OpenAiCompatibleSubtitleTranslationProvider(
             ?.get("message")?.jsonObject
             ?.get("content")?.jsonPrimitive?.contentOrNull
             ?: error("接口未返回翻译内容")
-        return SubtitleTranslationResult(parseIdTextTranslations(content))
+        return SubtitleTranslationResult(parseIdTextTranslations(content, request.items))
     }
 }
 
@@ -239,7 +239,10 @@ suspend fun testSubtitleTranslationConnection(
 
 const val DefaultSubtitleTranslationTestSentence: String = "我今天想练习英语听力。"
 
-fun parseIdTextTranslations(raw: String): Map<Int, String> {
+fun parseIdTextTranslations(
+    raw: String,
+    sourceItems: List<SubtitleTranslationItem> = emptyList()
+): Map<Int, String> {
     val cleaned = raw.trim()
         .removePrefix("```json").removePrefix("```")
         .removeSuffix("```")
@@ -252,7 +255,7 @@ fun parseIdTextTranslations(raw: String): Map<Int, String> {
             ?: error("翻译结果不是数组")
         else -> error("翻译结果格式错误")
     }
-    return array.mapNotNull { item ->
+    val parsed = array.mapNotNull { item ->
         val obj = item.jsonObject
         val id = obj["id"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
             ?: obj["index"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
@@ -261,7 +264,25 @@ fun parseIdTextTranslations(raw: String): Map<Int, String> {
             ?: obj["translation"]?.jsonPrimitive?.contentOrNull
             ?: return@mapNotNull null
         id to cleanTranslatedSubtitleText(text, expectedPrefixes = listOf(id, id + 1))
-    }.toMap()
+    }
+    val sourceIds = sourceItems.map { it.id }.toSet()
+    val parsedIds = parsed.map { it.first }.toSet()
+    val looksLikeSequentialModelIds = sourceItems.isNotEmpty() &&
+        parsed.size == sourceItems.size &&
+        !parsedIds.all { it in sourceIds } &&
+        parsed.map { it.first } == (1..parsed.size).toList()
+
+    return if (looksLikeSequentialModelIds) {
+        parsed.mapIndexed { index, item ->
+            val sourceId = sourceItems[index].id
+            sourceId to cleanTranslatedSubtitleText(
+                raw = item.second,
+                expectedPrefixes = listOf(item.first, sourceId, sourceId + 1, index, index + 1)
+            )
+        }.toMap()
+    } else {
+        parsed.toMap()
+    }
 }
 
 fun parseTabLineTranslations(

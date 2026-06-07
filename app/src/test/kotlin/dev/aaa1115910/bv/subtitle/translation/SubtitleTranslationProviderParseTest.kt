@@ -19,6 +19,25 @@ class SubtitleTranslationProviderParseTest {
     }
 
     @Test
+    fun `parse openai sequential ids by source order when model rewrites ids`() {
+        val source = listOf(
+            SubtitleTranslationItem(8, "你好"),
+            SubtitleTranslationItem(9, "世界")
+        )
+        val result = parseIdTextTranslations(
+            raw = """
+            [
+              {"id": 1, "text": "hello"},
+              {"id": 2, "text": "world"}
+            ]
+            """.trimIndent(),
+            sourceItems = source
+        )
+
+        assertEquals(mapOf(8 to "hello", 9 to "world"), result)
+    }
+
+    @Test
     fun `parse tab line translations keeps source item ids`() {
         val source = listOf(
             SubtitleTranslationItem(10, "你好"),

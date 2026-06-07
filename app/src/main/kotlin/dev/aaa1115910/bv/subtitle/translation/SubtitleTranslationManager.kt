@@ -53,6 +53,7 @@ class SubtitleTranslationManager(
         aid: Long,
         cid: Long,
         subtitleId: Long,
+        restartInFlight: Boolean = true,
         onUpdate: (List<SubtitleItem>) -> Unit,
         onError: (Throwable) -> Unit
     ) {
@@ -60,6 +61,7 @@ class SubtitleTranslationManager(
         if (!sanitized.verified() || sourceSubtitles.isEmpty()) return
         val nextPrefix = buildCachePrefix(aid, cid, subtitleId, sanitized)
         if (nextPrefix != cachePrefix) reset(nextPrefix)
+        if (!restartInFlight && job?.isActive == true) return
         val currentSession = session
         job?.cancel()
         job = scope.launch {

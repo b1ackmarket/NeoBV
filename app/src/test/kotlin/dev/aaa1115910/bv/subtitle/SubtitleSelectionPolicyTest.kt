@@ -46,7 +46,7 @@ class SubtitleSelectionPolicyTest {
             .let { it.copy(verifiedSignature = it.configSignature()) }
         val options = buildSecondarySubtitleOptions(
             tracks = listOf(english()),
-            currentMainSubtitleId = -1L,
+            currentMainSubtitleId = 1L,
             config = config,
             preferCustom = true,
             sourceSubtitleAvailable = false
@@ -72,6 +72,32 @@ class SubtitleSelectionPolicyTest {
         )
 
         assertEquals(3L, selected?.id)
+    }
+
+    @Test
+    fun `default secondary stays off without memory`() {
+        val options = buildSecondarySubtitleOptions(
+            tracks = listOf(chinese(), english()),
+            currentMainSubtitleId = 1L,
+            config = SubtitleTranslationConfig(targetLanguage = "en"),
+            preferCustom = false,
+            sourceSubtitleAvailable = true
+        )
+
+        assertEquals(null, resolveDefaultSecondarySubtitleOption(options, memory = null))
+    }
+
+    @Test
+    fun `osd bilingual recovery can select first secondary without memory`() {
+        val options = buildSecondarySubtitleOptions(
+            tracks = listOf(chinese(), english()),
+            currentMainSubtitleId = 1L,
+            config = SubtitleTranslationConfig(targetLanguage = "en"),
+            preferCustom = false,
+            sourceSubtitleAvailable = true
+        )
+
+        assertEquals(2L, resolveRememberedSecondarySubtitleOption(options, memory = null)?.id)
     }
 
     private fun chinese() = subtitle(1L, "zh", "中文")

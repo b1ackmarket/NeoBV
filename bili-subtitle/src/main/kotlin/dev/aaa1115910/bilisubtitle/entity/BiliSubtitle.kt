@@ -2,8 +2,11 @@ package dev.aaa1115910.bilisubtitle.entity
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.JsonNames
+import kotlinx.serialization.json.JsonElement
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class BiliSubtitle(
     @SerialName("font_size")
@@ -20,7 +23,7 @@ data class BiliSubtitle(
     val stroke: String? = null,
     val type: String? = null,
     val lang: String? = null,
-    val version: String? = null,
+    val version: JsonElement? = null,
     val body: List<BiliSubtitleItem> = emptyList()
 )
 

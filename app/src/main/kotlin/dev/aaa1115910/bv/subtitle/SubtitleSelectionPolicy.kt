@@ -52,6 +52,14 @@ fun resolveDefaultSecondarySubtitleOption(
     options: List<SecondarySubtitleOption>,
     memory: SubtitleMemory?
 ): SecondarySubtitleOption? {
+    if (memory == null) return null
+    return resolveRememberedSecondarySubtitleOption(options, memory)
+}
+
+fun resolveRememberedSecondarySubtitleOption(
+    options: List<SecondarySubtitleOption>,
+    memory: SubtitleMemory?
+): SecondarySubtitleOption? {
     if (options.isEmpty()) return null
     if (memory == null) return options.firstOrNull()
     return options.firstOrNull { option ->

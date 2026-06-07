@@ -7,10 +7,15 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 
 object SubtitleParser {
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
+
     fun fromBccString(bcc: String): List<SubtitleItem> {
         val result = mutableListOf<SubtitleItem>()
         val bccResult = runCatching {
-            Json.decodeFromString<BiliSubtitle>(bcc)
+            json.decodeFromString<BiliSubtitle>(bcc)
         }.getOrNull()
         bccResult?.body?.forEach { bccItem ->
             result.add(

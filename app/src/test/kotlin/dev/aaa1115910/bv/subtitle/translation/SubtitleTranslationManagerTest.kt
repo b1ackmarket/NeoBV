@@ -2,7 +2,10 @@ package dev.aaa1115910.bv.subtitle.translation
 
 import dev.aaa1115910.bilisubtitle.entity.SubtitleItem
 import dev.aaa1115910.bilisubtitle.entity.Timestamp
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -109,6 +112,72 @@ class SubtitleTranslationManagerTest {
 
         assertEquals(emptyList(), updates)
         assertEquals(emptyList(), manager.buildTranslatedSubtitles(source))
+    }
+
+    @Test
+    fun `soft preload keeps in flight translation request alive`() = runBlocking {
+        val source = listOf(
+            subtitle(0, 2, "一"),
+            subtitle(3, 5, "二")
+        )
+        val config = SubtitleTranslationConfig(
+            openAiBaseUrl = "https://example.com/v1",
+            openAiApiKey = "key",
+            openAiModel = "model"
+        ).let { it.copy(verifiedSignature = it.configSignature()) }
+        var requestCount = 0
+        val firstRequestStarted = CompletableDeferred<Unit>()
+        val provider = object : SubtitleTranslationProvider {
+            override suspend fun translate(request: SubtitleTranslationRequest): SubtitleTranslationResult {
+                requestCount += 1
+                firstRequestStarted.complete(Unit)
+                delay(100)
+                return SubtitleTranslationResult(
+                    mapOf(
+                        0 to "one",
+                        1 to "two"
+                    )
+                )
+            }
+        }
+        val manager = SubtitleTranslationManager(
+            scope = this,
+            updateDispatcher = Dispatchers.Unconfined,
+            providerFactory = { provider }
+        )
+        val updates = mutableListOf<List<SubtitleItem>>()
+
+        val firstPreload = async {
+            manager.preload(
+                sourceSubtitles = source,
+                currentTimeMs = 0L,
+                config = config,
+                title = "视频",
+                aid = 1L,
+                cid = 2L,
+                subtitleId = 3L,
+                onUpdate = updates::add,
+                onError = { throw it }
+            )
+        }
+        firstRequestStarted.await()
+        manager.preload(
+            sourceSubtitles = source,
+            currentTimeMs = 1_000L,
+            config = config,
+            title = "视频",
+            aid = 1L,
+            cid = 2L,
+            subtitleId = 3L,
+            restartInFlight = false,
+            onUpdate = updates::add,
+            onError = { throw it }
+        )
+        firstPreload.await()
+        delay(150)
+
+        assertEquals(1, requestCount)
+        assertEquals(listOf("one", "two"), updates.single().map { it.content })
     }
 
     private fun subtitle(
