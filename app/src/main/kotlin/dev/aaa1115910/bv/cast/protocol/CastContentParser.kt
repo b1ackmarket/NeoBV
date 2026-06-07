@@ -55,7 +55,11 @@ object CastContentParser {
         normalizeAlias(fields, "sk", "seekts")
         normalizeAlias(fields, "progress", "seekts")
         normalizeAlias(fields, "quality", "qn")
-        preferAlias(fields, "userDesireQn", "qn")
+        if (fields.firstInt("roomid") != null) {
+            normalizeAlias(fields, "userDesireQn", "qn")
+        } else {
+            preferAlias(fields, "userDesireQn", "qn")
+        }
         normalizeAlias(fields, "speed", "userDesireSpeed")
         normalizeAlias(fields, "play_speed", "userDesireSpeed")
         normalizeAlias(fields, "danmakuSwitchSave", "danmaku_enabled")
@@ -69,15 +73,16 @@ object CastContentParser {
 
         val bvid = fields.firstString("bvid")?.takeIf { it.startsWith("BV", ignoreCase = true) }
         val aid = fields.firstLong("aid") ?: bvid?.let { runCatching { AvBvConverter.bv2av(it) }.getOrNull() }
+        val roomId = fields.firstInt("roomid")?.takeIf { it > 0 }
         val content = CastContent(
             aid = aid?.takeIf { it > 0L },
             bvid = bvid,
             cid = fields.firstLong("cid")?.takeIf { it > 0L },
             epid = fields.firstInt("epid")?.takeIf { it > 0 },
             seasonId = fields.firstInt("seasonid")?.takeIf { it > 0 },
-            roomId = fields.firstInt("roomid")?.takeIf { it > 0 },
+            roomId = roomId,
             seekSeconds = fields.firstInt("seekts")?.takeIf { it >= 0 },
-            quality = fields.firstInt("qn")?.takeIf { it > 0 },
+            quality = fields.firstInt("qn")?.takeIf { roomId == null && it > 0 },
             playSpeed = fields.firstFloat("userDesireSpeed")?.takeIf { it > 0f },
             danmakuEnabled = fields.firstBoolean("danmaku_enabled"),
             title = fields.firstString("title")?.decodeLoose(),

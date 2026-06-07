@@ -46,7 +46,6 @@ class CastPlaybackLauncher(private val appContext: Context) {
                 putExtra("title", content.title ?: "投屏直播 $roomId")
                 putExtra("up_name", "")
                 putExtra("online", 0)
-                content.quality?.let { putExtra("cast_quality", it) }
                 content.danmakuEnabled?.let { putExtra("danmaku_enabled", it) }
             }
         )
@@ -73,7 +72,6 @@ class CastPlaybackLauncher(private val appContext: Context) {
                 putExtra("epid", resolved.epid ?: 0)
                 putExtra("seasonId", resolved.seasonId ?: 0)
                 content.playSpeed?.let { putExtra("play_speed", it) }
-                content.quality?.let { putExtra("cast_quality", it) }
                 content.danmakuEnabled?.let { putExtra("danmaku_enabled", it) }
             }
         )
@@ -159,7 +157,6 @@ class CastPlaybackLauncher(private val appContext: Context) {
             content.seasonId,
             content.roomId,
             content.seekSeconds,
-            content.quality,
             content.playSpeed,
             content.danmakuEnabled
         ).joinToString(separator = ":")

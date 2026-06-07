@@ -4,6 +4,7 @@ import io.ktor.http.Parameters
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 class CastContentParserTest {
     @Test
@@ -84,8 +85,25 @@ class CastContentParserTest {
         assertNotNull(content)
         assertEquals(27183290, content.roomId)
         assertEquals("直播", content.title)
-        assertEquals(10000, content.quality)
+        assertNull(content.quality)
         assertEquals(false, content.danmakuEnabled)
+    }
+
+    @Test
+    fun `parse live cast ignores restricted mobile quality`() {
+        val content = CastContentParser.parse(
+            path = "/bilibili/AVTransport/control",
+            queryParameters = Parameters.Empty,
+            body = """
+                <CurrentURI>http://example.com/live.flv?qn=250&amp;bili_room_id=865961&amp;proj_source=bilibili</CurrentURI>
+                <upnp:longDescription>{"content":{"contentType":3,"roomId":865961,"userDesireQn":116,"danmakuSwitchSave":true}}</upnp:longDescription>
+            """.trimIndent()
+        )
+
+        assertNotNull(content)
+        assertEquals(865961, content.roomId)
+        assertNull(content.quality)
+        assertEquals(true, content.danmakuEnabled)
     }
 
     @Test
