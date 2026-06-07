@@ -1,13 +1,16 @@
 package dev.aaa1115910.bv.player.impl.exo
 
 import android.content.Context
+import android.media.MediaFormat
 import android.os.Handler
 import android.os.SystemClock
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.BaseAudioProcessor
@@ -29,6 +32,7 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
+import androidx.media3.exoplayer.video.VideoFrameMetadataListener
 import androidx.media3.exoplayer.video.VideoRendererEventListener
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.player.OkHttpUtil
@@ -38,6 +42,7 @@ import java.util.ArrayDeque
 import java.util.Locale
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.net.URI
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -47,7 +52,7 @@ import kotlin.math.roundToInt
 class ExoMediaPlayer(
     private val context: Context,
     private val options: VideoPlayerOptions
-) : AbstractVideoPlayer(), Player.Listener, AnalyticsListener {
+) : AbstractVideoPlayer(), Player.Listener, AnalyticsListener, VideoFrameMetadataListener {
     var mPlayer: ExoPlayer? = null
     protected var mMediaSource: MediaSource? = null
     private var droppedVideoFrames = 0
@@ -55,6 +60,10 @@ class ExoMediaPlayer(
     private val realtimeSpeedSamples = ArrayDeque<TransferSample>()
     private val realtimeSpeedLock = Any()
     private var latestRealtimeSpeed = 0L
+    private val renderedVideoFrameSamples = ArrayDeque<Long>()
+    private val renderedVideoFrameLock = Any()
+    private var latestRenderedVideoFps = 0f
+    private var currentMediaUrl: String = ""
     private val transferListener = object : TransferListener {
         override fun onTransferInitializing(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {
             bandwidthMeter.onTransferInitializing(source, dataSpec, isNetwork)
@@ -179,6 +188,7 @@ class ExoMediaPlayer(
     private fun initListener() {
         mPlayer?.addListener(this)
         mPlayer?.addAnalyticsListener(this)
+        mPlayer?.setVideoFrameMetadataListener(this)
     }
 
     @OptIn(UnstableApi::class)
@@ -188,6 +198,7 @@ class ExoMediaPlayer(
 
     @OptIn(UnstableApi::class)
     override fun playUrl(videoUrl: String?, audioUrl: String?) {
+        currentMediaUrl = videoUrl.orEmpty()
         if (audioUrl == null && videoUrl?.contains(".m3u8") == true) {
             mMediaSource = HlsMediaSource.Factory(dataSourceFactory)
                 .createMediaSource(MediaItem.fromUri(videoUrl))
@@ -209,6 +220,7 @@ class ExoMediaPlayer(
 
     @OptIn(UnstableApi::class)
     override fun playDash(mpdUrl: String) {
+        currentMediaUrl = mpdUrl
         val mediaItem = MediaItem.Builder()
             .setUri(mpdUrl)
             .setMimeType(MimeTypes.APPLICATION_MPD)
@@ -247,6 +259,7 @@ class ExoMediaPlayer(
     }
 
     override fun release() {
+        mPlayer?.clearVideoFrameMetadataListener(this)
         mPlayer?.release()
     }
 
@@ -302,12 +315,31 @@ class ExoMediaPlayer(
     override val debugInfo: String
         get() {
             val player = mPlayer
+            val selectedVideoFormat = player?.currentTracks?.selectedFormatFor(C.TRACK_TYPE_VIDEO)
+            val selectedAudioFormat = player?.currentTracks?.selectedFormatFor(C.TRACK_TYPE_AUDIO)
             return buildString {
+                selectedVideoFormat?.sampleMimeType?.let { mimeType ->
+                    val codecs = listOfNotNull(
+                        selectedVideoFormat.codecs?.takeIf { it.isNotBlank() },
+                        selectedAudioFormat?.codecs?.takeIf { it.isNotBlank() }
+                    ).joinToString(",")
+                    appendLine("mime type: $mimeType${codecs.takeIf { it.isNotBlank() }?.let { "; codecs=\"$it\"" }.orEmpty()}")
+                }
+                selectedVideoFormat?.toVideoCodecLine()?.let { appendLine(it) }
+                selectedVideoFormat?.toVideoInfoLine()?.let { appendLine(it) }
+                getRenderedVideoFps().takeIf { it > 0f }?.let { fps ->
+                    appendLine("video fps: ${formatFrameRate(fps)}")
+                }
+                selectedAudioFormat?.toAudioCodecLine()?.let { appendLine(it) }
+                selectedAudioFormat?.toAudioInfoLine()?.let { appendLine(it) }
+                currentMediaUrl.toHostOrNull()?.let { appendLine("stream host: $it") }
                 appendLine("player: ${androidx.media3.common.MediaLibraryInfo.VERSION_SLASHY}")
                 appendLine("time: ${currentPosition.formatMinSec()} / ${duration.formatMinSec()}")
                 appendLine("buffered: $bufferedPercentage%")
-                appendLine("speed: ${formatSpeed(speed)}")
-                appendLine("network speed: ${formatBitrate(tcpSpeed)}")
+                player?.bufferedPosition?.let { bufferedPosition ->
+                    appendLine("buffer length: ${formatBufferLength(bufferedPosition - currentPosition)}")
+                }
+                appendLine("download bitrate: ${formatBitrate(tcpSpeed)}")
                 appendLine("dropped frames: $droppedVideoFrames")
                 append("track groups: ${player?.currentTracks?.groups?.size ?: 0}")
             }
@@ -330,6 +362,15 @@ class ExoMediaPlayer(
         droppedVideoFrames += droppedFrames
     }
 
+    override fun onVideoFrameAboutToBeRendered(
+        presentationTimeUs: Long,
+        releaseTimeNs: Long,
+        format: Format,
+        mediaFormat: MediaFormat?
+    ) {
+        recordRenderedVideoFrame()
+    }
+
     private fun recordRealtimeSpeedSample(bytesTransferred: Int) {
         val now = SystemClock.elapsedRealtime()
         synchronized(realtimeSpeedLock) {
@@ -344,6 +385,38 @@ class ExoMediaPlayer(
             latestRealtimeSpeed = calculateRealtimeNetworkSpeedLocked(now)
             latestRealtimeSpeed
         }
+    }
+
+    private fun recordRenderedVideoFrame() {
+        val now = SystemClock.elapsedRealtime()
+        synchronized(renderedVideoFrameLock) {
+            renderedVideoFrameSamples.addLast(now)
+            latestRenderedVideoFps = calculateRenderedVideoFpsLocked(now)
+        }
+    }
+
+    private fun getRenderedVideoFps(): Float {
+        val now = SystemClock.elapsedRealtime()
+        return synchronized(renderedVideoFrameLock) {
+            latestRenderedVideoFps = calculateRenderedVideoFpsLocked(now)
+            latestRenderedVideoFps
+        }
+    }
+
+    private fun calculateRenderedVideoFpsLocked(now: Long): Float {
+        while (renderedVideoFrameSamples.isNotEmpty()) {
+            val firstSample = renderedVideoFrameSamples.peekFirst() ?: break
+            if (now - firstSample <= RenderedFpsWindowMs) break
+            renderedVideoFrameSamples.removeFirst()
+        }
+        val firstSample = renderedVideoFrameSamples.peekFirst()
+        val lastSample = renderedVideoFrameSamples.peekLast()
+        if (firstSample == null || lastSample == null || now - lastSample > RenderedFpsIdleTimeoutMs) {
+            renderedVideoFrameSamples.clear()
+            return 0f
+        }
+        val elapsedMs = (lastSample - firstSample).coerceAtLeast(1L)
+        return (renderedVideoFrameSamples.size - 1).coerceAtLeast(0) * 1000f / elapsedMs
     }
 
     private fun calculateRealtimeNetworkSpeedLocked(now: Long): Long {
@@ -362,10 +435,6 @@ class ExoMediaPlayer(
         return bytesInWindow * 8_000L / RealtimeSpeedWindowMs
     }
 
-    private fun formatSpeed(speed: Float): String {
-        return String.format(Locale.US, "%.2fx", speed)
-    }
-
     private fun formatBitrate(bitrate: Long): String {
         if (bitrate <= 0L) return "0 kbps"
         return if (bitrate >= 1_000_000) {
@@ -373,6 +442,10 @@ class ExoMediaPlayer(
         } else {
             "${bitrate / 1000} kbps"
         }
+    }
+
+    private fun formatBufferLength(bufferLengthMs: Long): String {
+        return String.format(Locale.US, "%.3fs", bufferLengthMs.coerceAtLeast(0L) / 1000f)
     }
 
     private data class TransferSample(
@@ -383,8 +456,102 @@ class ExoMediaPlayer(
     private companion object {
         const val RealtimeSpeedWindowMs = 1_000L
         const val RealtimeSpeedIdleTimeoutMs = 1_200L
+        const val RenderedFpsWindowMs = 1_000L
+        const val RenderedFpsIdleTimeoutMs = 1_500L
     }
 }
+
+@OptIn(UnstableApi::class)
+private fun Tracks.selectedFormatFor(trackType: Int): Format? {
+    return groups
+        .asSequence()
+        .filter { it.type == trackType && it.isSelected }
+        .flatMap { group ->
+            (0 until group.length).asSequence()
+                .filter { group.isTrackSelected(it) }
+                .map { group.getTrackFormat(it) }
+        }
+        .firstOrNull()
+}
+
+private fun Format.toVideoInfoLine(): String? {
+    val resolution = if (width > 0 && height > 0) "${width}x$height" else ""
+    val frameRateText = frameRate.takeIf { it > 0f }?.let {
+        "${String.format(Locale.US, "%.0f", it)}FPS"
+    }.orEmpty()
+    val bitrateText = debugBitrate.takeIf { it > 0 }?.let { formatFormatBitrate(it.toLong()) }.orEmpty()
+    val value = listOf(resolution, frameRateText, bitrateText)
+        .filter { it.isNotBlank() }
+        .joinToString(", ")
+    return value.takeIf { it.isNotBlank() }?.let { "video info: $it" }
+}
+
+private fun Format.toVideoCodecLine(): String? =
+    resolveCodecName(sampleMimeType, codecs)
+        ?.let { "video codec: $it" }
+
+private fun Format.toAudioCodecLine(): String? =
+    resolveCodecName(sampleMimeType, codecs)
+        ?.let { "audio codec: $it" }
+
+private fun resolveCodecName(mimeType: String?, codecs: String?): String? {
+    val codec = codecs
+        ?.split(',')
+        ?.map { it.trim() }
+        ?.firstOrNull { it.isNotBlank() }
+    val normalized = listOfNotNull(codec, mimeType).joinToString(separator = " ").lowercase(Locale.US)
+    return when {
+        normalized.contains("hev1") || normalized.contains("hvc1") ||
+            normalized.contains("h265") || normalized.contains("hevc") -> "hevc"
+        normalized.contains("avc1") || normalized.contains("avc3") ||
+            normalized.contains("h264") || normalized.contains("avc") -> "avc"
+        normalized.contains("av01") || normalized.contains("av1") -> "av1"
+        normalized.contains("mp4a") || normalized.contains("aac") -> "aac"
+        normalized.contains("opus") -> "opus"
+        normalized.contains("ec-3") || normalized.contains("eac3") -> "eac3"
+        normalized.contains("ac-3") || normalized.contains("ac3") -> "ac3"
+        codec != null -> codec.substringBefore('.').takeIf { it.isNotBlank() }
+        mimeType != null -> mimeType.substringAfterLast('/').takeIf { it.isNotBlank() }
+        else -> null
+    }
+}
+
+private fun formatFrameRate(frameRate: Float): String =
+    if (abs(frameRate - frameRate.roundToInt()) < 0.05f) {
+        frameRate.roundToInt().toString()
+    } else {
+        String.format(Locale.US, "%.1f", frameRate)
+    }
+
+private fun Format.toAudioInfoLine(): String? {
+    val sampleRateText = sampleRate.takeIf { it > 0 }?.let { "${it / 1000}KHz" }.orEmpty()
+    val channelText = channelCount.takeIf { it > 0 }?.let {
+        when (it) {
+            1 -> "Mono"
+            2 -> "Stereo"
+            else -> "${it}ch"
+        }
+    }.orEmpty()
+    val bitrateText = debugBitrate.takeIf { it > 0 }?.let { formatFormatBitrate(it.toLong()) }.orEmpty()
+    val value = listOf(sampleRateText, channelText, bitrateText)
+        .filter { it.isNotBlank() }
+        .joinToString(", ")
+    return value.takeIf { it.isNotBlank() }?.let { "audio info: $it" }
+}
+
+private fun String.toHostOrNull(): String? =
+    runCatching { URI(this).host }.getOrNull()?.takeIf { it.isNotBlank() }
+
+private fun formatFormatBitrate(bitrate: Long): String {
+    return if (bitrate >= 1_000_000) {
+        String.format(Locale.US, "%.2f Mbps", bitrate / 1_000_000f)
+    } else {
+        "${bitrate / 1000} kbps"
+    }
+}
+
+private val Format.debugBitrate: Int
+    get() = averageBitrate.takeIf { it > 0 } ?: peakBitrate
 
 @OptIn(UnstableApi::class)
 private class SimpleVolumeNormalizerAudioProcessor : BaseAudioProcessor() {

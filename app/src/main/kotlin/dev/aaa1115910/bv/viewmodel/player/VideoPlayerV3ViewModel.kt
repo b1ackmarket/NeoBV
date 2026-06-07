@@ -1596,7 +1596,10 @@ class VideoPlayerV3ViewModel(
                 launch { updateVideoShot() }
                 launch { updateVideoHeatmap() }
                 launch { updateVideoProgressChapters() }
-                launch { updateVideoPages() }
+                launch {
+                    ensureVideoDetailLoadedForPlayer(avid)
+                    updateVideoPages()
+                }
                 launch { refreshOnlineCount() }
             } catch (e: CancellationException) {
                 throw e // 让结构化并发正常取消，不作为播放错误处理
@@ -2019,6 +2022,19 @@ class VideoPlayerV3ViewModel(
         videoInfoRepository.updateUgcPages(Prefs.playbackApiType)
     }
 
+    private suspend fun ensureVideoDetailLoadedForPlayer(aid: Long) {
+        if (aid <= 0L) return
+        val currentDetail = videoInfoRepository.videoDetailState.value
+        val currentList = videoInfoRepository.videoList.value
+        if (currentDetail?.aid == aid && currentList.isNotEmpty()) return
+        runCatching {
+            videoInfoRepository.loadVideoDetail(aid, Prefs.playbackApiType)
+        }.onFailure { error ->
+            if (error is CancellationException) throw error
+            logger.fWarn { "Preload video detail for player failed. aid=$aid error=${error.message}" }
+        }
+    }
+
     private suspend fun loadDanmaku(aid: Long, cid: Long) {
         if (_uiState.value.danmakuState.enabledTypes.isEmpty()) {
             withContext(Dispatchers.Main) {
@@ -2410,7 +2426,7 @@ class VideoPlayerV3ViewModel(
                 bufferedPercentage = player.bufferedPercentage,
                 debugInfo = listOf(
                     _uiState.value.mediaStatsInfo,
-                    player.debugInfo
+                    player.debugInfo.toPlayerStatsDebugText()
                 ).filter { info -> info.isNotBlank() }.joinToString("\n")
             )
         }
@@ -2818,6 +2834,12 @@ internal fun buildBiliMediaStatsInfo(
             add("audio bitrate: $it")
         }
     }.joinToString("\n")
+}
+
+private fun String.toPlayerStatsDebugText(): String {
+    return lineSequence()
+        .filterNot { it.startsWith("mime type:", ignoreCase = true) }
+        .joinToString("\n")
 }
 
 private fun DashVideo.formatVideoCodec(): String? {
