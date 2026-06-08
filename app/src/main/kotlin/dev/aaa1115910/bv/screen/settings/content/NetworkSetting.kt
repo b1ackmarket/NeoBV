@@ -57,6 +57,7 @@ fun NetworkSetting(
     var proxyGRPCServer by remember { mutableStateOf(Prefs.proxyGRPCServer) }
     var preferOfficialCdn by remember { mutableStateOf(Prefs.preferOfficialCdn) }
     var enableCastReceiver by remember { mutableStateOf(Prefs.enableCastReceiver) }
+    var enablePiliPlusCastCompat by remember { mutableStateOf(Prefs.enablePiliPlusCastCompat) }
     var showProxyHttpServerEditDialog by remember { mutableStateOf(false) }
     var showProxyGRPCServerEditDialog by remember { mutableStateOf(false) }
 
@@ -141,6 +142,18 @@ fun NetworkSetting(
                             } else {
                                 CastReceiverService.stop(context.applicationContext)
                             }
+                        }
+                    )
+                }
+
+                item {
+                    SettingSwitchListItem(
+                        title = "PiliPlus 兼容模式",
+                        supportText = "开启后，PiliPlus 投 UGC 视频时会尝试恢复为完整 NeoBV 播放；当前仅支持 UGC，番剧、电影、影视仍按普通 DLNA 播放",
+                        checked = enablePiliPlusCastCompat,
+                        onCheckedChange = { enable ->
+                            enablePiliPlusCastCompat = enable
+                            Prefs.enablePiliPlusCastCompat = enable
                         }
                     )
                 }

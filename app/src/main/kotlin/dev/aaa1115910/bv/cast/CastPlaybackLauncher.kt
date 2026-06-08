@@ -3,10 +3,12 @@ package dev.aaa1115910.bv.cast
 import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
+import dev.aaa1115910.biliapi.repositories.SearchRepository
 import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
 import dev.aaa1115910.biliapi.util.AvBvConverter
 import dev.aaa1115910.bv.activities.live.LivePlayerActivity
 import dev.aaa1115910.bv.activities.video.VideoPlayerV3Activity
+import dev.aaa1115910.bv.cast.protocol.CastClientHint
 import dev.aaa1115910.bv.cast.protocol.CastContent
 import dev.aaa1115910.bv.util.Prefs
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -14,7 +16,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.java.KoinJavaComponent.getKoin
 
-class CastPlaybackLauncher(private val appContext: Context) {
+class CastPlaybackLauncher(
+    private val appContext: Context,
+    private val dependencies: Dependencies = Dependencies()
+) {
     private val logger = KotlinLogging.logger("CastPlaybackLauncher")
     private var lastLaunch: LastLaunch? = null
 
@@ -33,8 +38,7 @@ class CastPlaybackLauncher(private val appContext: Context) {
             content.hasVideoIdentity -> launchVideo(content)
 
             content.hasDirectMedia -> {
-                launchDirectMedia(content)
-                true
+                launchDirectMediaOrResolvedPiliPlus(content)
             }
 
             else -> false
@@ -56,6 +60,38 @@ class CastPlaybackLauncher(private val appContext: Context) {
         )
     }
 
+    private suspend fun launchDirectMediaOrResolvedPiliPlus(content: CastContent): Boolean {
+        val resolved = resolvePiliPlusUgc(content)
+        if (resolved != null) {
+            launchResolvedVideo(
+                content = content,
+                resolved = ResolvedVideo(
+                    aid = resolved.aid,
+                    cid = resolved.cid,
+                    epid = null,
+                    seasonId = null,
+                    title = resolved.title,
+                    partTitle = resolved.partTitle
+                )
+            )
+            return true
+        }
+
+        launchDirectMedia(content)
+        return true
+    }
+
+    private suspend fun resolvePiliPlusUgc(content: CastContent): PiliPlusResolvedVideo? {
+        if (content.clientHint != CastClientHint.PiliPlus) return null
+        if (!dependencies.enablePiliPlusCastCompat()) {
+            logger.info { "PiliPlus cast compat disabled, use direct DLNA media" }
+            return null
+        }
+        return withContext(Dispatchers.IO) {
+            dependencies.piliPlusResolver().resolve(content)
+        }
+    }
+
     private fun launchDirectMedia(content: CastContent) {
         val url = content.directMediaUrl ?: return
         logger.info { "Launch direct media from cast: url=$url" }
@@ -65,17 +101,23 @@ class CastPlaybackLauncher(private val appContext: Context) {
                 putExtra("external_media_url", url)
                 putExtra("title", content.title ?: "投屏视频")
                 putExtra("played", content.seekSeconds.toPlayedMillis())
+                putExtra("external_media_bilibili", content.isBilibiliDirectMedia)
                 content.playSpeed?.let { putExtra("play_speed", it) }
             }
         )
     }
 
     private suspend fun launchVideo(content: CastContent): Boolean {
-        val repository = getKoin().get<VideoDetailRepository>()
+        val repository = dependencies.videoDetailRepository()
         val resolved = withContext(Dispatchers.IO) {
             resolveVideo(content, repository)
         } ?: return false
 
+        launchResolvedVideo(content, resolved)
+        return true
+    }
+
+    private fun launchResolvedVideo(content: CastContent, resolved: ResolvedVideo) {
         logger.info {
             "Launch video from cast: aid=${resolved.aid}, cid=${resolved.cid}, epid=${resolved.epid}, seasonId=${resolved.seasonId}"
         }
@@ -94,7 +136,6 @@ class CastPlaybackLauncher(private val appContext: Context) {
                 content.danmakuEnabled?.let { putExtra("danmaku_enabled", it) }
             }
         )
-        return true
     }
 
     private suspend fun resolveVideo(
@@ -197,6 +238,19 @@ class CastPlaybackLauncher(private val appContext: Context) {
     private data class LastLaunch(
         val key: String,
         val atMillis: Long
+    )
+
+    class Dependencies(
+        val videoDetailRepository: () -> VideoDetailRepository = { getKoin().get() },
+        val piliPlusResolver: () -> PiliPlusUgcCastResolver = {
+            PiliPlusUgcCastResolver(
+                searchRepository = getKoin().get<SearchRepository>(),
+                videoDetailRepository = getKoin().get(),
+                preferApiType = { Prefs.recommendationApiType.toRequestApiType() },
+                enableProxy = { Prefs.enableProxy }
+            )
+        },
+        val enablePiliPlusCastCompat: () -> Boolean = { Prefs.enablePiliPlusCastCompat }
     )
 
     private companion object {

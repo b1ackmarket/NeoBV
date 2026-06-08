@@ -22,9 +22,13 @@ object CastContentParser {
     fun parse(
         path: String,
         queryParameters: Parameters,
-        body: String?
+        body: String?,
+        headers: Map<String, String> = emptyMap()
     ): CastContent? {
         val fields = linkedMapOf<String, String>()
+        headers.forEach { (name, value) ->
+            if (value.isNotBlank()) fields["header_${name.lowercase()}"] = value
+        }
         queryParameters.names().forEach { name ->
             queryParameters[name]?.takeIf { it.isNotBlank() }?.let { value ->
                 fields[name] = value
@@ -72,6 +76,7 @@ object CastContentParser {
         normalizeAlias(fields, "barrageSwitch", "danmaku_enabled")
         normalizeAlias(fields, "partTitle", "part_title")
 
+        val directMediaUrl = fields.firstDirectMediaUrl()
         val bvid = fields.firstString("bvid")?.takeIf { it.startsWith("BV", ignoreCase = true) }
         val aid = fields.firstLong("aid") ?: bvid?.let { runCatching { AvBvConverter.bv2av(it) }.getOrNull() }
         val roomId = fields.firstInt("roomid")?.takeIf { it > 0 }
@@ -88,7 +93,9 @@ object CastContentParser {
             danmakuEnabled = fields.firstBoolean("danmaku_enabled"),
             title = fields.firstString("title")?.decodeLoose(),
             partTitle = fields.firstString("part_title")?.decodeLoose(),
-            directMediaUrl = fields.firstDirectMediaUrl(),
+            directMediaUrl = directMediaUrl,
+            creator = fields.firstString("creator")?.decodeLoose(),
+            clientHint = fields.resolveClientHint(directMediaUrl),
             rawFields = fields.toMap()
         )
         return content.takeIf { it.hasVideoIdentity || it.hasLiveIdentity || it.hasDirectMedia }
@@ -144,6 +151,10 @@ object CastContentParser {
             ?.decodeXmlEntities()
             ?.takeIf { it.isNotBlank() }
             ?.let { result.putIfAbsent("title", it) }
+        extractXmlText(didl, "creator")
+            ?.decodeXmlEntities()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { result.putIfAbsent("creator", it) }
 
         extractXmlText(didl, "res")
             ?.decodeXmlEntities()
@@ -251,6 +262,19 @@ object CastContentParser {
             .map { it.decodeLoose().decodeXmlEntities().trim() }
             .mapNotNull { it.toHttpMediaUrlOrNull() }
             .firstOrNull()
+
+    private fun Map<String, String>.resolveClientHint(directMediaUrl: String?): CastClientHint {
+        val values = values.joinToString(separator = "\n").lowercase()
+        val currentUri = firstString("current_uri").orEmpty()
+        return when {
+            currentUri.startsWith("bilibili://", ignoreCase = true) ||
+                values.contains("proj_source=bilibili") -> CastClientHint.OfficialBilibili
+            directMediaUrl.orEmpty().isBilibiliMediaUrl() &&
+                (values.contains("piliplus") || values.contains("dart/")) -> CastClientHint.PiliPlus
+            directMediaUrl.orEmpty().isBilibiliMediaUrl() -> CastClientHint.GenericBilibili
+            else -> CastClientHint.Generic
+        }
+    }
 
     private fun String.toHttpMediaUrlOrNull(): String? {
         val normalized = replace(", amp;", "&")

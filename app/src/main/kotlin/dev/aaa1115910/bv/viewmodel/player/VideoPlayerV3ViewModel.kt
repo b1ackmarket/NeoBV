@@ -453,6 +453,7 @@ class VideoPlayerV3ViewModel(
     private var pendingBilingualSecondaryAfterMainLoad = false
     private var pendingCustomSecondaryAfterMainLoad = false
     private var externalMediaUrl: String? = null
+    private var externalMediaBilibili = false
 
     val isExternalMedia: Boolean
         get() = !externalMediaUrl.isNullOrBlank()
@@ -670,9 +671,11 @@ class VideoPlayerV3ViewModel(
     fun initExternalMedia(
         mediaUrl: String,
         title: String,
-        lastPlayed: Int
+        lastPlayed: Int,
+        isBilibiliMedia: Boolean = false
     ) {
         externalMediaUrl = mediaUrl
+        externalMediaBilibili = isBilibiliMedia
         _uiState.update {
             it.copy(
                 aid = 0,
@@ -723,7 +726,11 @@ class VideoPlayerV3ViewModel(
 
         val options = VideoPlayerOptions(
             userAgent = if (isExternalMedia) {
-                "Mozilla/5.0"
+                if (externalMediaBilibili) {
+                    context.getString(R.string.video_player_user_agent_http)
+                } else {
+                    "Mozilla/5.0"
+                }
             } else {
                 when (Prefs.playbackApiType) {
                     ApiType.Web -> context.getString(R.string.video_player_user_agent_http)
@@ -731,7 +738,7 @@ class VideoPlayerV3ViewModel(
                 }
             },
             referer = if (isExternalMedia) {
-                null
+                if (externalMediaBilibili) context.getString(R.string.video_player_referer) else null
             } else {
                 when (Prefs.playbackApiType) {
                     ApiType.Web -> context.getString(R.string.video_player_referer)

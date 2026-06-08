@@ -144,7 +144,8 @@ class CastHttpServer(
         val content = CastContentParser.parse(
             path = path,
             queryParameters = request.queryParameters,
-            body = body
+            body = body,
+            headers = request.headers.entries().associate { it.key to it.value.joinToString(";") }
         )
         if (content != null) maybeLaunch(content)
 
@@ -175,7 +176,8 @@ class CastHttpServer(
         val content = CastContentParser.parse(
             path = path,
             queryParameters = request.queryParameters,
-            body = body
+            body = body,
+            headers = request.headers.entries().associate { it.key to it.value.joinToString(";") }
         )
         val launched = content?.let { maybeLaunch(it) } ?: false
         respondText(

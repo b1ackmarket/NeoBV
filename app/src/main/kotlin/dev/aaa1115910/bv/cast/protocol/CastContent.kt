@@ -14,6 +14,8 @@ data class CastContent(
     val title: String? = null,
     val partTitle: String? = null,
     val directMediaUrl: String? = null,
+    val creator: String? = null,
+    val clientHint: CastClientHint = CastClientHint.Generic,
     val rawFields: Map<String, String> = emptyMap()
 ) {
     val hasVideoIdentity: Boolean
@@ -24,4 +26,25 @@ data class CastContent(
 
     val hasDirectMedia: Boolean
         get() = !directMediaUrl.isNullOrBlank()
+
+    val isBilibiliDirectMedia: Boolean
+        get() = clientHint.isBilibiliClient || directMediaUrl.orEmpty().isBilibiliMediaUrl()
+}
+
+enum class CastClientHint {
+    OfficialBilibili,
+    PiliPlus,
+    GenericBilibili,
+    Generic;
+
+    val isBilibiliClient: Boolean
+        get() = this != Generic
+}
+
+internal fun String.isBilibiliMediaUrl(): Boolean {
+    val lower = lowercase()
+    return lower.contains("bilivideo.com") ||
+        lower.contains("bilibili.com") ||
+        lower.contains("bilivideo.cn") ||
+        lower.contains("biliapi.net")
 }

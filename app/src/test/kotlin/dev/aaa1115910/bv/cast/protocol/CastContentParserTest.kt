@@ -202,4 +202,84 @@ class CastContentParserTest {
             content.directMediaUrl
         )
     }
+
+    @Test
+    fun `parse PiliPlus dart DLNA bilibili direct media hint`() {
+        val body = """
+            <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+              <s:Body>
+                <u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+                  <CurrentURI>https://upos-sz-mirrorcoso1.bilivideo.com/upgcxcode/video.m4s?deadline=1&amp;oi=2</CurrentURI>
+                  <CurrentURIMetaData>&lt;DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/"&gt;&lt;item&gt;&lt;dc:title&gt;PiliPlus 投屏视频&lt;/dc:title&gt;&lt;/item&gt;&lt;/DIDL-Lite&gt;</CurrentURIMetaData>
+                </u:SetAVTransportURI>
+              </s:Body>
+            </s:Envelope>
+        """.trimIndent()
+
+        val content = CastContentParser.parse(
+            path = "/bilibili/bilibili/AVTransport/control",
+            queryParameters = Parameters.Empty,
+            body = body,
+            headers = mapOf("User-Agent" to "Dart/3.12 (dart:io)")
+        )
+
+        assertNotNull(content)
+        assertNull(content.aid)
+        assertEquals(CastClientHint.PiliPlus, content.clientHint)
+        assertEquals("PiliPlus 投屏视频", content.title)
+        assertEquals(
+            "https://upos-sz-mirrorcoso1.bilivideo.com/upgcxcode/video.m4s?deadline=1&oi=2",
+            content.directMediaUrl
+        )
+        assertEquals(true, content.isBilibiliDirectMedia)
+    }
+
+    @Test
+    fun `BiliPai DIDL creator stays generic bilibili direct media`() {
+        val body = """
+            <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+              <s:Body>
+                <u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+                  <CurrentURI>https://upos-sz-mirrorcoso1.bilivideo.com/video.mp4</CurrentURI>
+                  <CurrentURIMetaData>&lt;DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"&gt;&lt;item id="1" parentID="0" restricted="1"&gt;&lt;dc:title&gt;BiliPai Video&lt;/dc:title&gt;&lt;dc:creator&gt;BiliPai&lt;/dc:creator&gt;&lt;res protocolInfo="http-get:*:video/mp4:*"&gt;https://upos-sz-mirrorcoso1.bilivideo.com/video.mp4&lt;/res&gt;&lt;/item&gt;&lt;/DIDL-Lite&gt;</CurrentURIMetaData>
+                </u:SetAVTransportURI>
+              </s:Body>
+            </s:Envelope>
+        """.trimIndent()
+
+        val content = CastContentParser.parse(
+            path = "/bilibili/AVTransport/control",
+            queryParameters = Parameters.Empty,
+            body = body
+        )
+
+        assertNotNull(content)
+        assertEquals(CastClientHint.GenericBilibili, content.clientHint)
+        assertEquals("BiliPai", content.creator)
+        assertEquals(true, content.isBilibiliDirectMedia)
+    }
+
+    @Test
+    fun `official bilibili projection has priority over dart headers`() {
+        val body = """
+            <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+              <s:Body>
+                <u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+                  <CurrentURI>https://upos-sz-mirrorcoso1.bilivideo.com/video.mp4?proj_source=bilibili&amp;aid=116662971925516&amp;cid=38721687073</CurrentURI>
+                  <CurrentURIMetaData>&lt;DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/"&gt;&lt;item&gt;&lt;dc:title&gt;Official&lt;/dc:title&gt;&lt;/item&gt;&lt;/DIDL-Lite&gt;</CurrentURIMetaData>
+                </u:SetAVTransportURI>
+              </s:Body>
+            </s:Envelope>
+        """.trimIndent()
+
+        val content = CastContentParser.parse(
+            path = "/bilibili/AVTransport/control",
+            queryParameters = Parameters.Empty,
+            body = body,
+            headers = mapOf("User-Agent" to "Dart/3.12 (dart:io)")
+        )
+
+        assertNotNull(content)
+        assertEquals(CastClientHint.OfficialBilibili, content.clientHint)
+    }
 }

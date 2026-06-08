@@ -123,6 +123,7 @@ object Prefs {
     var preferOfficialCdn by pref(PrefKeys.prefPreferOfficialCdn, PrefDefaultValues.preferOfficialCdn)
     var enablePersonalizedRecommendation by pref(PrefKeys.prefEnablePersonalizedRecommendationKey, true)
     var enableCastReceiver by pref(PrefKeys.prefEnableCastReceiverKey, false)
+    var enablePiliPlusCastCompat by pref(PrefKeys.prefEnablePiliPlusCastCompatKey, true)
     var castReceiverUuid by pref(PrefKeys.prefCastReceiverUuidKey, "")
 
     // =========================================================================
@@ -500,6 +501,7 @@ private object PrefKeys {
     val prefPreferOfficialCdn = booleanPreferencesKey("prefer_official_cdn")
     val prefEnablePersonalizedRecommendationKey = booleanPreferencesKey("enable_personalized_recommendation")
     val prefEnableCastReceiverKey = booleanPreferencesKey("enable_cast_receiver")
+    val prefEnablePiliPlusCastCompatKey = booleanPreferencesKey("enable_piliplus_cast_compat")
     val prefCastReceiverUuidKey = stringPreferencesKey("cast_receiver_uuid")
 
     // 播放器 - 视频
