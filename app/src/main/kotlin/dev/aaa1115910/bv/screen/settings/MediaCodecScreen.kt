@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,26 +55,40 @@ import dev.aaa1115910.bv.util.CodecType
 import dev.aaa1115910.bv.util.CodecUtil
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.swapList
+import dev.aaa1115910.bv.util.touchClick
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 @Composable
 fun MediaCodecScreen(
     modifier: Modifier = Modifier
 ) {
-    LaunchedEffect(Unit) {
-        val list = CodecUtil.parseCodecs()
-        println(list)
-    }
-
     var currentCodecInfoData by remember { mutableStateOf<CodecInfoData?>(null) }
-    var focusInNav by remember { mutableStateOf(false) }
+    var focusListRequestKey by remember { mutableIntStateOf(0) }
+    var loading by remember { mutableStateOf(true) }
+    var loadFailed by remember { mutableStateOf(false) }
 
     val decoderList = remember { mutableStateListOf<CodecInfoData>() }
 
     LaunchedEffect(Unit) {
-        val list = CodecUtil.parseCodecs().filter { it.type == CodecType.Decoder }
-        decoderList.swapList(list)
-        currentCodecInfoData = list[0]
+        loading = true
+        loadFailed = false
+        val list = withContext(Dispatchers.Default) {
+            runCatching {
+                CodecUtil.parseCodecs().filter { it.type == CodecType.Decoder }
+            }.getOrNull()
+        }
+        if (list == null) {
+            loadFailed = true
+            decoderList.clear()
+            currentCodecInfoData = null
+        } else {
+            decoderList.swapList(list)
+            currentCodecInfoData = list.firstOrNull()
+        }
+        loading = false
     }
 
     Scaffold(
@@ -109,20 +124,21 @@ fun MediaCodecScreen(
         ) {
             MediaCodecListItems(
                 modifier = Modifier
-                    .onFocusChanged { focusInNav = it.hasFocus }
                     .weight(3f)
                     .fillMaxHeight(),
                 codecInfoDataList = decoderList,
                 currentCodecInfoData = currentCodecInfoData,
                 onCodecInfoDataChanged = { currentCodecInfoData = it },
-                isFocusing = focusInNav
+                focusRequestKey = focusListRequestKey
             )
             MediaCodecDetails(
                 modifier = Modifier
                     .weight(5f)
                     .fillMaxSize(),
-                onBackNav = { focusInNav = true },
-                currentCodecInfoData = currentCodecInfoData
+                onBackNav = { focusListRequestKey++ },
+                currentCodecInfoData = currentCodecInfoData,
+                loading = loading,
+                loadFailed = loadFailed
             )
         }
     }
@@ -134,17 +150,24 @@ fun MediaCodecListItems(
     codecInfoDataList: List<CodecInfoData>,
     currentCodecInfoData: CodecInfoData?,
     onCodecInfoDataChanged: (CodecInfoData) -> Unit,
-    isFocusing: Boolean
+    focusRequestKey: Int
 ) {
     val scope = rememberCoroutineScope()
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(isFocusing) {
-        if (isFocusing) focusRequester.requestFocus(scope)
+    val codecInfoDataSnapshot = codecInfoDataList.toList()
+    val itemFocusRequesters = remember(codecInfoDataSnapshot) {
+        codecInfoDataSnapshot.associateWith { FocusRequester() }
     }
 
-    LaunchedEffect(codecInfoDataList) {
-        focusRequester.requestFocus(scope)
+    LaunchedEffect(itemFocusRequesters) {
+        delay(100)
+        runCatching {
+            currentCodecInfoData?.let { itemFocusRequesters[it]?.requestFocus() }
+        }
+    }
+
+    LaunchedEffect(focusRequestKey) {
+        if (focusRequestKey == 0) return@LaunchedEffect
+        currentCodecInfoData?.let { itemFocusRequesters[it]?.requestFocus(scope) }
     }
 
     LazyColumn(
@@ -153,14 +176,17 @@ fun MediaCodecListItems(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(items = codecInfoDataList) { codecInfoData ->
-            val buttonModifier = if (currentCodecInfoData == codecInfoData) Modifier
-                .focusRequester(focusRequester)
-                .fillMaxWidth()
-            else Modifier.fillMaxWidth()
+            val focusRequester = itemFocusRequesters.getValue(codecInfoData)
             MediaCodecListItem(
-                modifier = buttonModifier,
+                modifier = Modifier
+                    .focusRequester(focusRequester)
+                    .fillMaxWidth(),
                 codecInfoData = codecInfoData,
                 onFocus = { onCodecInfoDataChanged(codecInfoData) },
+                onClick = {
+                    focusRequester.requestFocus(scope)
+                    onCodecInfoDataChanged(codecInfoData)
+                },
                 selected = currentCodecInfoData == codecInfoData
             )
         }
@@ -178,6 +204,7 @@ fun MediaCodecListItem(
 ) {
     ListItem(
         modifier = modifier
+            .touchClick(onClick)
             .onFocusChanged { if (it.hasFocus) onFocus() else onLoseFocus() },
         selected = selected,
         onClick = onClick,
@@ -218,7 +245,9 @@ fun MediaCodecListItem(
 fun MediaCodecDetails(
     modifier: Modifier = Modifier,
     onBackNav: () -> Unit,
-    currentCodecInfoData: CodecInfoData?
+    currentCodecInfoData: CodecInfoData?,
+    loading: Boolean = false,
+    loadFailed: Boolean = false
 ) {
     val context = LocalContext.current
 
@@ -346,7 +375,13 @@ fun MediaCodecDetails(
             modifier = modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            Text("Empty")
+            Text(
+                text = when {
+                    loading -> "正在读取解码器信息"
+                    loadFailed -> "读取解码器信息失败"
+                    else -> "没有找到可用解码器"
+                }
+            )
         }
     }
 }

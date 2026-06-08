@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Environment
+import android.os.SystemClock
 import android.os.StatFs
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -42,6 +43,7 @@ fun InfoSetting(
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+    var lastOpenMediaCodecAt by remember { mutableStateOf(0L) }
 
     val memoryInfo by remember {
         mutableStateOf(
@@ -143,7 +145,11 @@ fun InfoSetting(
             )
         }
         val openMediaCodec = {
-            context.startActivity(Intent(context, MediaCodecActivity::class.java))
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastOpenMediaCodecAt >= 600L) {
+                lastOpenMediaCodecAt = now
+                context.startActivity(Intent(context, MediaCodecActivity::class.java))
+            }
         }
         Button(
             modifier = Modifier.touchClick(openMediaCodec),

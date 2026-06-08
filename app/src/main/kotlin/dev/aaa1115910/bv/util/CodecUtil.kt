@@ -11,7 +11,9 @@ object CodecUtil {
     fun parseCodecs(): List<CodecInfoData> {
         return MediaCodecList(MediaCodecList.ALL_CODECS)
             .codecInfos.toList()
-            .map { CodecInfoData.fromCodecInfo(it) }
+            .mapNotNull { codecInfo ->
+                runCatching { CodecInfoData.fromCodecInfo(codecInfo) }.getOrNull()
+            }
     }
 }
 
