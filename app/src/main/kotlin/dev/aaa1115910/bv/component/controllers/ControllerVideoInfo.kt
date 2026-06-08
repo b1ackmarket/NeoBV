@@ -95,6 +95,7 @@ fun ControllerVideoInfo(
     danmakuEnabled: Boolean,
     subtitleEnabled: Boolean,
     subtitleAvailable: Boolean,
+    isExternalMedia: Boolean = false,
     jumpModeState: JumpModeState,
     isLooping: Boolean,
     onDirectionLeft: () -> Unit,
@@ -151,6 +152,7 @@ fun ControllerVideoInfo(
                 danmakuEnabled = danmakuEnabled,
                 subtitleEnabled = subtitleEnabled,
                 subtitleAvailable = subtitleAvailable,
+                isExternalMedia = isExternalMedia,
                 jumpModeState = jumpModeState,
                 isLooping = isLooping,
                 videoListButtonLabel = videoListButtonLabel,
@@ -285,6 +287,7 @@ fun ControllerVideoInfoBottom(
     danmakuEnabled: Boolean,
     subtitleEnabled: Boolean,
     subtitleAvailable: Boolean,
+    isExternalMedia: Boolean = false,
     jumpModeState: JumpModeState,
     isLooping: Boolean,
     videoListButtonLabel: String,
@@ -506,26 +509,26 @@ fun ControllerVideoInfoBottom(
         }
 
         val availableButtons = listOfNotNull(
-            ControllerInfoButton(
+            if (!isExternalMedia) ControllerInfoButton(
                 control = PlayerBottomOsdControl.VideoList,
                 iconRes = R.drawable.related_videos_24px,
                 contentDescription = videoListButtonLabel,
                 onClick = onShowVideoList
-            ),
-            ControllerInfoButton(
+            ) else null,
+            if (!isExternalMedia) ControllerInfoButton(
                 control = PlayerBottomOsdControl.Danmaku,
                 iconRes = if (danmakuEnabled) R.drawable.danmaku_on_24px else R.drawable.danmaku_off_24px,
                 contentDescription = "弹幕开关",
                 onClick = onDanmakuSwitchChange
-            ),
-            ControllerInfoButton(
+            ) else null,
+            if (!isExternalMedia) ControllerInfoButton(
                 control = PlayerBottomOsdControl.Subtitle,
                 iconRes = if (subtitleEnabled) R.drawable.osd_caption_32 else R.drawable.osd_caption_off_32,
                 contentDescription = if (subtitleEnabled) "关闭字幕" else "开启字幕",
                 enabled = subtitleAvailable || subtitleEnabled,
                 onClick = onSubtitleSwitchChange
-            ),
-            ControllerInfoButton(
+            ) else null,
+            if (!isExternalMedia) ControllerInfoButton(
                 control = PlayerBottomOsdControl.JumpMode,
                 iconRes = if (jumpModeState.enabled) R.drawable.jump_mode_on_24px else R.drawable.jump_mode_off_24px,
                 contentDescription = when {
@@ -535,31 +538,31 @@ fun ControllerVideoInfoBottom(
                 },
                 enabled = jumpModeState.available,
                 onClick = onToggleJumpMode
-            ),
-            if (!fromSeason) ControllerInfoButton(
+            ) else null,
+            if (!fromSeason && !isExternalMedia) ControllerInfoButton(
                 control = PlayerBottomOsdControl.VideoInfo,
                 iconRes = R.drawable.info_24px,
                 contentDescription = "视频信息",
                 onClick = onGoToVideoInfo
             ) else null,
-            if (!fromSeason) ControllerInfoButton(
+            if (!fromSeason && !isExternalMedia) ControllerInfoButton(
                 control = PlayerBottomOsdControl.UpPage,
                 iconRes = R.drawable.contact_page_24px,
                 contentDescription = "up主页",
                 onClick = onGoToUpPage
             ) else null,
-            if (!fromSeason) ControllerInfoButton(
+            if (!fromSeason && !isExternalMedia) ControllerInfoButton(
                 control = PlayerBottomOsdControl.RelatedVideos,
                 iconRes = R.drawable.related_videos_24px,
                 contentDescription = "相关视频",
                 onClick = onShowRelatedVideos
             ) else null,
-            ControllerInfoButton(
+            if (!isExternalMedia) ControllerInfoButton(
                 control = PlayerBottomOsdControl.Comments,
                 iconRes = R.drawable.comment_24px,
                 contentDescription = "评论",
                 onClick = onShowComments
-            ),
+            ) else null,
             ControllerInfoButton(
                 control = PlayerBottomOsdControl.Loop,
                 iconRes = if (isLooping) R.drawable.repeat_one_on_24px else R.drawable.repeat_one_24px,

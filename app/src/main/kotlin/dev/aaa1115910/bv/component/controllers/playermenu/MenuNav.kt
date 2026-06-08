@@ -27,6 +27,7 @@ import dev.aaa1115910.bv.component.ifElse
 @Composable
 fun MenuNavList(
     modifier: Modifier = Modifier,
+    navItems: List<VideoPlayerMenuNavItem> = VideoPlayerMenuNavItem.entries,
     focusedMenu: VideoPlayerMenuNavItem,
     selectedMenu: VideoPlayerMenuNavItem,
     onSelectedChanged: (VideoPlayerMenuNavItem) -> Unit,
@@ -36,9 +37,9 @@ fun MenuNavList(
     val context = LocalContext.current
     val restorerFocusRequester = remember { FocusRequester() }
     val focusRequester = remember { FocusRequester() }
-    val itemRequesters = remember {
+    val itemRequesters = remember(navItems) {
         mutableStateListOf<FocusRequester>().apply {
-            addAll(VideoPlayerMenuNavItem.entries.map { FocusRequester() })
+            addAll(navItems.map { FocusRequester() })
         }
     }
 
@@ -48,7 +49,8 @@ fun MenuNavList(
 
     LaunchedEffect(isFocusing) {
         if (isFocusing) {
-            itemRequesters[focusedMenu.ordinal].requestFocus()
+            val focusIndex = navItems.indexOf(focusedMenu).takeIf { it >= 0 } ?: 0
+            itemRequesters.getOrNull(focusIndex)?.requestFocus()
         }
     }
 
@@ -59,7 +61,7 @@ fun MenuNavList(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(16.dp)
     ) {
-        itemsIndexed(VideoPlayerMenuNavItem.entries) { index, item ->
+        itemsIndexed(navItems) { index, item ->
             MenuListItem(
                 modifier = Modifier
                     .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
@@ -80,7 +82,7 @@ fun MenuNavList(
                             }
 
                             Key.DirectionDown -> {
-                                if (index == VideoPlayerMenuNavItem.entries.lastIndex) {
+                                if (index == navItems.lastIndex) {
                                     itemRequesters.firstOrNull()?.requestFocus()
                                     true
                                 } else {

@@ -771,6 +771,7 @@ fun VideoPlayerController(
             danmakuEnabled = uiState.danmakuState.enabledTypes.isNotEmpty(),
             subtitleEnabled = uiState.subtitleId != -1L || uiState.secondarySubtitleId != -1L,
             subtitleAvailable = uiState.subtitleList.any { it.id != -1L },
+            isExternalMedia = uiState.isExternalMedia,
             jumpModeState = uiState.jumpModeState,
             isLooping = isLooping,
             onDirectionLeft = { onDirectionLeft() },
@@ -778,6 +779,7 @@ fun VideoPlayerController(
             onSeekGoTime = { onSeekGoTime() },
             onPlayPause = { onPlayPause() },
             onShowVideoList = {
+                if (uiState.isExternalMedia) return@ControllerVideoInfo
                 showInfoSeekController = false
                 showListController = true
             },
@@ -791,12 +793,14 @@ fun VideoPlayerController(
             },
             onToggleJumpMode = onToggleJumpMode,
             onShowRelatedVideos = {
+                if (uiState.isExternalMedia) return@ControllerVideoInfo
                 showInfoSeekController = false
                 showMenuController = false
                 showListController = false
                 overlayState = overlayState.open(PlayerSidePanel.RelatedVideos)
             },
             onShowComments = {
+                if (uiState.isExternalMedia) return@ControllerVideoInfo
                 showInfoSeekController = false
                 showMenuController = false
                 showListController = false
@@ -805,6 +809,7 @@ fun VideoPlayerController(
                 overlayState = overlayState.open(PlayerSidePanel.Comments)
             },
             onGoToVideoInfo = {
+                if (uiState.isExternalMedia) return@ControllerVideoInfo
                 VideoInfoActivity.actionStart(
                     context = context,
                     aid = aid,
@@ -815,6 +820,7 @@ fun VideoPlayerController(
             },
             onToggleLoop = onToggleLoop,
             onGoToUpPage = {
+                if (uiState.isExternalMedia) return@ControllerVideoInfo
                 showInfoSeekController = false
                 showListController = false
                 showMenuController = false
@@ -825,7 +831,7 @@ fun VideoPlayerController(
         )
 
         PlayerSidePanels(
-            activePanel = overlayState.activePanel,
+            activePanel = if (uiState.isExternalMedia) PlayerSidePanel.None else overlayState.activePanel,
             relatedVideos = uiState.relatedVideos,
             upPanelUiState = upPanelUiState,
             commentPanelUiState = commentPanelUiState,
@@ -853,7 +859,7 @@ fun VideoPlayerController(
         )
 
         VideoListController(
-            show = showListController,
+            show = showListController && !uiState.isExternalMedia,
             currentCid = uiState.cid,
             panelState = videoListPanelState,
             onPlayNewVideo = onPlayNewVideo

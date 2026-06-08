@@ -43,6 +43,7 @@ data class PlayerUiState(
     val fromSeason: Boolean = false,
     val proxyArea: ProxyArea = ProxyArea.MainLand,
     val subType: Int = 0,
+    val isExternalMedia: Boolean = false,
 
     // 播放状态
     val playerState: PlayerState = PlayerState.Ready,

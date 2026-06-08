@@ -76,6 +76,17 @@ internal fun defaultPlayerMenuNavState(): PlayerMenuNavState {
     )
 }
 
+private fun playerMenuNavItems(isExternalMedia: Boolean): List<VideoPlayerMenuNavItem> =
+    if (isExternalMedia) {
+        listOf(
+            VideoPlayerMenuNavItem.PlaySpeed,
+            VideoPlayerMenuNavItem.Picture,
+            VideoPlayerMenuNavItem.Stats
+        )
+    } else {
+        VideoPlayerMenuNavItem.entries
+    }
+
 @Composable
 fun MenuController(
     modifier: Modifier = Modifier,
@@ -169,6 +180,12 @@ fun MenuController(
     var selectedNavItem by remember { mutableStateOf(defaultState.selectedNavItem) }
     var focusedNavItem by remember { mutableStateOf(defaultState.focusedNavItem) }
     var focusState by remember { mutableStateOf(defaultState.focusState) }
+    val navItems = remember(uiState.isExternalMedia) { playerMenuNavItems(uiState.isExternalMedia) }
+
+    LaunchedEffect(navItems) {
+        if (selectedNavItem !in navItems) selectedNavItem = navItems.first()
+        if (focusedNavItem !in navItems) focusedNavItem = navItems.first()
+    }
 
     Surface(
         modifier = modifier
@@ -189,6 +206,7 @@ fun MenuController(
                 MenuList(
                     uiState = uiState,
                     selectedNavMenu = selectedNavItem,
+                    navItems = navItems,
                     onResolutionChange = onResolutionChange,
                     onCodecChange = onCodecChange,
                     onPlaySpeedChange = onPlaySpeedChange,
@@ -223,6 +241,7 @@ fun MenuController(
                             }
                             false
                         },
+                    navItems = navItems,
                     focusedMenu = focusedNavItem,
                     selectedMenu = selectedNavItem,
                     onSelectedChanged = { item ->
@@ -246,6 +265,7 @@ private fun MenuList(
     modifier: Modifier = Modifier,
     uiState: PlayerUiState,
     selectedNavMenu: VideoPlayerMenuNavItem,
+    navItems: List<VideoPlayerMenuNavItem>,
     onResolutionChange: (Int) -> Unit,
     onCodecChange: (VideoCodec) -> Unit,
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
@@ -269,7 +289,7 @@ private fun MenuList(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
-        when (selectedNavMenu) {
+        when (selectedNavMenu.takeIf { it in navItems } ?: navItems.first()) {
             VideoPlayerMenuNavItem.Stats -> {
                 PlayerStatsMenuList(
                     currentShowPlayerStats = uiState.showPlayerStats,

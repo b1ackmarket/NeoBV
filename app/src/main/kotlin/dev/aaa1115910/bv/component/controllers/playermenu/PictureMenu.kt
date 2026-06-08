@@ -65,9 +65,21 @@ fun PictureMenuList(
 
     val focusRequester = remember { FocusRequester() }
     var selectedPictureMenuItem by remember { mutableStateOf(VideoPlayerPictureMenuItem.Resolution) }
-    val menuItemRequesters = remember {
+    val pictureMenuItems = remember(availableQuality, availableVideoCodec, availableAudio, aiAudioTranslations) {
+        VideoPlayerPictureMenuItem.entries
+            .filter { item ->
+                when (item) {
+                    VideoPlayerPictureMenuItem.Resolution -> availableQuality.isNotEmpty()
+                    VideoPlayerPictureMenuItem.Codec -> availableVideoCodec.isNotEmpty()
+                    VideoPlayerPictureMenuItem.Audio -> availableAudio.isNotEmpty()
+                    VideoPlayerPictureMenuItem.AiAudioTranslation -> aiAudioTranslations.isNotEmpty()
+                    VideoPlayerPictureMenuItem.AspectRatio -> true
+                }
+            }
+    }
+    val menuItemRequesters = remember(pictureMenuItems) {
         mutableStateListOf<FocusRequester>().apply {
-            addAll(VideoPlayerPictureMenuItem.entries.map { FocusRequester() })
+            addAll(pictureMenuItems.map { FocusRequester() })
         }
     }
     val qualityIdList = remember(availableQuality) {
@@ -77,21 +89,21 @@ fun PictureMenuList(
     val audioList = remember(availableAudio) {
         availableAudio.sortedBy { it.ordinal }
     }
-    val pictureMenuItems = remember(aiAudioTranslations) {
-        VideoPlayerPictureMenuItem.entries
-            .filter { item ->
-                item != VideoPlayerPictureMenuItem.AiAudioTranslation || aiAudioTranslations.isNotEmpty()
-            }
-    }
     val shouldFocusItems = focusState.focusState == MenuFocusState.Items
+
+    LaunchedEffect(pictureMenuItems) {
+        if (selectedPictureMenuItem !in pictureMenuItems) {
+            selectedPictureMenuItem = pictureMenuItems.firstOrNull() ?: VideoPlayerPictureMenuItem.AspectRatio
+        }
+    }
 
     LaunchedEffect(focusState.focusState, selectedPictureMenuItem) {
         if (focusState.focusState == MenuFocusState.Menu) {
             val index = resolveParentMenuFocusIndex(
-                selectedIndex = selectedPictureMenuItem.ordinal,
+                selectedIndex = pictureMenuItems.indexOf(selectedPictureMenuItem).takeIf { it >= 0 } ?: 0,
                 itemCount = menuItemRequesters.size
             )
-            menuItemRequesters[index].requestFocus()
+            menuItemRequesters.getOrNull(index)?.requestFocus()
         }
     }
 
@@ -207,7 +219,7 @@ fun PictureMenuList(
                 MenuListItem(
                     modifier = Modifier
                         .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
-                        .focusRequester(menuItemRequesters[item.ordinal]),
+                        .focusRequester(menuItemRequesters[index]),
                     text = item.getDisplayName(context),
                     selected = selectedPictureMenuItem == item,
                     onClick = selectItem,
