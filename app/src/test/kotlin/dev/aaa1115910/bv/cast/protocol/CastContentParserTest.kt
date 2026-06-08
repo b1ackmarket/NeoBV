@@ -136,4 +136,70 @@ class CastContentParserTest {
         assertEquals(16, content.quality)
         assertEquals("如果罪恶都市变得非常阴险，大结局", content.title)
     }
+
+    @Test
+    fun `parse standard DLNA direct media url from CurrentURI`() {
+        val body = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+              <s:Body>
+                <u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+                  <InstanceID>0</InstanceID>
+                  <CurrentURI>http://videoplay.115.com/m3u8/pickcode?filesha1=abc&amp;definition=5</CurrentURI>
+                  <CurrentURIMetaData><![CDATA[
+                    <DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">
+                      <item id="1" parentID="0" restricted="1">
+                        <dc:title>115 video</dc:title>
+                        <upnp:class>object.item.videoItem</upnp:class>
+                        <res protocolInfo="http-get:*:video/mp4:*">http://videoplay.115.com/m3u8/pickcode?filesha1=abc&amp;definition=5</res>
+                      </item>
+                    </DIDL-Lite>
+                  ]]></CurrentURIMetaData>
+                </u:SetAVTransportURI>
+              </s:Body>
+            </s:Envelope>
+        """.trimIndent()
+
+        val content = CastContentParser.parse(
+            path = "/bilibili/AVTransport/control",
+            queryParameters = Parameters.Empty,
+            body = body
+        )
+
+        assertNotNull(content)
+        assertNull(content.aid)
+        assertEquals("115 video", content.title)
+        assertEquals(
+            "http://videoplay.115.com/m3u8/pickcode?filesha1=abc&definition=5",
+            content.directMediaUrl
+        )
+    }
+
+    @Test
+    fun `direct media url does not replace bilibili projection identity`() {
+        val body = """
+            <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+              <s:Body>
+                <u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+                  <CurrentURI>http://upos-sz-mirrorcoso1.bilivideo.com/video.mp4?aid=116662971925516&amp;cid=38721687073</CurrentURI>
+                  <CurrentURIMetaData>&lt;DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/"&gt;&lt;item&gt;&lt;dc:title&gt;PiliPlus video&lt;/dc:title&gt;&lt;/item&gt;&lt;/DIDL-Lite&gt;</CurrentURIMetaData>
+                </u:SetAVTransportURI>
+              </s:Body>
+            </s:Envelope>
+        """.trimIndent()
+
+        val content = CastContentParser.parse(
+            path = "/bilibili/bilibili/AVTransport/control",
+            queryParameters = Parameters.Empty,
+            body = body
+        )
+
+        assertNotNull(content)
+        assertEquals(116662971925516L, content.aid)
+        assertEquals(38721687073L, content.cid)
+        assertEquals(
+            "http://upos-sz-mirrorcoso1.bilivideo.com/video.mp4?aid=116662971925516&cid=38721687073",
+            content.directMediaUrl
+        )
+    }
 }

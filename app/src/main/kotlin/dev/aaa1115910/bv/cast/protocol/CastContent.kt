@@ -13,6 +13,7 @@ data class CastContent(
     val danmakuEnabled: Boolean? = null,
     val title: String? = null,
     val partTitle: String? = null,
+    val directMediaUrl: String? = null,
     val rawFields: Map<String, String> = emptyMap()
 ) {
     val hasVideoIdentity: Boolean
@@ -20,4 +21,7 @@ data class CastContent(
 
     val hasLiveIdentity: Boolean
         get() = roomId != null && roomId > 0
+
+    val hasDirectMedia: Boolean
+        get() = !directMediaUrl.isNullOrBlank()
 }

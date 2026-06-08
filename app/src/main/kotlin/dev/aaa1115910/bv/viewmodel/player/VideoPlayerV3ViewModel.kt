@@ -452,6 +452,10 @@ class VideoPlayerV3ViewModel(
     private var lastSubtitleTranslationPreloadPositionMs = Long.MIN_VALUE
     private var pendingBilingualSecondaryAfterMainLoad = false
     private var pendingCustomSecondaryAfterMainLoad = false
+    private var externalMediaUrl: String? = null
+
+    val isExternalMedia: Boolean
+        get() = !externalMediaUrl.isNullOrBlank()
 
     private val videoPlayerListener = object : VideoPlayerListener {
         override fun onError(error: Exception) {
@@ -662,17 +666,75 @@ class VideoPlayerV3ViewModel(
             .launchIn(viewModelScope)
     }
 
+    fun initExternalMedia(
+        mediaUrl: String,
+        title: String,
+        lastPlayed: Int
+    ) {
+        externalMediaUrl = mediaUrl
+        _uiState.update {
+            it.copy(
+                aid = 0,
+                bvid = "",
+                cid = 0,
+                epid = null,
+                seasonId = 0,
+                title = title,
+                lastPlayed = lastPlayed,
+                fromSeason = false,
+                subType = 0,
+                authorMid = 0,
+                authorName = "",
+                authorFace = "",
+                availableQuality = emptyMap(),
+                availableVideoCodec = emptyList(),
+                availableAudio = emptyList(),
+                availableVideoList = emptyList(),
+                relatedVideos = emptyList(),
+                mediaProfileState = MediaProfileState(),
+                playSpeed = Prefs.defaultPlaySpeed.speed,
+                danmakuState = DanmakuState(),
+                subtitleState = SubtitleState(
+                    fontSize = Prefs.defaultSubtitleFontSize,
+                    opacity = Prefs.defaultSubtitleBackgroundOpacity,
+                    bottomPadding = Prefs.defaultSubtitleBottomPadding
+                ),
+                subtitleId = -1,
+                subtitleMemory = null,
+                subtitleData = emptyList(),
+                secondarySubtitleId = -1,
+                secondarySubtitleMemory = null,
+                secondarySubtitleCustom = false,
+                secondarySubtitleData = emptyList(),
+                subtitleList = emptyList(),
+                showPlayerStats = Prefs.showPlayerStats,
+                jumpModeState = JumpModeState()
+            )
+        }
+        resetUpPanelVideos()
+        resetComments()
+        startClockUpdater()
+    }
+
     fun initVideoPlayer(context: Context) {
         logger.info { "Init video player: ${Prefs.playerType.name}" }
 
         val options = VideoPlayerOptions(
-            userAgent = when (Prefs.playbackApiType) {
-                ApiType.Web -> context.getString(R.string.video_player_user_agent_http)
-                ApiType.App -> context.getString(R.string.video_player_user_agent_client)
+            userAgent = if (isExternalMedia) {
+                "Mozilla/5.0"
+            } else {
+                when (Prefs.playbackApiType) {
+                    ApiType.Web -> context.getString(R.string.video_player_user_agent_http)
+                    ApiType.App -> context.getString(R.string.video_player_user_agent_client)
+                }
             },
-            referer = when (Prefs.playbackApiType) {
-                ApiType.Web -> context.getString(R.string.video_player_referer)
-                ApiType.App -> null
+            referer = if (isExternalMedia) {
+                null
+            } else {
+                when (Prefs.playbackApiType) {
+                    ApiType.Web -> context.getString(R.string.video_player_referer)
+                    ApiType.App -> null
+                }
             },
             enableFfmpegAudioRenderer = Prefs.enableFfmpegAudioRenderer,
             enableSoftwareVideoDecoder = Prefs.enableSoftwareVideoDecoder,
@@ -1571,6 +1633,12 @@ class VideoPlayerV3ViewModel(
     }
 
     fun loadVideoWithResources() {
+        val externalUrl = externalMediaUrl
+        if (!externalUrl.isNullOrBlank()) {
+            loadExternalMedia(externalUrl)
+            return
+        }
+
         val state = _uiState.value
         val avid = state.aid
         val cid = state.cid
@@ -1616,6 +1684,38 @@ class VideoPlayerV3ViewModel(
 
                 _uiState.update {
                     it.copy(playerState = PlayerState.Error(e.message ?: "未知错误"))
+                }
+            }
+        }
+    }
+
+    private fun loadExternalMedia(mediaUrl: String) {
+        loadVideoJob?.cancel()
+        resetWatchedProgress()
+        _uiState.update {
+            it.copy(
+                sponsorBlockProgressMarks = emptyList(),
+                watchedProgressMarks = emptyList(),
+                videoHeatmap = null,
+                videoProgressChapters = emptyList(),
+                subtitleData = emptyList(),
+                secondarySubtitleData = emptyList(),
+                isBuffering = false
+            )
+        }
+        loadVideoJob = viewModelScope.launch(Dispatchers.Main) {
+            runCatching {
+                executePlayback(
+                    MediaUrls(
+                        videoUrl = mediaUrl,
+                        audioUrl = null,
+                        useDashMpd = mediaUrl.substringBefore('?').endsWith(".mpd", ignoreCase = true)
+                    )
+                )
+            }.onFailure { error ->
+                logger.error(error) { "Loading external cast media failed: ${error.message}" }
+                _uiState.update {
+                    it.copy(playerState = PlayerState.Error(error.message ?: "外部投屏播放失败"))
                 }
             }
         }

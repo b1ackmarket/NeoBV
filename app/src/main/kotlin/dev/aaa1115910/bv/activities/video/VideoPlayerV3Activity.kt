@@ -218,7 +218,22 @@ class VideoPlayerV3Activity : ImmersiveComponentActivity() {
     }
 
     private fun initViewModelFromIntent() {
-        if (intent.hasExtra("avid")) {
+        if (intent.hasExtra("external_media_url")) {
+            val mediaUrl = intent.getStringExtra("external_media_url").orEmpty()
+            val title = intent.getStringExtra("title") ?: "投屏视频"
+            val played = intent.getIntExtra("played", 0)
+            val playSpeed = intent.getFloatExtra("play_speed", 0f)
+            logger.fInfo { "Launch external cast media: [$mediaUrl]" }
+
+            playerViewModel.initExternalMedia(
+                mediaUrl = mediaUrl,
+                title = title,
+                lastPlayed = played
+            )
+            if (playSpeed > 0f) {
+                playerViewModel.updatePlaySpeed(speed = playSpeed)
+            }
+        } else if (intent.hasExtra("avid")) {
             val aid = intent.getLongExtra("avid", 170001)
             val cid = intent.getLongExtra("cid", 170001)
             val title = intent.getStringExtra("title") ?: "Unknown Title"

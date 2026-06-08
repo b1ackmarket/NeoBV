@@ -32,6 +32,11 @@ class CastPlaybackLauncher(private val appContext: Context) {
 
             content.hasVideoIdentity -> launchVideo(content)
 
+            content.hasDirectMedia -> {
+                launchDirectMedia(content)
+                true
+            }
+
             else -> false
         }
     }
@@ -47,6 +52,20 @@ class CastPlaybackLauncher(private val appContext: Context) {
                 putExtra("up_name", "")
                 putExtra("online", 0)
                 content.danmakuEnabled?.let { putExtra("danmaku_enabled", it) }
+            }
+        )
+    }
+
+    private fun launchDirectMedia(content: CastContent) {
+        val url = content.directMediaUrl ?: return
+        logger.info { "Launch direct media from cast: url=$url" }
+        appContext.startActivity(
+            Intent(appContext, VideoPlayerV3Activity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtra("external_media_url", url)
+                putExtra("title", content.title ?: "投屏视频")
+                putExtra("played", content.seekSeconds.toPlayedMillis())
+                content.playSpeed?.let { putExtra("play_speed", it) }
             }
         )
     }
@@ -158,7 +177,8 @@ class CastPlaybackLauncher(private val appContext: Context) {
             content.roomId,
             content.seekSeconds,
             content.playSpeed,
-            content.danmakuEnabled
+            content.danmakuEnabled,
+            content.directMediaUrl
         ).joinToString(separator = ":")
         val duplicate = lastLaunch?.let { it.key == key && now - it.atMillis < DUPLICATE_LAUNCH_WINDOW_MS } == true
         if (!duplicate) lastLaunch = LastLaunch(key, now)

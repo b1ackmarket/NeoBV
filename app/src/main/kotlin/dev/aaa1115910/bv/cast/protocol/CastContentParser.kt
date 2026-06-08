@@ -17,6 +17,7 @@ object CastContentParser {
         pattern = """(?i)(aid|avid|av|bvid|bv|cid|epid|ep_id|seasonid|season_id|roomid|room_id|seekts|seek_ts|progress|qn|quality|userDesireQn|speed|play_speed|userDesireSpeed|danmakuSwitchSave|danmakuState|danmakuStatus|danmaku_switch|dm_switch|dmSwitch|barrageSwitch|title|part_title|partTitle)["'\s:=]+([^\s"'&,<>{}\]]+)"""
     )
     private val projectionExtKeys = listOf("nva_ext", "_nva_ext_")
+    private val directMediaUrlKeys = listOf("current_uri", "res_uri", "url", "play_url", "media_url", "video_url")
 
     fun parse(
         path: String,
@@ -87,9 +88,10 @@ object CastContentParser {
             danmakuEnabled = fields.firstBoolean("danmaku_enabled"),
             title = fields.firstString("title")?.decodeLoose(),
             partTitle = fields.firstString("part_title")?.decodeLoose(),
+            directMediaUrl = fields.firstDirectMediaUrl(),
             rawFields = fields.toMap()
         )
-        return content.takeIf { it.hasVideoIdentity || it.hasLiveIdentity }
+        return content.takeIf { it.hasVideoIdentity || it.hasLiveIdentity || it.hasDirectMedia }
     }
 
     private fun parseBody(body: String): Map<String, String> {
@@ -121,7 +123,10 @@ object CastContentParser {
     private fun parseProjectionSoapBody(body: String, result: MutableMap<String, String>) {
         extractXmlText(body, "CurrentURI")
             ?.decodeXmlEntities()
-            ?.let { uri -> collectProjectionUriFields(uri, result) }
+            ?.let { uri ->
+                result.putIfAbsent("current_uri", uri)
+                collectProjectionUriFields(uri, result)
+            }
 
         extractXmlText(body, "CurrentURIMetaData")
             ?.decodeXmlEntities()
@@ -142,7 +147,10 @@ object CastContentParser {
 
         extractXmlText(didl, "res")
             ?.decodeXmlEntities()
-            ?.let { uri -> collectProjectionUriFields(uri, result) }
+            ?.let { uri ->
+                result.putIfAbsent("res_uri", uri)
+                collectProjectionUriFields(uri, result)
+            }
 
         extractXmlText(didl, "longDescription")
             ?.decodeXmlEntities()
@@ -235,6 +243,25 @@ object CastContentParser {
             "0", "false", "no", "close", "closed", "off" -> false
             else -> null
         }
+
+    private fun Map<String, String>.firstDirectMediaUrl(): String? =
+        directMediaUrlKeys
+            .asSequence()
+            .mapNotNull { key -> firstString(key) }
+            .map { it.decodeLoose().decodeXmlEntities().trim() }
+            .mapNotNull { it.toHttpMediaUrlOrNull() }
+            .firstOrNull()
+
+    private fun String.toHttpMediaUrlOrNull(): String? {
+        val normalized = replace(", amp;", "&")
+            .replace(" amp;", "&")
+            .replace("&amp;", "&")
+            .trim()
+        return normalized.takeIf {
+            it.startsWith("http://", ignoreCase = true) ||
+                it.startsWith("https://", ignoreCase = true)
+        }
+    }
 
     private fun String.decodeLoose(): String =
         runCatching { decodeURLQueryComponent() }.getOrDefault(this)

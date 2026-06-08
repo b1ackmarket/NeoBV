@@ -106,17 +106,25 @@ class CastHttpServer(
     private suspend fun ApplicationCall.handleControlCall() {
         val body = receiveText()
         logRequest(body)
-        val action = soapActionName(request.headers["SOAPAction"].orEmpty(), body)
+        handleControlBody(body = body, path = request.path(), soapAction = request.headers["SOAPAction"].orEmpty())
+    }
+
+    private suspend fun ApplicationCall.handleControlBody(
+        body: String,
+        path: String,
+        soapAction: String
+    ) {
+        val action = soapActionName(soapAction, body)
         if (action == "SetAVTransportURI") updateCurrentMedia(body)
 
         val content = CastContentParser.parse(
-            path = request.path(),
+            path = path,
             queryParameters = request.queryParameters,
             body = body
         )
         if (content != null) maybeLaunch(content)
 
-        val serviceType = soapServiceType(request.path(), request.headers["SOAPAction"].orEmpty())
+        val serviceType = soapServiceType(path, soapAction)
         val response = when (serviceType) {
             CastReceiverConfig.AV_TRANSPORT_SERVICE_TYPE -> handleAvTransportAction(action, body)
             CastReceiverConfig.RENDERING_CONTROL_SERVICE_TYPE -> handleRenderingControlAction(action)
@@ -132,8 +140,16 @@ class CastHttpServer(
 
     private suspend fun ApplicationCall.handleGenericCall(body: String?) {
         logRequest(body)
+        val path = request.path()
+        val soapAction = request.headers["SOAPAction"].orEmpty()
+        val action = soapActionName(soapAction, body.orEmpty())
+        if (!body.isNullOrBlank() && isKnownSoapControlPath(path, action)) {
+            handleControlBody(body = body, path = path, soapAction = soapAction)
+            return
+        }
+
         val content = CastContentParser.parse(
-            path = request.path(),
+            path = path,
             queryParameters = request.queryParameters,
             body = body
         )
@@ -143,6 +159,14 @@ class CastHttpServer(
             contentType = ContentType.Application.Json.withCharset(Charsets.UTF_8)
         )
     }
+
+    private fun isKnownSoapControlPath(path: String, action: String): Boolean =
+        action.isNotBlank() && (
+            path.contains("AVTransport/control", ignoreCase = true) ||
+                path.contains("RenderingControl/control", ignoreCase = true) ||
+                path.contains("ConnectionManager/control", ignoreCase = true) ||
+                path.contains("NirvanaControl/control", ignoreCase = true)
+            )
 
     private fun ApplicationCall.logRequest(body: String?) {
         requestLogger.logRequest(
