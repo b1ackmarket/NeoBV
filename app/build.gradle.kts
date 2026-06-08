@@ -19,23 +19,45 @@ if (AppConfiguration.googleServicesAvailable) {
     apply(plugin = gradleLibs.plugins.firebase.crashlytics.get().pluginId)
 }
 
+val signingPropCandidates = listOf(
+    project.rootProject.file("signing.properties"),
+    file(System.getProperty("user.home") + "/.config/neobv-signing/signing.properties")
+)
+val signingProp = signingPropCandidates.firstOrNull { it.exists() }
+val signingProperties = signingProp?.let { propFile ->
+    Properties().apply {
+        FileInputStream(propFile).use(::load)
+    }
+}
 
-val signingProp = file(project.rootProject.file("signing.properties"))
+fun Properties.valueOrFallback(primaryKey: String, fallbackKey: String): String? =
+    getProperty(primaryKey)?.takeIf { it.isNotBlank() }
+        ?: getProperty(fallbackKey)?.takeIf { it.isNotBlank() }
+
+fun resolveSigningFile(path: String): java.io.File =
+    if (path.startsWith("/") || Regex("^[A-Za-z]:[/\\\\]").containsMatchIn(path)) {
+        file(path)
+    } else {
+        rootProject.file(path)
+    }
 
 android {
     signingConfigs {
-        if (signingProp.exists()) {
-            val properties = Properties().apply {
-                load(FileInputStream(signingProp))
-            }
+        signingProperties?.let { properties ->
             getByName("debug") {
-                storeFile = rootProject.file(properties.getProperty("debugStoreFile"))
-                keyAlias = properties.getProperty("debugKeyAlias")
-                storePassword = properties.getProperty("debugStorePassword")
-                keyPassword = properties.getProperty("debugKeyPassword")
+                storeFile = resolveSigningFile(
+                    properties.valueOrFallback("debugStoreFile", "releaseStoreFile")
+                        ?: error("Missing debugStoreFile/releaseStoreFile in ${signingProp?.path}")
+                )
+                keyAlias = properties.valueOrFallback("debugKeyAlias", "releaseKeyAlias")
+                storePassword = properties.valueOrFallback("debugStorePassword", "releaseStorePassword")
+                keyPassword = properties.valueOrFallback("debugKeyPassword", "releaseKeyPassword")
             }
             create("release") {
-                storeFile = rootProject.file(properties.getProperty("releaseStoreFile"))
+                storeFile = resolveSigningFile(
+                    properties.getProperty("releaseStoreFile")
+                        ?: error("Missing releaseStoreFile in ${signingProp?.path}")
+                )
                 keyAlias = properties.getProperty("releaseKeyAlias")
                 storePassword = properties.getProperty("releaseStorePassword")
                 keyPassword = properties.getProperty("releaseKeyPassword")
@@ -77,7 +99,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            if (signingProp.exists()) {
+            if (signingProperties != null) {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
@@ -89,7 +111,7 @@ android {
             )
             applicationIdSuffix = ".debug"
             buildConfigField("int", "CAST_RECEIVER_HTTP_PORT", "9958")
-            if (signingProp.exists()) {
+            if (signingProperties != null) {
                 signingConfig = signingConfigs.getByName("debug")
             }
         }
@@ -100,7 +122,7 @@ android {
                 "proguard-rules.pro"
             )
             applicationIdSuffix = ".r8test"
-            if (signingProp.exists()) signingConfig = signingConfigs.getByName("release")
+            if (signingProperties != null) signingConfig = signingConfigs.getByName("release")
         }
         create("alpha") {
             isMinifyEnabled = true
@@ -108,7 +130,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            if (signingProp.exists()) signingConfig = signingConfigs.getByName("release")
+            if (signingProperties != null) signingConfig = signingConfigs.getByName("release")
         }
     }
     // https://issuetracker.google.com/issues/260059413
