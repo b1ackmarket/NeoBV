@@ -695,9 +695,16 @@ object LiveStreamResolver {
         } else {
             candidates.sortedWith(compareBy<LiveRouteCandidate> { it.routeIndex }.thenBy { it.score })
         }
-        val stableCandidates = sortedCandidates.filterNot { it.url.contains("mcdn", ignoreCase = true) }
+        val stableCandidates = sortedCandidates.filterNot { isKnownPcdnUrl(it.url) }
         return stableCandidates.ifEmpty { sortedCandidates }
             .distinctBy { it.url }
+    }
+
+    private fun isKnownPcdnUrl(url: String): Boolean {
+        val host = runCatching { java.net.URI(url).host.orEmpty() }.getOrDefault("")
+        if (url.contains("mcdn", ignoreCase = true)) return true
+        if (host.endsWith("szbdyd.com", ignoreCase = true)) return true
+        return host.matches(Regex("""\d{1,3}(?:\.\d{1,3}){3}"""))
     }
 
     private fun resolveRouteCandidateScore(

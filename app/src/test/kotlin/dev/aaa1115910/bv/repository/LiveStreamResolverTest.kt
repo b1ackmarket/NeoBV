@@ -77,6 +77,49 @@ class LiveStreamResolverTest {
     }
 
     @Test
+    fun `live route selection avoids known pcdn hosts when official line exists`() {
+        val playInfo = Json.parseToJsonElement(
+            """
+            {
+              "playurl_info": {
+                "playurl": {
+                  "stream": [
+                    {
+                      "protocol_name": "http_hls",
+                      "format": [
+                        {
+                          "format_name": "ts",
+                          "codec": [
+                            {
+                              "codec_name": "avc",
+                              "base_url": "/live-bvc/12345/live_12345/index.m3u8",
+                              "url_info": [
+                                { "host": "https://1.2.3.4", "extra": "?token=ip" },
+                                { "host": "https://foo.szbdyd.com", "extra": "?token=pcdn" },
+                                { "host": "https://official.bilivideo.com", "extra": "?token=official" }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+            """.trimIndent()
+        ).jsonObject
+
+        val source = LiveStreamResolver.resolvePlayableSource(playInfo)
+
+        assertEquals(
+            "https://official.bilivideo.com/live-bvc/12345/live_12345/index.m3u8?token=official",
+            source?.playUrl
+        )
+        assertEquals(1, source?.lines?.size)
+    }
+
+    @Test
     fun `current quality follows selected play url qn before reported fallback qn`() {
         val playInfo = Json.parseToJsonElement(
             """
