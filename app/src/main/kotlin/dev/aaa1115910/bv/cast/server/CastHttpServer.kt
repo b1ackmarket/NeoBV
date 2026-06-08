@@ -9,6 +9,7 @@ import dev.aaa1115910.bv.cast.protocol.CastContent
 import dev.aaa1115910.bv.cast.protocol.CastContentParser
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.http.ContentType
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.encodeURLParameter
 import io.ktor.http.withCharset
@@ -25,9 +26,11 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.Routing
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
+import io.ktor.server.routing.head
 import io.ktor.server.routing.options
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
+import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -77,17 +80,38 @@ class CastHttpServer(
                 )
             }
             get("/bilibili/description.xml") {
-                call.respondXml(CastXmlDocuments.deviceDescription(CastNetworkUtil.localIpv4Address(), uuid))
+                call.respondXml(CastXmlDocuments.deviceDescription(call.localDescriptionHost(), uuid))
             }
+            head("/bilibili/description.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
             get("/bilibili/AVTransport.xml") { call.respondXml(CastXmlDocuments.avTransportScpd()) }
             get("/bilibili/RenderingControl.xml") { call.respondXml(CastXmlDocuments.renderingControlScpd()) }
             get("/bilibili/ConnectionManager.xml") { call.respondXml(CastXmlDocuments.connectionManagerScpd()) }
             get("/bilibili/NirvanaControl.xml") { call.respondXml(CastXmlDocuments.nirvanaControlScpd()) }
+            head("/bilibili/AVTransport.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
+            head("/bilibili/RenderingControl.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
+            head("/bilibili/ConnectionManager.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
+            head("/bilibili/NirvanaControl.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
 
             post("/bilibili/AVTransport/control") { call.handleControlCall() }
             post("/bilibili/RenderingControl/control") { call.handleControlCall() }
             post("/bilibili/ConnectionManager/control") { call.handleControlCall() }
             post("/bilibili/NirvanaControl/control") { call.handleControlCall() }
+            put("/bilibili/AVTransport/event") { call.respondEventSubscription() }
+            put("/bilibili/RenderingControl/event") { call.respondEventSubscription() }
+            put("/bilibili/ConnectionManager/event") { call.respondEventSubscription() }
+            put("/bilibili/NirvanaControl/event") { call.respondEventSubscription() }
+            route("/bilibili/AVTransport/event", HttpMethod("SUBSCRIBE")) { handle { call.respondEventSubscription() } }
+            route("/bilibili/RenderingControl/event", HttpMethod("SUBSCRIBE")) { handle { call.respondEventSubscription() } }
+            route("/bilibili/ConnectionManager/event", HttpMethod("SUBSCRIBE")) { handle { call.respondEventSubscription() } }
+            route("/bilibili/NirvanaControl/event", HttpMethod("SUBSCRIBE")) { handle { call.respondEventSubscription() } }
+            delete("/bilibili/AVTransport/event") { call.respondText("", status = HttpStatusCode.OK) }
+            delete("/bilibili/RenderingControl/event") { call.respondText("", status = HttpStatusCode.OK) }
+            delete("/bilibili/ConnectionManager/event") { call.respondText("", status = HttpStatusCode.OK) }
+            delete("/bilibili/NirvanaControl/event") { call.respondText("", status = HttpStatusCode.OK) }
+            route("/bilibili/AVTransport/event", HttpMethod("UNSUBSCRIBE")) { handle { call.respondText("", status = HttpStatusCode.OK) } }
+            route("/bilibili/RenderingControl/event", HttpMethod("UNSUBSCRIBE")) { handle { call.respondText("", status = HttpStatusCode.OK) } }
+            route("/bilibili/ConnectionManager/event", HttpMethod("UNSUBSCRIBE")) { handle { call.respondText("", status = HttpStatusCode.OK) } }
+            route("/bilibili/NirvanaControl/event", HttpMethod("UNSUBSCRIBE")) { handle { call.respondText("", status = HttpStatusCode.OK) } }
 
             registerCatchAll()
         }
@@ -325,7 +349,7 @@ class CastHttpServer(
                 action = action,
                 values = mapOf(
                     "Source" to "",
-                    "Sink" to "http-get:*:video/mp4:*,http-get:*:video/x-flv:*,http-get:*:application/vnd.apple.mpegurl:*"
+                    "Sink" to CastXmlDocuments.SINK_PROTOCOL_INFO
                 )
             )
 
@@ -455,6 +479,19 @@ class CastHttpServer(
             text = xml,
             contentType = ContentType.Application.Xml.withCharset(Charsets.UTF_8)
         )
+    }
+
+    private suspend fun ApplicationCall.respondEventSubscription() {
+        response.headers.append("SID", "uuid:$uuid")
+        response.headers.append("TIMEOUT", "Second-1800")
+        respondText("", status = HttpStatusCode.OK)
+    }
+
+    private fun ApplicationCall.localDescriptionHost(): String {
+        val remote = request.local.remoteHost
+            .takeIf { it.isNotBlank() }
+            ?.let { runCatching { java.net.InetAddress.getByName(it) }.getOrNull() }
+        return remote?.let(CastNetworkUtil::localIpv4AddressFor) ?: CastNetworkUtil.localIpv4Address()
     }
 
     private fun soapResponse(

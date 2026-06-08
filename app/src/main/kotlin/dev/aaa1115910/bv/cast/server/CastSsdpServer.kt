@@ -13,6 +13,7 @@ import java.net.InetSocketAddress
 import java.net.MulticastSocket
 import java.net.SocketTimeoutException
 import java.util.Locale
+import kotlin.random.Random
 
 class CastSsdpServer(
     private val uuid: String,
@@ -59,8 +60,9 @@ class CastSsdpServer(
                     val message = String(packet.data, packet.offset, packet.length)
                     if (!message.startsWith("M-SEARCH", ignoreCase = true)) continue
                     requestLogger.log("SSDP M-SEARCH from=${packet.address.hostAddress}:${packet.port} body=${message.oneLine()}")
-                    if (shouldRespond(message)) {
-                        sendSearchResponses(packet.address, packet.port)
+                    val targets = responseTargetsFor(message)
+                    if (targets.isNotEmpty()) {
+                        sendSearchResponses(packet.address, packet.port, targets)
                     }
                 }
             }
@@ -70,6 +72,8 @@ class CastSsdpServer(
     }
 
     private suspend fun notifyLoop() {
+        sendByeByeNotifications()
+        delay(STARTUP_ALIVE_DELAY_MS)
         repeat(STARTUP_NOTIFY_BURSTS) {
             if (!running || !scope.coroutineContext.isActive) return
             sendAliveNotifications()
@@ -81,28 +85,63 @@ class CastSsdpServer(
         }
     }
 
-    private fun shouldRespond(message: String): Boolean {
+    private fun responseTargetsFor(message: String): List<String> {
         val upper = message.uppercase(Locale.ROOT)
-        return upper.contains("SSDP:ALL") ||
-            upper.contains("UPNP:ROOTDEVICE") ||
-            upper.contains("MEDIARENDERER") ||
-            upper.contains("AVTRANSPORT") ||
-            upper.contains("NIRVANACONTROL") ||
-            upper.contains("APP-BILIBILI-COM")
+        val requestedTarget = Regex("""(?im)^\s*ST\s*:\s*(.+?)\s*$""")
+            .find(message)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+            ?.lowercase(Locale.ROOT)
+            .orEmpty()
+        val targets = ssdpTargets()
+        return when {
+            requestedTarget == "ssdp:all" -> targets
+            requestedTarget == "upnp:rootdevice" -> listOf("upnp:rootdevice")
+            requestedTarget == "uuid:${uuid.lowercase(Locale.ROOT)}" -> listOf("uuid:$uuid")
+            requestedTarget.isBlank() -> emptyList()
+            else -> targets.filter { target ->
+                val lowerTarget = target.lowercase(Locale.ROOT)
+                lowerTarget == requestedTarget ||
+                    lowerTarget.contains(requestedTarget) ||
+                    requestedTarget.contains(lowerTarget) ||
+                    (requestedTarget.contains("mediarenderer") && lowerTarget.contains("mediarenderer")) ||
+                    (requestedTarget.contains("avtransport") && lowerTarget.contains("avtransport")) ||
+                    (requestedTarget.contains("renderingcontrol") && lowerTarget.contains("renderingcontrol")) ||
+                    (requestedTarget.contains("connectionmanager") && lowerTarget.contains("connectionmanager")) ||
+                    (requestedTarget.contains("nirvanacontrol") && lowerTarget.contains("nirvanacontrol")) ||
+                    (requestedTarget.contains("app-bilibili-com") && lowerTarget.contains("app-bilibili-com"))
+            }
+        }
     }
 
-    private fun sendSearchResponses(address: InetAddress, port: Int) {
-        ssdpTargets().forEach { target ->
-            val payload = searchResponse(target)
+    private fun sendSearchResponses(address: InetAddress, port: Int, targets: List<String>) {
+        val host = CastNetworkUtil.localIpv4AddressFor(address)
+        targets.forEach { target ->
+            val payload = searchResponse(target, host)
             sendUdp(payload, address, port)
+        }
+        scope.launch {
+            delay(SEARCH_RESPONSE_REPEAT_DELAY_MS + Random.nextLong(SEARCH_RESPONSE_JITTER_MS))
+            targets.forEach { target ->
+                sendUdp(searchResponse(target, host), address, port)
+            }
         }
     }
 
     private fun sendAliveNotifications() {
         val group = InetAddress.getByName(CastReceiverConfig.SSDP_ADDRESS)
+        val host = CastNetworkUtil.localIpv4Address()
         ssdpTargets().forEach { target ->
-            val payload = aliveNotify(target)
+            val payload = aliveNotify(target, host)
             sendUdp(payload, group, CastReceiverConfig.SSDP_PORT)
+        }
+    }
+
+    private fun sendByeByeNotifications() {
+        val group = InetAddress.getByName(CastReceiverConfig.SSDP_ADDRESS)
+        ssdpTargets().forEach { target ->
+            sendUdp(byeByeNotify(target), group, CastReceiverConfig.SSDP_PORT)
         }
     }
 
@@ -116,14 +155,13 @@ class CastSsdpServer(
         CastReceiverConfig.NIRVANA_SERVICE_TYPE
     )
 
-    private fun searchResponse(st: String): String {
-        val host = CastNetworkUtil.localIpv4Address()
+    private fun searchResponse(st: String, host: String): String {
         return """
             HTTP/1.1 200 OK
             CACHE-CONTROL: max-age=1800
             DATE: ${DateHeader.now()}
             EXT:
-            LOCATION: http://$host:${CastReceiverConfig.HTTP_PORT}/bilibili/description.xml
+            LOCATION: http://$host:${CastReceiverConfig.HTTP_PORT}/description.xml
             SERVER: Android/1.0 UPnP/1.0 NeoBV/1.0
             ST: $st
             USN: ${usnFor(st)}
@@ -131,16 +169,26 @@ class CastSsdpServer(
         """.trimIndent().replace("\n", "\r\n")
     }
 
-    private fun aliveNotify(nt: String): String {
-        val host = CastNetworkUtil.localIpv4Address()
+    private fun aliveNotify(nt: String, host: String): String {
         return """
             NOTIFY / HTTP/1.1
             HOST: ${CastReceiverConfig.SSDP_ADDRESS}:${CastReceiverConfig.SSDP_PORT}
             CACHE-CONTROL: max-age=1800
-            LOCATION: http://$host:${CastReceiverConfig.HTTP_PORT}/bilibili/description.xml
+            LOCATION: http://$host:${CastReceiverConfig.HTTP_PORT}/description.xml
             NT: $nt
             NTS: ssdp:alive
             SERVER: Android/1.0 UPnP/1.0 NeoBV/1.0
+            USN: ${usnFor(nt)}
+            
+        """.trimIndent().replace("\n", "\r\n")
+    }
+
+    private fun byeByeNotify(nt: String): String {
+        return """
+            NOTIFY / HTTP/1.1
+            HOST: ${CastReceiverConfig.SSDP_ADDRESS}:${CastReceiverConfig.SSDP_PORT}
+            NT: $nt
+            NTS: ssdp:byebye
             USN: ${usnFor(nt)}
             
         """.trimIndent().replace("\n", "\r\n")
@@ -168,8 +216,11 @@ class CastSsdpServer(
         replace('\r', ' ').replace('\n', ' ').take(2048)
 
     private companion object {
+        const val STARTUP_ALIVE_DELAY_MS = 200L
         const val STARTUP_NOTIFY_BURSTS = 3
         const val STARTUP_NOTIFY_INTERVAL_MS = 1_000L
         const val REGULAR_NOTIFY_INTERVAL_MS = 30_000L
+        const val SEARCH_RESPONSE_REPEAT_DELAY_MS = 80L
+        const val SEARCH_RESPONSE_JITTER_MS = 120L
     }
 }

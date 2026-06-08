@@ -1,7 +1,9 @@
 package dev.aaa1115910.bv.cast.server
 
 import java.net.Inet4Address
+import java.net.InetAddress
 import java.net.NetworkInterface
+import java.net.DatagramSocket
 
 object CastNetworkUtil {
     fun localIpv4Address(): String =
@@ -24,4 +26,15 @@ object CastNetworkUtil {
             .mapNotNull { it.hostAddress }
             .toList()
             .ifEmpty { listOf("127.0.0.1") }
+
+    fun localIpv4AddressFor(remoteAddress: InetAddress): String =
+        runCatching {
+            DatagramSocket().use { socket ->
+                socket.connect(remoteAddress, CastReceiverConfig.SSDP_PORT)
+                (socket.localAddress as? Inet4Address)
+                    ?.takeUnless { it.isLoopbackAddress }
+                    ?.hostAddress
+            }
+        }.getOrNull()
+            ?: localIpv4Address()
 }

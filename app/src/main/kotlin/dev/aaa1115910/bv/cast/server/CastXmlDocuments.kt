@@ -1,6 +1,25 @@
 package dev.aaa1115910.bv.cast.server
 
 object CastXmlDocuments {
+    const val SINK_PROTOCOL_INFO =
+        "http-get:*:*:*," +
+            "http-get:*:video/mp4:*," +
+            "http-get:*:video/x-matroska:*," +
+            "http-get:*:video/x-msvideo:*," +
+            "http-get:*:video/x-flv:*," +
+            "http-get:*:video/mpeg:*," +
+            "http-get:*:video/quicktime:*," +
+            "http-get:*:application/vnd.apple.mpegurl:*," +
+            "http-get:*:application/x-mpegURL:*," +
+            "http-get:*:application/dash+xml:*," +
+            "http-get:*:audio/mpeg:*," +
+            "http-get:*:audio/mp4:*," +
+            "http-get:*:audio/flac:*," +
+            "http-get:*:audio/x-flac:*," +
+            "http-get:*:audio/wav:*," +
+            "http-get:*:image/jpeg:*," +
+            "http-get:*:image/png:*"
+
     fun deviceDescription(host: String, uuid: String): String {
         val baseUrl = "http://$host:${CastReceiverConfig.HTTP_PORT}/bilibili"
         return xml(
