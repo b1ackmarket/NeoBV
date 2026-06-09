@@ -14,6 +14,7 @@ data class CastContent(
     val title: String? = null,
     val partTitle: String? = null,
     val directMediaUrl: String? = null,
+    val directMediaType: CastDirectMediaType = CastDirectMediaType.Unknown,
     val creator: String? = null,
     val clientHint: CastClientHint = CastClientHint.Generic,
     val rawFields: Map<String, String> = emptyMap()
@@ -39,6 +40,13 @@ enum class CastClientHint {
 
     val isBilibiliClient: Boolean
         get() = this != Generic
+}
+
+enum class CastDirectMediaType {
+    Unknown,
+    Progressive,
+    Hls,
+    Dash
 }
 
 internal fun String.isBilibiliMediaUrl(): Boolean {

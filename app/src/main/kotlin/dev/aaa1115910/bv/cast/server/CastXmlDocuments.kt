@@ -7,9 +7,11 @@ object CastXmlDocuments {
             "http-get:*:video/x-matroska:*," +
             "http-get:*:video/x-msvideo:*," +
             "http-get:*:video/x-flv:*," +
+            "http-get:*:video/octet-stream:*," +
             "http-get:*:video/mpeg:*," +
             "http-get:*:video/quicktime:*," +
             "http-get:*:application/vnd.apple.mpegurl:*," +
+            "http-get:*:application/octet-stream:*," +
             "http-get:*:application/x-mpegURL:*," +
             "http-get:*:application/dash+xml:*," +
             "http-get:*:audio/mpeg:*," +
@@ -142,6 +144,15 @@ object CastXmlDocuments {
     fun connectionManagerScpd(): String = serviceScpd(
         actions = listOf(
             action("GetProtocolInfo"),
+            actionSpec("PrepareForConnection", listOf(
+                inArg("RemoteProtocolInfo"),
+                inArg("PeerConnectionManager"),
+                inArg("PeerConnectionID"),
+                inArg("Direction"),
+                outArg("ConnectionID"),
+                outArg("AVTransportID"),
+                outArg("RcsID")
+            )),
             action("GetCurrentConnectionIDs"),
             action("GetCurrentConnectionInfo", "ConnectionID")
         )

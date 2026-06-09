@@ -81,4 +81,13 @@ class CastNirvanaPlayInfoFormatterTest {
         assertTrue(scpd.contains("<name>SetDanmakuSwitch</name>"))
         assertTrue(scpd.contains("<name>AppendDanmaku</name>"))
     }
+
+    @Test
+    fun `connection manager advertises prepare connection and octet stream sinks`() {
+        val scpd = CastXmlDocuments.connectionManagerScpd()
+
+        assertTrue(scpd.contains("<name>PrepareForConnection</name>"))
+        assertTrue(CastXmlDocuments.SINK_PROTOCOL_INFO.contains("http-get:*:video/octet-stream:*"))
+        assertTrue(CastXmlDocuments.SINK_PROTOCOL_INFO.contains("http-get:*:application/octet-stream:*"))
+    }
 }

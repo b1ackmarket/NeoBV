@@ -18,6 +18,8 @@ object CastContentParser {
     )
     private val projectionExtKeys = listOf("nva_ext", "_nva_ext_")
     private val directMediaUrlKeys = listOf("current_uri", "res_uri", "url", "play_url", "media_url", "video_url")
+    private val hlsMimeHints = listOf("application/vnd.apple.mpegurl", "application/x-mpegurl")
+    private val dashMimeHints = listOf("application/dash+xml")
 
     fun parse(
         path: String,
@@ -94,6 +96,7 @@ object CastContentParser {
             title = fields.firstString("title")?.decodeLoose(),
             partTitle = fields.firstString("part_title")?.decodeLoose(),
             directMediaUrl = directMediaUrl,
+            directMediaType = fields.resolveDirectMediaType(directMediaUrl),
             creator = fields.firstString("creator")?.decodeLoose(),
             clientHint = fields.resolveClientHint(directMediaUrl),
             rawFields = fields.toMap()
@@ -156,12 +159,20 @@ object CastContentParser {
             ?.takeIf { it.isNotBlank() }
             ?.let { result.putIfAbsent("creator", it) }
 
-        extractXmlText(didl, "res")
-            ?.decodeXmlEntities()
-            ?.let { uri ->
-                result.putIfAbsent("res_uri", uri)
-                collectProjectionUriFields(uri, result)
-            }
+        Regex(
+            pattern = """(?is)<(?:[A-Za-z0-9_.-]+:)?res\b([^>]*)>(.*?)</(?:[A-Za-z0-9_.-]+:)?res>"""
+        ).find(didl)?.let { match ->
+            val attrs = match.groupValues.getOrNull(1).orEmpty()
+            val uri = match.groupValues.getOrNull(2).orEmpty().decodeXmlEntities()
+            result.putIfAbsent("res_uri", uri)
+            collectProjectionUriFields(uri, result)
+            Regex("""(?i)\bprotocolInfo\s*=\s*["']([^"']+)["']""")
+                .find(attrs)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.decodeXmlEntities()
+                ?.let { result.putIfAbsent("protocol_info", it) }
+        }
 
         extractXmlText(didl, "longDescription")
             ?.decodeXmlEntities()
@@ -273,6 +284,21 @@ object CastContentParser {
                 (values.contains("piliplus") || values.contains("dart/")) -> CastClientHint.PiliPlus
             directMediaUrl.orEmpty().isBilibiliMediaUrl() -> CastClientHint.GenericBilibili
             else -> CastClientHint.Generic
+        }
+    }
+
+    private fun Map<String, String>.resolveDirectMediaType(directMediaUrl: String?): CastDirectMediaType {
+        val url = directMediaUrl.orEmpty().substringBefore("?").lowercase()
+        val protocol = firstString("protocol_info").orEmpty().lowercase()
+        val values = values.joinToString(separator = "\n").lowercase()
+        return when {
+            dashMimeHints.any { it in protocol || it in values } ||
+                url.endsWith(".mpd") -> CastDirectMediaType.Dash
+            hlsMimeHints.any { it in protocol || it in values } ||
+                url.endsWith(".m3u8") ||
+                "/m3u8/" in url -> CastDirectMediaType.Hls
+            directMediaUrl != null -> CastDirectMediaType.Progressive
+            else -> CastDirectMediaType.Unknown
         }
     }
 

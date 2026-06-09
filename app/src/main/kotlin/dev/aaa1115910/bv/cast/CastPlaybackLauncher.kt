@@ -105,6 +105,7 @@ class CastPlaybackLauncher(
                 putExtra("title", content.title ?: "投屏视频")
                 putExtra("played", content.seekSeconds.toPlayedMillis())
                 putExtra("external_media_bilibili", content.isBilibiliDirectMedia)
+                putExtra("external_media_type", content.directMediaType.name)
                 content.playSpeed?.let { putExtra("play_speed", it) }
             }
         )

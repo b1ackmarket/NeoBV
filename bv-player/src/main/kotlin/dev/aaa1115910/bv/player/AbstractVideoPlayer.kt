@@ -19,6 +19,9 @@ abstract class AbstractVideoPlayer {
     /** 设置 MPD 播放地址 */
     abstract fun playDash(mpdUrl: String)
 
+    /** 设置 HLS 播放地址 */
+    abstract fun playHls(hlsUrl: String)
+
     /** 准备开始播放 */
     abstract fun prepare()
 

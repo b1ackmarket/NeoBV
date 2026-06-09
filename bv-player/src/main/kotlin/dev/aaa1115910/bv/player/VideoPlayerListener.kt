@@ -21,6 +21,9 @@ interface VideoPlayerListener {
     /** 播放结束 */
     fun onEnd()
 
+    /** 视频尺寸变化 */
+    fun onVideoSizeChanged(width: Int, height: Int) = Unit
+
     /** 后退 */
     fun onSeekBack(seekBackIncrementMs: Long)
 

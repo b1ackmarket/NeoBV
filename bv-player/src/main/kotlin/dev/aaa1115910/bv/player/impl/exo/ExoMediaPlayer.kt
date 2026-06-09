@@ -12,6 +12,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.common.C
+import androidx.media3.common.VideoSize
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.util.UnstableApi
@@ -200,8 +201,7 @@ class ExoMediaPlayer(
     override fun playUrl(videoUrl: String?, audioUrl: String?) {
         currentMediaUrl = videoUrl.orEmpty()
         if (audioUrl == null && videoUrl?.contains(".m3u8") == true) {
-            mMediaSource = HlsMediaSource.Factory(dataSourceFactory)
-                .createMediaSource(MediaItem.fromUri(videoUrl))
+            playHls(videoUrl)
             return
         }
 
@@ -226,6 +226,17 @@ class ExoMediaPlayer(
             .setMimeType(MimeTypes.APPLICATION_MPD)
             .build()
         mMediaSource = DashMediaSource.Factory(dataSourceFactory)
+            .createMediaSource(mediaItem)
+    }
+
+    @OptIn(UnstableApi::class)
+    override fun playHls(hlsUrl: String) {
+        currentMediaUrl = hlsUrl
+        val mediaItem = MediaItem.Builder()
+            .setUri(hlsUrl)
+            .setMimeType(MimeTypes.APPLICATION_M3U8)
+            .build()
+        mMediaSource = HlsMediaSource.Factory(dataSourceFactory)
             .createMediaSource(mediaItem)
     }
 
@@ -352,6 +363,10 @@ class ExoMediaPlayer(
 
     override fun onPlayerError(error: PlaybackException) {
         mPlayerEventListener?.onError(error)
+    }
+
+    override fun onVideoSizeChanged(videoSize: VideoSize) {
+        mPlayerEventListener?.onVideoSizeChanged(videoSize.width, videoSize.height)
     }
 
     override fun onDroppedVideoFrames(

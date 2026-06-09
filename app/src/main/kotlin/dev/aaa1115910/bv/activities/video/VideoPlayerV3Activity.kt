@@ -224,13 +224,15 @@ class VideoPlayerV3Activity : ImmersiveComponentActivity() {
             val played = intent.getIntExtra("played", 0)
             val playSpeed = intent.getFloatExtra("play_speed", 0f)
             val isBilibiliMedia = intent.getBooleanExtra("external_media_bilibili", false)
+            val mediaType = intent.getStringExtra("external_media_type").orEmpty()
             logger.fInfo { "Launch external cast media: [$mediaUrl]" }
 
             playerViewModel.initExternalMedia(
                 mediaUrl = mediaUrl,
                 title = title,
                 lastPlayed = played,
-                isBilibiliMedia = isBilibiliMedia
+                isBilibiliMedia = isBilibiliMedia,
+                mediaType = mediaType
             )
             if (playSpeed > 0f) {
                 playerViewModel.updatePlaySpeed(speed = playSpeed)

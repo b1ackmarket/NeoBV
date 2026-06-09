@@ -35,6 +35,7 @@ import dev.aaa1115910.biliapi.repositories.VideoPlayRepository
 import dev.aaa1115910.bilisubtitle.SubtitleParser
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.cast.protocol.CastDirectMediaType
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.danmaku.DanmakuFilterConfig
 import dev.aaa1115910.bv.danmaku.DanmakuFilterMatcher
@@ -454,6 +455,7 @@ class VideoPlayerV3ViewModel(
     private var pendingCustomSecondaryAfterMainLoad = false
     private var externalMediaUrl: String? = null
     private var externalMediaBilibili = false
+    private var externalMediaType = CastDirectMediaType.Unknown
 
     val isExternalMedia: Boolean
         get() = !externalMediaUrl.isNullOrBlank()
@@ -529,6 +531,13 @@ class VideoPlayerV3ViewModel(
             }
             viewModelScope.launch {
                 _uiEffect.emit(PlayerUiEffect.PlayEnded)
+            }
+        }
+
+        override fun onVideoSizeChanged(width: Int, height: Int) {
+            if (width <= 0 || height <= 0) return
+            _uiState.update {
+                it.copy(videoWidth = width, videoHeight = height)
             }
         }
 
@@ -672,10 +681,12 @@ class VideoPlayerV3ViewModel(
         mediaUrl: String,
         title: String,
         lastPlayed: Int,
-        isBilibiliMedia: Boolean = false
+        isBilibiliMedia: Boolean = false,
+        mediaType: String = CastDirectMediaType.Unknown.name
     ) {
         externalMediaUrl = mediaUrl
         externalMediaBilibili = isBilibiliMedia
+        externalMediaType = runCatching { CastDirectMediaType.valueOf(mediaType) }.getOrDefault(CastDirectMediaType.Unknown)
         _uiState.update {
             it.copy(
                 aid = 0,
@@ -1718,7 +1729,9 @@ class VideoPlayerV3ViewModel(
                     MediaUrls(
                         videoUrl = mediaUrl,
                         audioUrl = null,
-                        useDashMpd = mediaUrl.substringBefore('?').endsWith(".mpd", ignoreCase = true)
+                        useDashMpd = externalMediaType == CastDirectMediaType.Dash ||
+                            mediaUrl.substringBefore('?').endsWith(".mpd", ignoreCase = true),
+                        useHls = externalMediaType == CastDirectMediaType.Hls
                     )
                 )
             }.onFailure { error ->
@@ -2119,6 +2132,8 @@ class VideoPlayerV3ViewModel(
         logger.fInfo { "Current stream candidate before play: $currentStreamCandidate" }
         if (mediaUrls.useDashMpd) {
             player.playDash(mediaUrls.videoUrl)
+        } else if (mediaUrls.useHls) {
+            player.playHls(mediaUrls.videoUrl)
         } else {
             player.playUrl(mediaUrls.videoUrl, mediaUrls.audioUrl)
         }
@@ -2771,7 +2786,8 @@ class VideoPlayerV3ViewModel(
     private data class MediaUrls(
         val videoUrl: String,
         val audioUrl: String?,
-        val useDashMpd: Boolean = false
+        val useDashMpd: Boolean = false,
+        val useHls: Boolean = false
     )
 }
 

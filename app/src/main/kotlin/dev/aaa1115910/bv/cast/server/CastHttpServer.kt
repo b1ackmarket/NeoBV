@@ -79,42 +79,47 @@ class CastHttpServer(
                     contentType = ContentType.Text.Plain.withCharset(Charsets.UTF_8)
                 )
             }
-            get("/bilibili/description.xml") {
-                call.respondXml(CastXmlDocuments.deviceDescription(call.localDescriptionHost(), uuid))
-            }
-            head("/bilibili/description.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
-            get("/bilibili/AVTransport.xml") { call.respondXml(CastXmlDocuments.avTransportScpd()) }
-            get("/bilibili/RenderingControl.xml") { call.respondXml(CastXmlDocuments.renderingControlScpd()) }
-            get("/bilibili/ConnectionManager.xml") { call.respondXml(CastXmlDocuments.connectionManagerScpd()) }
-            get("/bilibili/NirvanaControl.xml") { call.respondXml(CastXmlDocuments.nirvanaControlScpd()) }
-            head("/bilibili/AVTransport.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
-            head("/bilibili/RenderingControl.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
-            head("/bilibili/ConnectionManager.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
-            head("/bilibili/NirvanaControl.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
-
-            post("/bilibili/AVTransport/control") { call.handleControlCall() }
-            post("/bilibili/RenderingControl/control") { call.handleControlCall() }
-            post("/bilibili/ConnectionManager/control") { call.handleControlCall() }
-            post("/bilibili/NirvanaControl/control") { call.handleControlCall() }
-            put("/bilibili/AVTransport/event") { call.respondEventSubscription() }
-            put("/bilibili/RenderingControl/event") { call.respondEventSubscription() }
-            put("/bilibili/ConnectionManager/event") { call.respondEventSubscription() }
-            put("/bilibili/NirvanaControl/event") { call.respondEventSubscription() }
-            route("/bilibili/AVTransport/event", HttpMethod("SUBSCRIBE")) { handle { call.respondEventSubscription() } }
-            route("/bilibili/RenderingControl/event", HttpMethod("SUBSCRIBE")) { handle { call.respondEventSubscription() } }
-            route("/bilibili/ConnectionManager/event", HttpMethod("SUBSCRIBE")) { handle { call.respondEventSubscription() } }
-            route("/bilibili/NirvanaControl/event", HttpMethod("SUBSCRIBE")) { handle { call.respondEventSubscription() } }
-            delete("/bilibili/AVTransport/event") { call.respondText("", status = HttpStatusCode.OK) }
-            delete("/bilibili/RenderingControl/event") { call.respondText("", status = HttpStatusCode.OK) }
-            delete("/bilibili/ConnectionManager/event") { call.respondText("", status = HttpStatusCode.OK) }
-            delete("/bilibili/NirvanaControl/event") { call.respondText("", status = HttpStatusCode.OK) }
-            route("/bilibili/AVTransport/event", HttpMethod("UNSUBSCRIBE")) { handle { call.respondText("", status = HttpStatusCode.OK) } }
-            route("/bilibili/RenderingControl/event", HttpMethod("UNSUBSCRIBE")) { handle { call.respondText("", status = HttpStatusCode.OK) } }
-            route("/bilibili/ConnectionManager/event", HttpMethod("UNSUBSCRIBE")) { handle { call.respondText("", status = HttpStatusCode.OK) } }
-            route("/bilibili/NirvanaControl/event", HttpMethod("UNSUBSCRIBE")) { handle { call.respondText("", status = HttpStatusCode.OK) } }
+            registerServiceRoutes(prefix = "")
+            registerServiceRoutes(prefix = "/bilibili", includeNirvana = true)
 
             registerCatchAll()
         }
+    }
+
+    private fun Routing.registerServiceRoutes(prefix: String, includeNirvana: Boolean = false) {
+        get("$prefix/description.xml") {
+            call.respondXml(CastXmlDocuments.deviceDescription(call.localDescriptionHost(), uuid))
+        }
+        head("$prefix/description.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
+
+        get("$prefix/AVTransport.xml") { call.respondXml(CastXmlDocuments.avTransportScpd()) }
+        get("$prefix/RenderingControl.xml") { call.respondXml(CastXmlDocuments.renderingControlScpd()) }
+        get("$prefix/ConnectionManager.xml") { call.respondXml(CastXmlDocuments.connectionManagerScpd()) }
+        head("$prefix/AVTransport.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
+        head("$prefix/RenderingControl.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
+        head("$prefix/ConnectionManager.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
+
+        post("$prefix/AVTransport/control") { call.handleControlCall() }
+        post("$prefix/RenderingControl/control") { call.handleControlCall() }
+        post("$prefix/ConnectionManager/control") { call.handleControlCall() }
+
+        registerEventRoutes("$prefix/AVTransport/event")
+        registerEventRoutes("$prefix/RenderingControl/event")
+        registerEventRoutes("$prefix/ConnectionManager/event")
+
+        if (includeNirvana) {
+            get("$prefix/NirvanaControl.xml") { call.respondXml(CastXmlDocuments.nirvanaControlScpd()) }
+            head("$prefix/NirvanaControl.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
+            post("$prefix/NirvanaControl/control") { call.handleControlCall() }
+            registerEventRoutes("$prefix/NirvanaControl/event")
+        }
+    }
+
+    private fun Routing.registerEventRoutes(path: String) {
+        put(path) { call.respondEventSubscription() }
+        route(path, HttpMethod("SUBSCRIBE")) { handle { call.respondEventSubscription() } }
+        delete(path) { call.respondText("", status = HttpStatusCode.OK) }
+        route(path, HttpMethod("UNSUBSCRIBE")) { handle { call.respondText("", status = HttpStatusCode.OK) } }
     }
 
     private fun Routing.registerCatchAll() {
@@ -352,6 +357,16 @@ class CastHttpServer(
                 values = mapOf(
                     "Source" to "",
                     "Sink" to CastXmlDocuments.SINK_PROTOCOL_INFO
+                )
+            )
+
+            "PrepareForConnection" -> soapResponse(
+                serviceType = CastReceiverConfig.CONNECTION_MANAGER_SERVICE_TYPE,
+                action = action,
+                values = mapOf(
+                    "ConnectionID" to "0",
+                    "AVTransportID" to "0",
+                    "RcsID" to "0"
                 )
             )
 

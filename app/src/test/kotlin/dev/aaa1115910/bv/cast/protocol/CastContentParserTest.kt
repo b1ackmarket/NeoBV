@@ -169,6 +169,7 @@ class CastContentParserTest {
         assertNotNull(content)
         assertNull(content.aid)
         assertEquals("115 video", content.title)
+        assertEquals(CastDirectMediaType.Hls, content.directMediaType)
         assertEquals(
             "http://videoplay.115.com/m3u8/pickcode?filesha1=abc&definition=5",
             content.directMediaUrl
