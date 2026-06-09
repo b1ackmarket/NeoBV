@@ -49,4 +49,8 @@ object CastPlaybackSessionRegistry {
     }
 
     fun current(): CastPlaybackSession? = session
+
+    fun pauseCurrent() {
+        session?.pause()
+    }
 }

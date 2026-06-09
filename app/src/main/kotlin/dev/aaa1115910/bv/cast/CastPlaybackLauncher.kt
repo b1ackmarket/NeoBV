@@ -13,6 +13,7 @@ import dev.aaa1115910.bv.cast.protocol.CastContent
 import dev.aaa1115910.bv.util.Prefs
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import org.koin.java.KoinJavaComponent.getKoin
 
@@ -23,11 +24,13 @@ class CastPlaybackLauncher(
     private val logger = KotlinLogging.logger("CastPlaybackLauncher")
     private var lastLaunch: LastLaunch? = null
 
-    suspend fun launch(content: CastContent): Boolean = withContext(Dispatchers.Main) {
+    suspend fun launch(content: CastContent): Boolean = withContext(dependencies.mainDispatcher) {
         if (isDuplicateLaunch(content)) {
             logger.info { "Skip duplicate cast launch: $content" }
             return@withContext true
         }
+
+        dependencies.pauseCurrentPlayback()
 
         when {
             content.hasLiveIdentity -> {
@@ -87,7 +90,7 @@ class CastPlaybackLauncher(
             logger.info { "PiliPlus cast compat disabled, use direct DLNA media" }
             return null
         }
-        return withContext(Dispatchers.IO) {
+        return withContext(dependencies.ioDispatcher) {
             dependencies.piliPlusResolver().resolve(content)
         }
     }
@@ -109,7 +112,7 @@ class CastPlaybackLauncher(
 
     private suspend fun launchVideo(content: CastContent): Boolean {
         val repository = dependencies.videoDetailRepository()
-        val resolved = withContext(Dispatchers.IO) {
+        val resolved = withContext(dependencies.ioDispatcher) {
             resolveVideo(content, repository)
         } ?: return false
 
@@ -208,7 +211,7 @@ class CastPlaybackLauncher(
     }
 
     private fun isDuplicateLaunch(content: CastContent): Boolean {
-        val now = SystemClock.elapsedRealtime()
+        val now = dependencies.elapsedRealtime()
         val key = listOf(
             content.aid,
             content.bvid,
@@ -250,7 +253,11 @@ class CastPlaybackLauncher(
                 enableProxy = { Prefs.enableProxy }
             )
         },
-        val enablePiliPlusCastCompat: () -> Boolean = { Prefs.enablePiliPlusCastCompat }
+        val enablePiliPlusCastCompat: () -> Boolean = { Prefs.enablePiliPlusCastCompat },
+        val pauseCurrentPlayback: () -> Unit = { CastPlaybackSessionRegistry.pauseCurrent() },
+        val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
+        val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+        val elapsedRealtime: () -> Long = { SystemClock.elapsedRealtime() }
     )
 
     private companion object {
