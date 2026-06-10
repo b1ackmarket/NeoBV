@@ -289,7 +289,12 @@ fun VideoPlayerV3Screen(
         },
         onOpenCommentUpPage = { mid, name ->
             if (mid > 0L) {
-                UpInfoActivity.actionStart(context, mid, name)
+                UpInfoActivity.actionStart(
+                    context = context,
+                    mid = mid,
+                    name = name,
+                    initialFocus = UpInfoActivity.INITIAL_FOCUS_TABS
+                )
             } else {
                 "无法打开该用户主页".toast(context)
             }

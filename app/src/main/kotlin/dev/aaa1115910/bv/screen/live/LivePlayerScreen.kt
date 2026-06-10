@@ -1325,7 +1325,14 @@ fun LivePlayerScreen() {
             onToggleCommentSort = {},
             onCommentListPositionChanged = { _, _ -> },
             onOpenUpPage = { mid, name ->
-                if (mid > 0L) UpInfoActivity.actionStart(context, mid, name)
+                if (mid > 0L) {
+                    UpInfoActivity.actionStart(
+                        context = context,
+                        mid = mid,
+                        name = name,
+                        initialFocus = UpInfoActivity.INITIAL_FOCUS_TABS
+                    )
+                }
             }
         )
     }

@@ -78,6 +78,7 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.SelectableItemPopupWidthFraction
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
@@ -114,6 +115,7 @@ fun UpSpaceScreen(
     val jumpModeRepository = remember { BVApp.koinApplication.koin.get<JumpModeRepository>() }
     val profileFocusRequester = remember { FocusRequester() }
     val tabsFocusRequester = remember { FocusRequester() }
+    var initialFocusTarget by remember { mutableStateOf(UpInfoActivity.INITIAL_FOCUS_PROFILE) }
     var initialFocusRequested by remember { mutableStateOf(false) }
     var tabFocusRequestId by remember { mutableIntStateOf(0) }
     val onTabSelected: (UpSpaceTab) -> Unit = { tab ->
@@ -126,6 +128,7 @@ fun UpSpaceScreen(
         if (intent.hasExtra("mid")) {
             val mid = intent.getLongExtra("mid", 0)
             val name = intent.getStringExtra("name") ?: ""
+            initialFocusTarget = UpInfoActivity.readInitialFocus(intent)
             upInfoViewModel.upMid = mid
             upInfoViewModel.upName = name
             upInfoViewModel.update()
@@ -152,7 +155,12 @@ fun UpSpaceScreen(
             upInfoViewModel.selectedTab == UpSpaceTab.Videos
         ) {
             initialFocusRequested = true
-            profileFocusRequester.requestFocus(scope)
+            if (initialFocusTarget == UpInfoActivity.INITIAL_FOCUS_TABS) {
+                tabFocusRequestId++
+                onTabSelected(UpSpaceTab.Videos)
+            } else {
+                profileFocusRequester.requestFocus(scope)
+            }
         }
     }
 
@@ -269,6 +277,7 @@ private fun UpVideosGrid(
                 tabs = upInfoViewModel.visibleTabs,
                 selectedTab = upInfoViewModel.selectedTab,
                 focusRequestId = tabFocusRequestId,
+                focusedTab = UpSpaceTab.Videos,
                 onSelect = onTabSelected
             )
         }
@@ -527,9 +536,11 @@ private fun UpTabs(
     tabs: List<UpSpaceTab>,
     selectedTab: UpSpaceTab,
     focusRequestId: Int = 0,
+    focusedTab: UpSpaceTab = selectedTab,
     onSelect: (UpSpaceTab) -> Unit
 ) {
     val selectedIndex = tabs.indexOf(selectedTab).coerceAtLeast(0)
+    val focusedIndex = tabs.indexOf(focusedTab).takeIf { it >= 0 } ?: selectedIndex
     val tabFocusRequesters = remember(tabs) {
         tabs.map { FocusRequester() }
     }
@@ -538,7 +549,7 @@ private fun UpTabs(
 
     LaunchedEffect(focusRequestId) {
         if (focusRequestId > 0) {
-            runCatching { tabFocusRequesters[selectedIndex].requestFocus() }
+            runCatching { tabFocusRequesters[focusedIndex].requestFocus() }
         }
     }
 
@@ -604,6 +615,7 @@ private fun UpSeasonSeriesContent(
                 tabs = upInfoViewModel.visibleTabs,
                 selectedTab = upInfoViewModel.selectedTab,
                 focusRequestId = tabFocusRequestId,
+                focusedTab = UpSpaceTab.Videos,
                 onSelect = onTabSelected
             )
         }
@@ -658,6 +670,7 @@ private fun UpFavoritesContent(
                 tabs = upInfoViewModel.visibleTabs,
                 selectedTab = upInfoViewModel.selectedTab,
                 focusRequestId = tabFocusRequestId,
+                focusedTab = UpSpaceTab.Videos,
                 onSelect = onTabSelected
             )
         }
