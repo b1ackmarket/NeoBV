@@ -9,6 +9,7 @@ import dev.aaa1115910.biliapi.entity.video.SubtitleAiType
 import dev.aaa1115910.biliapi.entity.video.SubtitleType
 import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.biliapi.http.entity.reply.ReplyContent
+import dev.aaa1115910.biliapi.http.entity.reply.ReplyEmote
 import dev.aaa1115910.biliapi.http.entity.reply.ReplyItem
 import dev.aaa1115910.biliapi.http.entity.reply.ReplyMember
 import dev.aaa1115910.biliapi.http.entity.reply.ReplyPicture
@@ -404,7 +405,11 @@ class VideoPlayerV3ViewModelMetadataTest {
             ),
             content = ReplyContent(
                 message = "这是一条评论",
-                pictures = listOf(ReplyPicture(imgSrc = "https://pic", imgWidth = 640, imgHeight = 360))
+                pictures = listOf(ReplyPicture(imgSrc = "https://pic", imgWidth = 640, imgHeight = 360)),
+                emote = mapOf(
+                    "[大笑]" to ReplyEmote(text = "[大笑]", url = "https://emoji/daxiao.png", size = 1),
+                    "[妙啊]" to ReplyEmote(text = "[妙啊]", url = "https://emoji/miao.png", size = 2)
+                )
             ),
             replyControl = ReplyControl(location = "IP属地：上海")
         )
@@ -416,6 +421,10 @@ class VideoPlayerV3ViewModelMetadataTest {
         assertEquals("评论用户", comment.username)
         assertEquals("https://avatar", comment.avatar)
         assertEquals("这是一条评论", comment.message)
+        assertEquals("[大笑]", comment.emotes[0].text)
+        assertEquals("https://emoji/daxiao.png", comment.emotes[0].url)
+        assertEquals("[妙啊]", comment.emotes[1].text)
+        assertEquals(2, comment.emotes[1].size)
         assertEquals("https://pic", comment.pictures.single().url)
         assertEquals("32赞", comment.likeText)
         assertEquals("7回复", comment.replyText)

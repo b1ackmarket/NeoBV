@@ -6,6 +6,7 @@ data class PlayerCommentItem(
     val username: String,
     val avatar: String = "",
     val message: String,
+    val emotes: List<PlayerCommentEmote> = emptyList(),
     val pictures: List<PlayerCommentPicture> = emptyList(),
     val timeText: String = "",
     val likeText: String = "",
@@ -13,6 +14,12 @@ data class PlayerCommentItem(
     val ipLocation: String = "",
     val badgeText: String? = null,
     val color: Int? = null
+)
+
+data class PlayerCommentEmote(
+    val text: String,
+    val url: String,
+    val size: Int = 1
 )
 
 data class PlayerCommentPicture(

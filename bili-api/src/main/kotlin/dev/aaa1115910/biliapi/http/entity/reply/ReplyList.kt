@@ -52,7 +52,8 @@ data class ReplyVip(
 @Serializable
 data class ReplyContent(
     val message: String = "",
-    val pictures: List<ReplyPicture>? = emptyList()
+    val pictures: List<ReplyPicture>? = emptyList(),
+    val emote: Map<String, ReplyEmote>? = emptyMap()
 )
 
 @Serializable
@@ -63,6 +64,14 @@ data class ReplyPicture(
     val imgWidth: Int = 0,
     @SerialName("img_height")
     val imgHeight: Int = 0
+)
+
+@Serializable
+data class ReplyEmote(
+    val id: Long = 0L,
+    val text: String = "",
+    val url: String = "",
+    val size: Int = 1
 )
 
 @Serializable

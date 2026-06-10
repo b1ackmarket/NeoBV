@@ -46,6 +46,7 @@ import dev.aaa1115910.bv.danmaku.readDanmakuFilterConfigFromPrefs
 import dev.aaa1115910.bv.danmaku.shouldFetchCloudDanmakuFilterRules
 import dev.aaa1115910.bv.danmaku.summarizeDanmakuFilterRules
 import dev.aaa1115910.bv.entity.Audio
+import dev.aaa1115910.bv.entity.PlayerCommentEmote
 import dev.aaa1115910.bv.entity.PlayerCommentItem
 import dev.aaa1115910.bv.entity.PlayerCommentPicture
 import dev.aaa1115910.bv.entity.PlayerCommentSort
@@ -2859,6 +2860,16 @@ internal fun ReplyItem.toPlayerCommentItem(): PlayerCommentItem {
         username = member.uname,
         avatar = member.avatar,
         message = content.message,
+        emotes = content.emote.orEmpty()
+            .mapNotNull { (key, emote) ->
+                val text = emote.text.ifBlank { key }
+                val url = emote.url
+                if (text.isBlank() || url.isBlank()) {
+                    null
+                } else {
+                    PlayerCommentEmote(text = text, url = url, size = emote.size)
+                }
+            },
         pictures = content.pictures.orEmpty()
             .mapNotNull { picture ->
                 picture.imgSrc

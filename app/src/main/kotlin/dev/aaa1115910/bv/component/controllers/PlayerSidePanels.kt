@@ -20,6 +20,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -43,9 +45,13 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Border
@@ -55,6 +61,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.entity.PlayerCommentEmote
 import dev.aaa1115910.bv.entity.PlayerCommentItem
 import dev.aaa1115910.bv.entity.PlayerCommentSort
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
@@ -535,12 +542,10 @@ private fun PlayerCommentListItem(
                         )
                     }
                 }
-                Text(
-                    text = comment.message,
-                    color = Color.White.copy(alpha = 0.9f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = if (forceExpanded || expanded) Int.MAX_VALUE else 4,
-                    overflow = if (forceExpanded || expanded) TextOverflow.Clip else TextOverflow.Ellipsis
+                PlayerCommentMessage(
+                    comment = comment,
+                    forceExpanded = forceExpanded,
+                    expanded = expanded
                 )
                 if (comment.pictures.isNotEmpty()) {
                     if (forceExpanded || expanded) {
@@ -579,6 +584,85 @@ private fun PlayerCommentListItem(
         }
     }
 }
+
+@Composable
+private fun PlayerCommentMessage(
+    comment: PlayerCommentItem,
+    forceExpanded: Boolean,
+    expanded: Boolean
+) {
+    val maxLines = if (forceExpanded || expanded) Int.MAX_VALUE else 4
+    val overflow = if (forceExpanded || expanded) TextOverflow.Clip else TextOverflow.Ellipsis
+    val emotes = remember(comment.emotes) {
+        comment.emotes
+            .filter { it.text.isNotBlank() && it.url.isNotBlank() }
+            .distinctBy { it.text }
+            .sortedByDescending { it.text.length }
+    }
+    if (emotes.isEmpty()) {
+        Text(
+            text = comment.message,
+            color = Color.White.copy(alpha = 0.9f),
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = maxLines,
+            overflow = overflow
+        )
+        return
+    }
+
+    val inlineContent = remember(emotes) {
+        emotes.mapIndexed { index, emote ->
+            val textSize = if (emote.size > 1) 30.sp else 22.sp
+            val imageSize = if (emote.size > 1) 30.dp else 22.dp
+            emote.inlineId(index) to InlineTextContent(
+                placeholder = Placeholder(
+                    width = textSize,
+                    height = textSize,
+                    placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+                )
+            ) {
+                AsyncImage(
+                    modifier = Modifier.size(imageSize),
+                    model = emote.url,
+                    contentDescription = emote.text,
+                    contentScale = ContentScale.Fit
+                )
+            }
+        }.toMap()
+    }
+    val annotatedMessage = remember(comment.message, emotes) {
+        buildAnnotatedString {
+            var cursor = 0
+            while (cursor < comment.message.length) {
+                val next = emotes.mapIndexedNotNull { index, emote ->
+                    val start = comment.message.indexOf(emote.text, startIndex = cursor)
+                    if (start >= 0) Triple(start, index, emote) else null
+                }.minByOrNull { it.first }
+
+                if (next == null) {
+                    append(comment.message.substring(cursor))
+                    cursor = comment.message.length
+                } else {
+                    val (start, index, emote) = next
+                    if (start > cursor) append(comment.message.substring(cursor, start))
+                    appendInlineContent(emote.inlineId(index), emote.text)
+                    cursor = start + emote.text.length
+                }
+            }
+        }
+    }
+
+    Text(
+        text = annotatedMessage,
+        inlineContent = inlineContent,
+        color = Color.White.copy(alpha = 0.9f),
+        style = MaterialTheme.typography.bodyMedium,
+        maxLines = maxLines,
+        overflow = overflow
+    )
+}
+
+private fun PlayerCommentEmote.inlineId(index: Int): String = "comment_emote_$index"
 
 @Composable
 private fun PlayerCommentActionDialog(
