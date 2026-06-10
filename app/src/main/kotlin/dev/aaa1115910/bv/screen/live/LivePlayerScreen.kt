@@ -149,6 +149,7 @@ fun LivePlayerScreen() {
     var playbackSource by remember { mutableStateOf<LivePlaybackSource?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    var isLivePaused by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf<String?>(null) }
     var activeOverlay by remember { mutableStateOf(LiveOverlayPanel.None) }
     var lastBackPressedAt by remember { mutableStateOf(0L) }
@@ -384,10 +385,14 @@ fun LivePlayerScreen() {
                 }
 
                 override fun onPlay() {
+                    isLivePaused = false
                     liveDanmakuSession.start()
                 }
 
                 override fun onPause() {
+                    if (playbackSource != null && !isLoading && errorMessage == null) {
+                        isLivePaused = true
+                    }
                     liveDanmakuSession.pause()
                 }
 
@@ -687,6 +692,7 @@ fun LivePlayerScreen() {
             player.stop()
             liveDanmakuSession.clear()
             liveChatMessages = emptyList()
+            isLivePaused = false
             player.setOptions()
             player.playUrl(resolvedSource.playUrl, null)
             player.prepare()
@@ -745,6 +751,7 @@ fun LivePlayerScreen() {
 
                 override fun play() {
                     runOnMain {
+                        isLivePaused = false
                         player.start()
                         liveDanmakuSession.start()
                     }
@@ -752,6 +759,7 @@ fun LivePlayerScreen() {
 
                 override fun pause() {
                     runOnMain {
+                        isLivePaused = true
                         player.pause()
                         liveDanmakuSession.pause()
                     }
@@ -830,6 +838,7 @@ fun LivePlayerScreen() {
         onDispose {
             liveJumpModeHoldJob?.cancel()
             liveDanmakuSocketJob?.cancel()
+            isLivePaused = true
             player.pause()
             player.release()
             liveDanmakuSession.release()
@@ -1169,11 +1178,29 @@ fun LivePlayerScreen() {
             items = buildList {
                 add(
                     LiveBottomMenuItem(
+                        iconRes = R.drawable.play_pause_24px,
+                        label = if (isLivePaused) "继续" else "暂停"
+                    ) {
+                        if (isLivePaused) {
+                            isLivePaused = false
+                            player.start()
+                            liveDanmakuSession.start()
+                        } else {
+                            isLivePaused = true
+                            player.pause()
+                            liveDanmakuSession.pause()
+                        }
+                        activeOverlay = LiveOverlayPanel.None
+                    }
+                )
+                add(
+                    LiveBottomMenuItem(
                         iconRes = R.drawable.related_videos_24px,
                         label = "刷新"
                     ) {
                         statusText = "正在刷新直播流…"
                         player.stop()
+                        isLivePaused = false
                         playbackSource = null
                         errorMessage = null
                         isLoading = true

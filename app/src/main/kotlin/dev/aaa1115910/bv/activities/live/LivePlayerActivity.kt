@@ -89,6 +89,11 @@ class LivePlayerActivity : ImmersiveComponentActivity() {
         keepScreenAwake()
     }
 
+    override fun onPause() {
+        super.onPause()
+        castController?.pause()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         CastPlaybackSessionRegistry.unregister(castPlaybackSession)
