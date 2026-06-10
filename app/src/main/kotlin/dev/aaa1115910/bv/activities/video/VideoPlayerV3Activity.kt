@@ -2,9 +2,12 @@ package dev.aaa1115910.bv.activities.video
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.compose.setContent
+import androidx.lifecycle.lifecycleScope
+import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
 import dev.aaa1115910.biliapi.entity.user.Author
 import dev.aaa1115910.bv.activities.ImmersiveComponentActivity
 import dev.aaa1115910.bv.cast.CastPlaybackSession
@@ -16,15 +19,19 @@ import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.screen.VideoPlayerV3Screen
 import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.player.DanmakuSettingAction
 import dev.aaa1115910.bv.viewmodel.player.MediaProfileSettingAction
 import dev.aaa1115910.bv.viewmodel.player.VideoPlayerV3ViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
+import org.koin.java.KoinJavaComponent.inject
 
 class VideoPlayerV3Activity : ImmersiveComponentActivity() {
     private val playerViewModel: VideoPlayerV3ViewModel by viewModel()
+    private val videoDetailRepository: VideoDetailRepository by inject(VideoDetailRepository::class.java)
     private val castPlaybackSession = object : CastPlaybackSession {
         private var commandedState: CastTransportState? = null
         private var commandedStateAtMs: Long = 0L
@@ -183,7 +190,12 @@ class VideoPlayerV3Activity : ImmersiveComponentActivity() {
         }
 
         // 初始化viewmodel参数
-        initViewModelFromIntent()
+        if (initViewModelFromIntent()) {
+            startPlayer()
+        }
+    }
+
+    private fun startPlayer() {
         // 初始化播放器
         playerViewModel.initVideoPlayer(applicationContext)
         CastPlaybackSessionRegistry.register(castPlaybackSession)
@@ -217,7 +229,7 @@ class VideoPlayerV3Activity : ImmersiveComponentActivity() {
         }
     }
 
-    private fun initViewModelFromIntent() {
+    private fun initViewModelFromIntent(): Boolean {
         if (intent.hasExtra("external_media_url")) {
             val mediaUrl = intent.getStringExtra("external_media_url").orEmpty()
             val title = intent.getStringExtra("title") ?: "投屏视频"
@@ -241,6 +253,7 @@ class VideoPlayerV3Activity : ImmersiveComponentActivity() {
             if (playSpeed > 0f) {
                 playerViewModel.updatePlaySpeed(speed = playSpeed)
             }
+            return true
         } else if (intent.hasExtra("avid")) {
             val aid = intent.getLongExtra("avid", 170001)
             val cid = intent.getLongExtra("cid", 170001)
@@ -279,8 +292,45 @@ class VideoPlayerV3Activity : ImmersiveComponentActivity() {
             if (intent.hasExtra("danmaku_enabled")) {
                 applyCastDanmakuState(intent.getBooleanExtra("danmaku_enabled", true))
             }
+            return true
+        } else if (intent.action == Intent.ACTION_VIEW) {
+            val share = resolveBilibiliShareUri(intent.data)
+            if (share?.epid == null) {
+                logger.fInfo { "Unsupported view uri: ${intent.data}" }
+                finish()
+                return false
+            }
+            lifecycleScope.launch {
+                runCatching {
+                    val season = videoDetailRepository.getPgcVideoDetail(
+                        epid = share.epid,
+                        preferApiType = Prefs.playbackApiType
+                    )
+                    val episode = season.episodes.firstOrNull { it.epid == share.epid }
+                        ?: error("未找到分享链接对应的番剧分集")
+                    playerViewModel.init(
+                        aid = episode.aid,
+                        cid = episode.cid,
+                        epid = episode.epid,
+                        title = season.title,
+                        lastPlayed = share.seekSeconds * 1000,
+                        fromSeason = true,
+                        subType = 0,
+                        seasonId = season.seasonId,
+                        proxyArea = ProxyArea.MainLand,
+                        authorName = ""
+                    )
+                    startPlayer()
+                }.onFailure { error ->
+                    logger.warn(error) { "Resolve bilibili share link failed: ${intent.data}" }
+                    finish()
+                }
+            }
+            return false
         } else {
             logger.fInfo { "Null launch parameter" }
+            finish()
+            return false
         }
     }
 
@@ -300,4 +350,33 @@ class VideoPlayerV3Activity : ImmersiveComponentActivity() {
             )
         )
     }
+
+    private fun resolveBilibiliShareUri(uri: Uri?): BilibiliShareTarget? {
+        if (uri == null) return null
+        val host = uri.host.orEmpty()
+        if (!host.equals("www.bilibili.com", ignoreCase = true) &&
+            !host.equals("m.bilibili.com", ignoreCase = true)
+        ) {
+            return null
+        }
+
+        val path = uri.path.orEmpty()
+        val epid = Regex("""/(?:bangumi/play/)?ep(\d+)""")
+            .find(path)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+            ?: return null
+        val seekSeconds = uri.getQueryParameter("t")
+            ?.substringBefore(".")
+            ?.toIntOrNull()
+            ?.coerceAtLeast(0)
+            ?: 0
+        return BilibiliShareTarget(epid = epid, seekSeconds = seekSeconds)
+    }
+
+    private data class BilibiliShareTarget(
+        val epid: Int,
+        val seekSeconds: Int
+    )
 }

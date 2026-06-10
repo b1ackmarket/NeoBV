@@ -75,7 +75,23 @@
             android:exported="true"
             android:label="@string/title_activity_video_player_v3"
             android:screenOrientation="sensorLandscape"
-            android:theme="@style/Theme.BV" />
+            android:theme="@style/Theme.BV">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="www.bilibili.com"
+                    android:pathPrefix="/bangumi/play/"
+                    android:scheme="https" />
+                <data
+                    android:host="m.bilibili.com"
+                    android:pathPrefix="/bangumi/play/"
+                    android:scheme="https" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".activities.video.TagActivity"
             android:exported="false"
