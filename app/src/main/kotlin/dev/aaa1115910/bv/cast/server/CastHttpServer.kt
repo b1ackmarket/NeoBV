@@ -79,40 +79,36 @@ class CastHttpServer(
                     contentType = ContentType.Text.Plain.withCharset(Charsets.UTF_8)
                 )
             }
-            registerServiceRoutes(prefix = "")
-            registerServiceRoutes(prefix = "/bilibili", includeNirvana = true)
+            registerServiceRoutes()
 
             registerCatchAll()
         }
     }
 
-    private fun Routing.registerServiceRoutes(prefix: String, includeNirvana: Boolean = false) {
-        get("$prefix/description.xml") {
+    private fun Routing.registerServiceRoutes() {
+        get("/description.xml") {
             call.respondXml(CastXmlDocuments.deviceDescription(call.localDescriptionHost(), uuid))
         }
-        head("$prefix/description.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
+        head("/description.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
 
-        get("$prefix/AVTransport.xml") { call.respondXml(CastXmlDocuments.avTransportScpd()) }
-        get("$prefix/RenderingControl.xml") { call.respondXml(CastXmlDocuments.renderingControlScpd()) }
-        get("$prefix/ConnectionManager.xml") { call.respondXml(CastXmlDocuments.connectionManagerScpd()) }
-        head("$prefix/AVTransport.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
-        head("$prefix/RenderingControl.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
-        head("$prefix/ConnectionManager.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
+        get("/AVTransport.xml") { call.respondXml(CastXmlDocuments.avTransportScpd()) }
+        get("/RenderingControl.xml") { call.respondXml(CastXmlDocuments.renderingControlScpd()) }
+        get("/ConnectionManager.xml") { call.respondXml(CastXmlDocuments.connectionManagerScpd()) }
+        get("/NirvanaControl.xml") { call.respondXml(CastXmlDocuments.nirvanaControlScpd()) }
+        head("/AVTransport.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
+        head("/RenderingControl.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
+        head("/ConnectionManager.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
+        head("/NirvanaControl.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
 
-        post("$prefix/AVTransport/control") { call.handleControlCall() }
-        post("$prefix/RenderingControl/control") { call.handleControlCall() }
-        post("$prefix/ConnectionManager/control") { call.handleControlCall() }
+        post("/AVTransport/control") { call.handleControlCall() }
+        post("/RenderingControl/control") { call.handleControlCall() }
+        post("/ConnectionManager/control") { call.handleControlCall() }
+        post("/NirvanaControl/control") { call.handleControlCall() }
 
-        registerEventRoutes("$prefix/AVTransport/event")
-        registerEventRoutes("$prefix/RenderingControl/event")
-        registerEventRoutes("$prefix/ConnectionManager/event")
-
-        if (includeNirvana) {
-            get("$prefix/NirvanaControl.xml") { call.respondXml(CastXmlDocuments.nirvanaControlScpd()) }
-            head("$prefix/NirvanaControl.xml") { call.respondText("", contentType = ContentType.Application.Xml) }
-            post("$prefix/NirvanaControl/control") { call.handleControlCall() }
-            registerEventRoutes("$prefix/NirvanaControl/event")
-        }
+        registerEventRoutes("/AVTransport/event")
+        registerEventRoutes("/RenderingControl/event")
+        registerEventRoutes("/ConnectionManager/event")
+        registerEventRoutes("/NirvanaControl/event")
     }
 
     private fun Routing.registerEventRoutes(path: String) {

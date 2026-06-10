@@ -10,7 +10,7 @@ class CastContentParserTest {
     @Test
     fun `parse projection analytics style JSON body`() {
         val content = CastContentParser.parse(
-            path = "/bilibili/NirvanaControl/control",
+            path = "/NirvanaControl/control",
             queryParameters = Parameters.Empty,
             body = """
                 {
@@ -36,7 +36,7 @@ class CastContentParserTest {
     @Test
     fun `prefer official desired quality and parse danmaku switch`() {
         val content = CastContentParser.parse(
-            path = "/bilibili/NirvanaControl/control",
+            path = "/NirvanaControl/control",
             queryParameters = Parameters.Empty,
             body = """
                 {
@@ -92,7 +92,7 @@ class CastContentParserTest {
     @Test
     fun `parse live cast ignores restricted mobile quality`() {
         val content = CastContentParser.parse(
-            path = "/bilibili/AVTransport/control",
+            path = "/AVTransport/control",
             queryParameters = Parameters.Empty,
             body = """
                 <CurrentURI>http://example.com/live.flv?qn=250&amp;bili_room_id=865961&amp;proj_source=bilibili</CurrentURI>
@@ -124,7 +124,7 @@ class CastContentParserTest {
         """.trimIndent()
 
         val content = CastContentParser.parse(
-            path = "/bilibili/AVTransport/control",
+            path = "/AVTransport/control",
             queryParameters = Parameters.Empty,
             body = body
         )
@@ -161,7 +161,7 @@ class CastContentParserTest {
         """.trimIndent()
 
         val content = CastContentParser.parse(
-            path = "/bilibili/AVTransport/control",
+            path = "/AVTransport/control",
             queryParameters = Parameters.Empty,
             body = body
         )
@@ -283,7 +283,7 @@ class CastContentParserTest {
         """.trimIndent()
 
         val content = CastContentParser.parse(
-            path = "/bilibili/bilibili/AVTransport/control",
+            path = "/AVTransport/control",
             queryParameters = Parameters.Empty,
             body = body
         )
@@ -311,7 +311,7 @@ class CastContentParserTest {
         """.trimIndent()
 
         val content = CastContentParser.parse(
-            path = "/bilibili/bilibili/AVTransport/control",
+            path = "/AVTransport/control",
             queryParameters = Parameters.Empty,
             body = body,
             headers = mapOf("User-Agent" to "Dart/3.12 (dart:io)")
@@ -342,7 +342,7 @@ class CastContentParserTest {
         """.trimIndent()
 
         val content = CastContentParser.parse(
-            path = "/bilibili/AVTransport/control",
+            path = "/AVTransport/control",
             queryParameters = Parameters.Empty,
             body = body
         )
@@ -367,7 +367,7 @@ class CastContentParserTest {
         """.trimIndent()
 
         val content = CastContentParser.parse(
-            path = "/bilibili/AVTransport/control",
+            path = "/AVTransport/control",
             queryParameters = Parameters.Empty,
             body = body,
             headers = mapOf("User-Agent" to "Dart/3.12 (dart:io)")

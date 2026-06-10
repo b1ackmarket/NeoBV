@@ -12,6 +12,7 @@ class UpInfoActivity : PreviewAwareComponentActivity() {
     companion object {
         const val INITIAL_FOCUS_PROFILE = "profile"
         const val INITIAL_FOCUS_TABS = "tabs"
+        const val INITIAL_FOCUS_VIDEOS = "videos"
         private const val EXTRA_INITIAL_FOCUS = "initial_focus"
 
         fun actionStart(

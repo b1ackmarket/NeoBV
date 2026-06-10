@@ -129,7 +129,7 @@ fun NetworkSetting(
                     SettingSwitchListItem(
                         title = "接收手机投屏",
                         supportText = if (enableCastReceiver) {
-                            "已广播 NeoBV 投屏接收器；描述地址 http://${CastNetworkUtil.localIpv4Address()}:${CastReceiverConfig.HTTP_PORT}/bilibili/description.xml"
+                            "已广播 NeoBV 投屏接收器；描述地址 http://${CastNetworkUtil.localIpv4Address()}:${CastReceiverConfig.HTTP_PORT}/description.xml"
                         } else {
                             "启动 SSDP/DLNA/Bilibili Nirvana PoC 接收器，并记录手机投屏请求"
                         },

@@ -155,7 +155,10 @@ fun UpSpaceScreen(
             upInfoViewModel.selectedTab == UpSpaceTab.Videos
         ) {
             initialFocusRequested = true
-            if (initialFocusTarget == UpInfoActivity.INITIAL_FOCUS_TABS) {
+            if (
+                initialFocusTarget == UpInfoActivity.INITIAL_FOCUS_TABS ||
+                initialFocusTarget == UpInfoActivity.INITIAL_FOCUS_VIDEOS
+            ) {
                 tabFocusRequestId++
                 onTabSelected(UpSpaceTab.Videos)
             } else {
@@ -172,6 +175,7 @@ fun UpSpaceScreen(
             jumpModeRepository = jumpModeRepository,
             profileFocusRequester = profileFocusRequester,
             tabsFocusRequester = tabsFocusRequester,
+            initialFocusTarget = initialFocusTarget,
             tabFocusRequestId = tabFocusRequestId,
             onTabSelected = onTabSelected
         )
@@ -234,11 +238,28 @@ private fun UpVideosGrid(
     jumpModeRepository: JumpModeRepository,
     profileFocusRequester: FocusRequester,
     tabsFocusRequester: FocusRequester,
+    initialFocusTarget: String,
     tabFocusRequestId: Int,
     onTabSelected: (UpSpaceTab) -> Unit
 ) {
     val context = LocalContext.current
     val gridState = rememberLazyGridState()
+    var firstVideoFocusRequestId by remember { mutableIntStateOf(0) }
+    val firstVideoFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(
+        upInfoViewModel.spaceVideos.size,
+        upInfoViewModel.selectedTab,
+        initialFocusTarget
+    ) {
+        if (
+            initialFocusTarget == UpInfoActivity.INITIAL_FOCUS_VIDEOS &&
+            upInfoViewModel.selectedTab == UpSpaceTab.Videos &&
+            upInfoViewModel.spaceVideos.isNotEmpty()
+        ) {
+            firstVideoFocusRequestId++
+        }
+    }
 
     LaunchedEffect(gridState, upInfoViewModel.spaceVideos.size) {
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
@@ -285,8 +306,13 @@ private fun UpVideosGrid(
             itemsIndexed(
                 items = upInfoViewModel.spaceVideos,
                 key = { _, video -> video.avid }
-            ) { _, video ->
+            ) { index, video ->
                 SmallVideoCard(
+                    modifier = if (index == 0) {
+                        Modifier.focusRequester(firstVideoFocusRequester)
+                    } else {
+                        Modifier
+                    },
                     data = video,
                     onClick = {
                         jumpModeRepository.setPendingQueue(
@@ -336,6 +362,12 @@ private fun UpVideosGrid(
                     }
                 )
             }
+        }
+    }
+
+    LaunchedEffect(firstVideoFocusRequestId) {
+        if (firstVideoFocusRequestId > 0) {
+            runCatching { firstVideoFocusRequester.requestFocus() }
         }
     }
 }

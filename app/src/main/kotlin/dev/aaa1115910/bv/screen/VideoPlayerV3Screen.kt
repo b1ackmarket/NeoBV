@@ -293,7 +293,7 @@ fun VideoPlayerV3Screen(
                     context = context,
                     mid = mid,
                     name = name,
-                    initialFocus = UpInfoActivity.INITIAL_FOCUS_TABS
+                    initialFocus = UpInfoActivity.INITIAL_FOCUS_VIDEOS
                 )
             } else {
                 "无法打开该用户主页".toast(context)

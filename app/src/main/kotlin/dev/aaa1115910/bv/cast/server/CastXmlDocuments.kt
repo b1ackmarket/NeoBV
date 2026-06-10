@@ -35,7 +35,7 @@ object CastXmlDocuments {
             "http-get:*:image/png:*"
 
     fun deviceDescription(host: String, uuid: String): String {
-        val baseUrl = "http://$host:${CastReceiverConfig.HTTP_PORT}/bilibili"
+        val baseUrl = "http://$host:${CastReceiverConfig.HTTP_PORT}"
         return xml(
             """
             <?xml version="1.0" encoding="utf-8"?>
@@ -58,30 +58,30 @@ object CastXmlDocuments {
                   <service>
                     <serviceType>${CastReceiverConfig.AV_TRANSPORT_SERVICE_TYPE}</serviceType>
                     <serviceId>urn:upnp-org:serviceId:AVTransport</serviceId>
-                    <SCPDURL>/bilibili/AVTransport.xml</SCPDURL>
-                    <controlURL>/bilibili/AVTransport/control</controlURL>
-                    <eventSubURL>/bilibili/AVTransport/event</eventSubURL>
+                    <SCPDURL>/AVTransport.xml</SCPDURL>
+                    <controlURL>/AVTransport/control</controlURL>
+                    <eventSubURL>/AVTransport/event</eventSubURL>
                   </service>
                   <service>
                     <serviceType>${CastReceiverConfig.RENDERING_CONTROL_SERVICE_TYPE}</serviceType>
                     <serviceId>urn:upnp-org:serviceId:RenderingControl</serviceId>
-                    <SCPDURL>/bilibili/RenderingControl.xml</SCPDURL>
-                    <controlURL>/bilibili/RenderingControl/control</controlURL>
-                    <eventSubURL>/bilibili/RenderingControl/event</eventSubURL>
+                    <SCPDURL>/RenderingControl.xml</SCPDURL>
+                    <controlURL>/RenderingControl/control</controlURL>
+                    <eventSubURL>/RenderingControl/event</eventSubURL>
                   </service>
                   <service>
                     <serviceType>${CastReceiverConfig.CONNECTION_MANAGER_SERVICE_TYPE}</serviceType>
                     <serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId>
-                    <SCPDURL>/bilibili/ConnectionManager.xml</SCPDURL>
-                    <controlURL>/bilibili/ConnectionManager/control</controlURL>
-                    <eventSubURL>/bilibili/ConnectionManager/event</eventSubURL>
+                    <SCPDURL>/ConnectionManager.xml</SCPDURL>
+                    <controlURL>/ConnectionManager/control</controlURL>
+                    <eventSubURL>/ConnectionManager/event</eventSubURL>
                   </service>
                   <service>
                     <serviceType>${CastReceiverConfig.NIRVANA_SERVICE_TYPE}</serviceType>
                     <serviceId>urn:app-bilibili-com:serviceId:NirvanaControl</serviceId>
-                    <SCPDURL>/bilibili/NirvanaControl.xml</SCPDURL>
-                    <controlURL>/bilibili/NirvanaControl/control</controlURL>
-                    <eventSubURL>/bilibili/NirvanaControl/event</eventSubURL>
+                    <SCPDURL>/NirvanaControl.xml</SCPDURL>
+                    <controlURL>/NirvanaControl/control</controlURL>
+                    <eventSubURL>/NirvanaControl/event</eventSubURL>
                   </service>
                 </serviceList>
               </device>
