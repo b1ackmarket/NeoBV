@@ -682,7 +682,9 @@ class VideoPlayerV3ViewModel(
         title: String,
         lastPlayed: Int,
         isBilibiliMedia: Boolean = false,
-        mediaType: String = CastDirectMediaType.Unknown.name
+        mediaType: String = CastDirectMediaType.Unknown.name,
+        mediaCover: String = "",
+        mediaCreator: String = ""
     ) {
         externalMediaUrl = mediaUrl
         externalMediaBilibili = isBilibiliMedia
@@ -699,8 +701,11 @@ class VideoPlayerV3ViewModel(
                 fromSeason = false,
                 subType = 0,
                 isExternalMedia = true,
+                isExternalAudio = externalMediaType == CastDirectMediaType.Audio,
+                externalMediaCover = mediaCover,
+                externalMediaCreator = mediaCreator,
                 authorMid = 0,
-                authorName = "",
+                authorName = mediaCreator,
                 authorFace = "",
                 availableQuality = emptyMap(),
                 availableVideoCodec = emptyList(),

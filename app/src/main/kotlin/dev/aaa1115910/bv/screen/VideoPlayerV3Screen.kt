@@ -18,7 +18,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.bv.component.DanmakuPlayerCompose
 import dev.aaa1115910.bv.component.controllers.PlayerUpPanelUiState
@@ -376,6 +378,17 @@ fun VideoPlayerV3Screen(
                     .align(Alignment.Center),
                 videoPlayer = videoPlayer,
             )
+            if (uiState.isExternalAudio && uiState.externalMediaCover.isNotBlank()) {
+                AsyncImage(
+                    modifier = Modifier
+                        .fillMaxHeight(0.56f)
+                        .aspectRatio(1f)
+                        .align(Alignment.Center),
+                    model = uiState.externalMediaCover,
+                    contentDescription = uiState.title,
+                    contentScale = ContentScale.Crop
+                )
+            }
             DanmakuPlayerCompose(
                 modifier = Modifier
                     .fillMaxSize()

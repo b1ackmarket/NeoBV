@@ -20,6 +20,8 @@ object CastContentParser {
     private val directMediaUrlKeys = listOf("current_uri", "res_uri", "url", "play_url", "media_url", "video_url")
     private val hlsMimeHints = listOf("application/vnd.apple.mpegurl", "application/x-mpegurl")
     private val dashMimeHints = listOf("application/dash+xml")
+    private val audioMimeHints = listOf("audio/")
+    private val audioExtensions = listOf(".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".wma")
 
     fun parse(
         path: String,
@@ -97,7 +99,8 @@ object CastContentParser {
             partTitle = fields.firstString("part_title")?.decodeLoose(),
             directMediaUrl = directMediaUrl,
             directMediaType = fields.resolveDirectMediaType(directMediaUrl),
-            creator = fields.firstString("creator")?.decodeLoose(),
+            directMediaCover = fields.firstString("album_art_uri")?.decodeLoose()?.toHttpMediaUrlOrNull(),
+            creator = (fields.firstString("artist") ?: fields.firstString("creator"))?.decodeLoose(),
             clientHint = fields.resolveClientHint(directMediaUrl),
             rawFields = fields.toMap()
         )
@@ -158,6 +161,31 @@ object CastContentParser {
             ?.decodeXmlEntities()
             ?.takeIf { it.isNotBlank() }
             ?.let { result.putIfAbsent("creator", it) }
+        extractXmlText(didl, "artist")
+            ?.decodeXmlEntities()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { result.putIfAbsent("artist", it) }
+        extractXmlText(didl, "album")
+            ?.decodeXmlEntities()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { result.putIfAbsent("album", it) }
+        extractXmlText(didl, "albumArtURI")
+            ?.decodeXmlEntities()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { result.putIfAbsent("album_art_uri", it) }
+        Regex("""(?is)<(?:[A-Za-z0-9_.-]+:)?albumArtURI\b([^>]*)/>""")
+            .find(didl)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.let { attrs ->
+                Regex("""(?i)\b(?:src|url|href)\s*=\s*["']([^"']+)["']""")
+                    .find(attrs)
+                    ?.groupValues
+                    ?.getOrNull(1)
+                    ?.decodeXmlEntities()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { result.putIfAbsent("album_art_uri", it) }
+            }
 
         Regex(
             pattern = """(?is)<(?:[A-Za-z0-9_.-]+:)?res\b([^>]*)>(.*?)</(?:[A-Za-z0-9_.-]+:)?res>"""
@@ -297,6 +325,8 @@ object CastContentParser {
             hlsMimeHints.any { it in protocol || it in values } ||
                 url.endsWith(".m3u8") ||
                 "/m3u8/" in url -> CastDirectMediaType.Hls
+            audioMimeHints.any { it in protocol || it in values } ||
+                audioExtensions.any { url.endsWith(it) } -> CastDirectMediaType.Audio
             directMediaUrl != null -> CastDirectMediaType.Progressive
             else -> CastDirectMediaType.Unknown
         }

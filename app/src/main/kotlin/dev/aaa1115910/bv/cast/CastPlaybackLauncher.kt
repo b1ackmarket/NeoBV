@@ -106,6 +106,8 @@ class CastPlaybackLauncher(
                 putExtra("played", content.seekSeconds.toPlayedMillis())
                 putExtra("external_media_bilibili", content.isBilibiliDirectMedia)
                 putExtra("external_media_type", content.directMediaType.name)
+                putExtra("external_media_cover", content.directMediaCover.orEmpty())
+                putExtra("external_media_creator", content.creator.orEmpty())
                 content.playSpeed?.let { putExtra("play_speed", it) }
             }
         )

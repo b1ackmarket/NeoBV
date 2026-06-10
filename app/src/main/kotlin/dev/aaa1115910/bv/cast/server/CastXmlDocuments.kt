@@ -14,11 +14,23 @@ object CastXmlDocuments {
             "http-get:*:application/octet-stream:*," +
             "http-get:*:application/x-mpegURL:*," +
             "http-get:*:application/dash+xml:*," +
+            "http-get:*:audio/L16:DLNA.ORG_PN=LPCM;DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000," +
+            "http-get:*:audio/L16:*," +
+            "http-get:*:audio/mpeg:DLNA.ORG_PN=MP3;DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000," +
+            "http-get:*:audio/mp4:DLNA.ORG_PN=AAC_ISO;DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000," +
+            "http-get:*:audio/aac:*," +
+            "http-get:*:audio/aacp:*," +
             "http-get:*:audio/mpeg:*," +
+            "http-get:*:audio/mp3:*," +
             "http-get:*:audio/mp4:*," +
+            "http-get:*:audio/x-m4a:*," +
             "http-get:*:audio/flac:*," +
             "http-get:*:audio/x-flac:*," +
             "http-get:*:audio/wav:*," +
+            "http-get:*:audio/x-wav:*," +
+            "http-get:*:audio/ogg:*," +
+            "http-get:*:audio/opus:*," +
+            "http-get:*:audio/x-ms-wma:*," +
             "http-get:*:image/jpeg:*," +
             "http-get:*:image/png:*"
 

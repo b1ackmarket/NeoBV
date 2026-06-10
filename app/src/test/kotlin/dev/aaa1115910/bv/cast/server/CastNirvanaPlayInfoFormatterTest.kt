@@ -89,5 +89,8 @@ class CastNirvanaPlayInfoFormatterTest {
         assertTrue(scpd.contains("<name>PrepareForConnection</name>"))
         assertTrue(CastXmlDocuments.SINK_PROTOCOL_INFO.contains("http-get:*:video/octet-stream:*"))
         assertTrue(CastXmlDocuments.SINK_PROTOCOL_INFO.contains("http-get:*:application/octet-stream:*"))
+        assertTrue(CastXmlDocuments.SINK_PROTOCOL_INFO.contains("http-get:*:audio/mpeg:*"))
+        assertTrue(CastXmlDocuments.SINK_PROTOCOL_INFO.contains("http-get:*:audio/mp4:*"))
+        assertTrue(CastXmlDocuments.SINK_PROTOCOL_INFO.contains("http-get:*:audio/L16:*"))
     }
 }

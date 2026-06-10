@@ -15,6 +15,7 @@ data class CastContent(
     val partTitle: String? = null,
     val directMediaUrl: String? = null,
     val directMediaType: CastDirectMediaType = CastDirectMediaType.Unknown,
+    val directMediaCover: String? = null,
     val creator: String? = null,
     val clientHint: CastClientHint = CastClientHint.Generic,
     val rawFields: Map<String, String> = emptyMap()
@@ -45,6 +46,7 @@ enum class CastClientHint {
 enum class CastDirectMediaType {
     Unknown,
     Progressive,
+    Audio,
     Hls,
     Dash
 }

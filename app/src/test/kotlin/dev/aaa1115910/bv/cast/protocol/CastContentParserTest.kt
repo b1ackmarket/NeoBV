@@ -177,6 +177,99 @@ class CastContentParserTest {
     }
 
     @Test
+    fun `parse standard DLNA audio metadata with album art`() {
+        val body = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+              <s:Body>
+                <u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+                  <InstanceID>0</InstanceID>
+                  <CurrentURI>https://music.example.com/song.mp3</CurrentURI>
+                  <CurrentURIMetaData><![CDATA[
+                    <DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">
+                      <item id="1" parentID="0" restricted="1">
+                        <dc:title>Song title</dc:title>
+                        <dc:creator>Song artist</dc:creator>
+                        <upnp:artist>Upnp artist</upnp:artist>
+                        <upnp:albumArtURI>https://music.example.com/cover.jpg</upnp:albumArtURI>
+                        <upnp:class>object.item.audioItem.musicTrack</upnp:class>
+                        <res protocolInfo="http-get:*:audio/mpeg:*">https://music.example.com/song.mp3</res>
+                      </item>
+                    </DIDL-Lite>
+                  ]]></CurrentURIMetaData>
+                </u:SetAVTransportURI>
+              </s:Body>
+            </s:Envelope>
+        """.trimIndent()
+
+        val content = CastContentParser.parse(
+            path = "/AVTransport/control",
+            queryParameters = Parameters.Empty,
+            body = body
+        )
+
+        assertNotNull(content)
+        assertEquals("Song title", content.title)
+        assertEquals("Upnp artist", content.creator)
+        assertEquals(CastDirectMediaType.Audio, content.directMediaType)
+        assertEquals("https://music.example.com/cover.jpg", content.directMediaCover)
+        assertEquals("https://music.example.com/song.mp3", content.directMediaUrl)
+    }
+
+    @Test
+    fun `parse DLNA audio album art from element attribute`() {
+        val body = """
+            <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+              <s:Body>
+                <u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+                  <CurrentURI>https://music.example.com/song.flac</CurrentURI>
+                  <CurrentURIMetaData>&lt;DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"&gt;&lt;item&gt;&lt;dc:title&gt;Song title&lt;/dc:title&gt;&lt;upnp:albumArtURI dlna:profileID="JPEG_TN" xmlns:dlna="urn:schemas-dlna-org:metadata-1-0/" src="https://music.example.com/cover-attr.jpg"/&gt;&lt;res protocolInfo="http-get:*:audio/flac:*"&gt;https://music.example.com/song.flac&lt;/res&gt;&lt;/item&gt;&lt;/DIDL-Lite&gt;</CurrentURIMetaData>
+                </u:SetAVTransportURI>
+              </s:Body>
+            </s:Envelope>
+        """.trimIndent()
+
+        val content = CastContentParser.parse(
+            path = "/AVTransport/control",
+            queryParameters = Parameters.Empty,
+            body = body
+        )
+
+        assertNotNull(content)
+        assertEquals(CastDirectMediaType.Audio, content.directMediaType)
+        assertEquals("https://music.example.com/cover-attr.jpg", content.directMediaCover)
+    }
+
+    @Test
+    fun `parse netease style DLNA audio item`() {
+        val body = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+              <s:Body>
+                <u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+                  <InstanceID>0</InstanceID>
+                  <CurrentURI>https://m701.music.126.net/song.m4a?authSecret=abc</CurrentURI>
+                  <CurrentURIMetaData>&lt;DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"&gt;&lt;item id="0" parentID="-1" restricted="1"&gt;&lt;dc:title&gt;网易云音乐&lt;/dc:title&gt;&lt;upnp:artist&gt;歌手&lt;/upnp:artist&gt;&lt;upnp:album&gt;专辑&lt;/upnp:album&gt;&lt;upnp:albumArtURI&gt;https://p1.music.126.net/cover.jpg?param=512y512&lt;/upnp:albumArtURI&gt;&lt;res protocolInfo="http-get:*:audio/mp4:DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000"&gt;https://m701.music.126.net/song.m4a?authSecret=abc&lt;/res&gt;&lt;upnp:class&gt;object.item.audioItem.musicTrack&lt;/upnp:class&gt;&lt;/item&gt;&lt;/DIDL-Lite&gt;</CurrentURIMetaData>
+                </u:SetAVTransportURI>
+              </s:Body>
+            </s:Envelope>
+        """.trimIndent()
+
+        val content = CastContentParser.parse(
+            path = "/AVTransport/control",
+            queryParameters = Parameters.Empty,
+            body = body
+        )
+
+        assertNotNull(content)
+        assertEquals("网易云音乐", content.title)
+        assertEquals("歌手", content.creator)
+        assertEquals(CastDirectMediaType.Audio, content.directMediaType)
+        assertEquals("https://p1.music.126.net/cover.jpg?param=512y512", content.directMediaCover)
+        assertEquals("https://m701.music.126.net/song.m4a?authSecret=abc", content.directMediaUrl)
+    }
+
+    @Test
     fun `direct media url does not replace bilibili projection identity`() {
         val body = """
             <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
