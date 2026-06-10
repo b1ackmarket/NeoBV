@@ -3,12 +3,10 @@ package dev.aaa1115910.bv.component.controllers
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.SliderColors
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -61,7 +59,6 @@ fun VideoProgressSeek(
         modifier = modifier
             .fillMaxWidth()
             .height(canvasHeightDp)
-            .clip(RoundedCornerShape(8.dp))
     ) {
         val trackWidthPx = trackWidthDp.toPx()
         val currentFraction = if (duration > 0L) {
@@ -187,10 +184,15 @@ private fun DrawScope.drawCurrentPositionIndicator(
 ) {
     val x = (size.width * fraction.coerceIn(0f, 1f))
         .coerceIn(14.dp.toPx(), size.width - 14.dp.toPx())
-    val bodyWidth = 22.dp.toPx()
-    val bodyHeight = 16.dp.toPx()
-    val bodyTop = (centerY - bodyHeight - 6.dp.toPx()).coerceAtLeast(0f)
+    val bodyWidth = 18.dp.toPx()
+    val bodyHeight = 12.dp.toPx()
+    val antennaHeight = 3.dp.toPx()
+    val bodyTop = (centerY - bodyHeight - 2.5.dp.toPx()).coerceAtLeast(antennaHeight + 1.dp.toPx())
     val bodyLeft = x - bodyWidth / 2f
+    val screenWidth = 12.dp.toPx()
+    val screenHeight = 6.5.dp.toPx()
+    val screenLeft = x - screenWidth / 2f
+    val screenTop = bodyTop + 2.6.dp.toPx()
     drawRoundRect(
         color = color,
         topLeft = Offset(bodyLeft, bodyTop),
@@ -199,29 +201,34 @@ private fun DrawScope.drawCurrentPositionIndicator(
     )
     drawRoundRect(
         color = Color.White.copy(alpha = 0.92f),
-        topLeft = Offset(bodyLeft + 4.dp.toPx(), bodyTop + 3.dp.toPx()),
-        size = androidx.compose.ui.geometry.Size(bodyWidth - 8.dp.toPx(), bodyHeight - 6.dp.toPx()),
+        topLeft = Offset(screenLeft, screenTop),
+        size = androidx.compose.ui.geometry.Size(screenWidth, screenHeight),
         cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx()),
-        style = Stroke(width = 2.dp.toPx())
+        style = Stroke(width = 1.5.dp.toPx())
+    )
+    drawLine(
+        color = color,
+        start = Offset(x - 4.5.dp.toPx(), bodyTop - antennaHeight),
+        end = Offset(x - 1.4.dp.toPx(), bodyTop),
+        strokeWidth = 1.6.dp.toPx(),
+        cap = StrokeCap.Round
+    )
+    drawLine(
+        color = color,
+        start = Offset(x + 4.5.dp.toPx(), bodyTop - antennaHeight),
+        end = Offset(x + 1.4.dp.toPx(), bodyTop),
+        strokeWidth = 1.6.dp.toPx(),
+        cap = StrokeCap.Round
     )
     drawCircle(
         color = Color.White.copy(alpha = 0.92f),
-        radius = 1.6.dp.toPx(),
-        center = Offset(x + bodyWidth / 2f - 4.dp.toPx(), bodyTop + bodyHeight / 2f)
+        radius = 0.8.dp.toPx(),
+        center = Offset(x - 3.dp.toPx(), bodyTop + bodyHeight / 2f)
     )
-    drawLine(
-        color = color,
-        start = Offset(x - 5.dp.toPx(), bodyTop - 4.dp.toPx()),
-        end = Offset(x - 1.dp.toPx(), bodyTop),
-        strokeWidth = 2.dp.toPx(),
-        cap = StrokeCap.Round
-    )
-    drawLine(
-        color = color,
-        start = Offset(x + 5.dp.toPx(), bodyTop - 4.dp.toPx()),
-        end = Offset(x + 1.dp.toPx(), bodyTop),
-        strokeWidth = 2.dp.toPx(),
-        cap = StrokeCap.Round
+    drawCircle(
+        color = Color.White.copy(alpha = 0.92f),
+        radius = 0.8.dp.toPx(),
+        center = Offset(x + 3.dp.toPx(), bodyTop + bodyHeight / 2f)
     )
     val pointer = Path().apply {
         moveTo(x, centerY - 1.dp.toPx())
