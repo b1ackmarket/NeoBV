@@ -682,9 +682,11 @@ fun VideoInfoData(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(items = tags) { tag ->
-                        SuggestionChip(onClick = {
-                            onClickTip(tag)
-                        }) {
+                        val openTag = { onClickTip(tag) }
+                        SuggestionChip(
+                            modifier = Modifier.touchClick(openTag),
+                            onClick = openTag
+                        ) {
                             Text(text = tag.name)
                         }
                     }

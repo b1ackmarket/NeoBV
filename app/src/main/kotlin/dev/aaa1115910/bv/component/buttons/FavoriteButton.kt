@@ -121,22 +121,25 @@ private fun FavoriteDialog(
                     userFavoriteFolders.forEachIndexed { index, userFavoriteFolder ->
                         val selected = selectedFavoriteFolderIds.contains(userFavoriteFolder.id)
                         var hasFocus by remember { mutableStateOf(false) }
+                        val toggleFolder = {
+                            if (selectedFavoriteFolderIds.contains(userFavoriteFolder.id)) {
+                                selectedFavoriteFolderIds.remove(userFavoriteFolder.id)
+                            } else {
+                                selectedFavoriteFolderIds.add(userFavoriteFolder.id)
+                            }
+                            onUpdateFavoriteFolders(selectedFavoriteFolderIds)
+                        }
 
                         val itemModifier =
                             if (index == 0) Modifier.focusRequester(defaultFocusRequester)
                             else Modifier
 
                         FilterChip(
-                            modifier = itemModifier.onFocusChanged { hasFocus = it.hasFocus },
+                            modifier = itemModifier
+                                .onFocusChanged { hasFocus = it.hasFocus }
+                                .touchClick(toggleFolder),
                             selected = selected,
-                            onClick = {
-                                if (selectedFavoriteFolderIds.contains(userFavoriteFolder.id)) {
-                                    selectedFavoriteFolderIds.remove(userFavoriteFolder.id)
-                                } else {
-                                    selectedFavoriteFolderIds.add(userFavoriteFolder.id)
-                                }
-                                onUpdateFavoriteFolders(selectedFavoriteFolderIds)
-                            },
+                            onClick = toggleFolder,
                             leadingIcon = {
                                 Row {
                                     AnimatedVisibility(visible = selected) {
