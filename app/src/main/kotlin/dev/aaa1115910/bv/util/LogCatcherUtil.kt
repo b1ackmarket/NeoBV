@@ -74,6 +74,22 @@ object LogCatcherUtil {
         appendLine("Brand: ${android.os.Build.BRAND}")
         appendLine("Product: ${android.os.Build.PRODUCT}")
         appendLine("Type: ${android.os.Build.TYPE}")
+        val widevineInfo = WidevineUtil.readInfo()
+        appendLine("Widevine Supported: ${widevineInfo.isSupported}")
+        appendLine("Widevine Security Level: ${widevineInfo.securityLevel ?: "Unknown"}")
+        appendLine("Widevine HDCP Level: ${widevineInfo.hdcpLevel ?: "Unknown"}")
+        appendLine("Widevine Max HDCP Level: ${widevineInfo.maxHdcpLevel ?: "Unknown"}")
+        appendLine("Widevine Vendor: ${widevineInfo.vendor ?: "Unknown"}")
+        appendLine("Widevine Version: ${widevineInfo.version ?: "Unknown"}")
+        appendLine("Widevine Description: ${widevineInfo.description ?: "Unknown"}")
+        appendLine("Widevine Algorithms: ${widevineInfo.algorithms ?: "Unknown"}")
+        appendLine("Widevine System ID: ${widevineInfo.systemId ?: "Unknown"}")
+        appendLine("Widevine Max Sessions: ${widevineInfo.maxNumberOfSessions ?: "Unknown"}")
+        appendLine("Widevine Privacy Mode: ${widevineInfo.privacyMode ?: "Unknown"}")
+        appendLine("Widevine Session Sharing: ${widevineInfo.sessionSharing ?: "Unknown"}")
+        appendLine("Widevine Usage Reporting: ${widevineInfo.usageReportingSupport ?: "Unknown"}")
+        appendLine("Widevine Device Unique ID: ${widevineInfo.deviceUniqueId ?: "Unreadable"}")
+        widevineInfo.error?.let { appendLine("Widevine Error: $it") }
     }
 
     private fun OutputStreamWriter.writeAppInfo() {

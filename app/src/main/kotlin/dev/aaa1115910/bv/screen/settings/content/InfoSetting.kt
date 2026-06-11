@@ -32,6 +32,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.MediaCodecActivity
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
+import dev.aaa1115910.bv.util.WidevineUtil
 import dev.aaa1115910.bv.util.touchClick
 import java.text.DecimalFormat
 import kotlin.math.pow
@@ -75,6 +76,9 @@ fun InfoSetting(
                 }.getOrDefault(Pair("Unknown", "Unknown"))
             }.value
         )
+    }
+    val widevineInfo by remember {
+        mutableStateOf(WidevineUtil.readInfo())
     }
 
     @Suppress("DEPRECATION")
@@ -142,6 +146,15 @@ fun InfoSetting(
                     R.string.settings_info_storage,
                     *storageInfo.toList().toTypedArray()
                 )
+            )
+            Text(
+                text = "Widevine: ${
+                    when {
+                        !widevineInfo.isSupported -> "不支持"
+                        !widevineInfo.securityLevel.isNullOrBlank() -> widevineInfo.securityLevel
+                        else -> "支持"
+                    }
+                }"
             )
         }
         val openMediaCodec = {
