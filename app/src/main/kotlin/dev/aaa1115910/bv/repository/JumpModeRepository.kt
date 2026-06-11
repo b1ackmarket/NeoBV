@@ -13,7 +13,8 @@ enum class JumpModeSource {
 data class JumpModeQueueItem(
     val aid: Long,
     val title: String,
-    val cid: Long? = null
+    val cid: Long? = null,
+    val cover: String? = null
 )
 
 data class JumpModeQueue(
@@ -70,7 +71,8 @@ fun List<VideoCardData>.toJumpModeItems(): List<JumpModeQueueItem> {
             JumpModeQueueItem(
                 aid = item.avid,
                 title = item.title,
-                cid = item.cid?.takeIf { cid -> cid > 0 }
+                cid = item.cid?.takeIf { cid -> cid > 0 },
+                cover = item.cover
             )
         }
 }
@@ -81,7 +83,8 @@ fun List<UgcItem>.toJumpModeItems(): List<JumpModeQueueItem> {
         .map { item ->
             JumpModeQueueItem(
                 aid = item.aid,
-                title = item.title
+                title = item.title,
+                cover = item.cover
             )
         }
 }

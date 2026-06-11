@@ -108,7 +108,8 @@ class VideoInfoRepository(private val videoDetailRepository: VideoDetailReposito
             aid = videoDetail.aid,
             cid = videoDetail.cid,
             epid = videoDetail.epid,
-            title = currentPage?.title?.takeIf { it.isNotBlank() } ?: fallbackTitle
+            title = currentPage?.title?.takeIf { it.isNotBlank() } ?: fallbackTitle,
+            cover = videoDetail.cover
         )
     }
 

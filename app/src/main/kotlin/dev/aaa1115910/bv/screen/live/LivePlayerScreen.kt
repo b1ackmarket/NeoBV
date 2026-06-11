@@ -65,6 +65,8 @@ import dev.aaa1115910.bv.component.controllers.LiveDanmakuMenuState
 import dev.aaa1115910.bv.component.controllers.LiveBottomMenuController
 import dev.aaa1115910.bv.component.controllers.LiveBottomMenuItem
 import dev.aaa1115910.bv.component.controllers.LiveMenuController
+import dev.aaa1115910.bv.component.controllers.PlayerJumpPreview
+import dev.aaa1115910.bv.component.controllers.PlayerJumpPreviewItem
 import dev.aaa1115910.bv.component.controllers.PlayerCommentPanelUiState
 import dev.aaa1115910.bv.component.controllers.PlayerSidePanels
 import dev.aaa1115910.bv.component.controllers.PlayerUpPanelUiState
@@ -147,6 +149,9 @@ fun LivePlayerScreen() {
     val apiUserRepository = remember { BVApp.koinApplication.koin.get<UserRepository>() }
     var liveJumpModeQueue by remember { mutableStateOf<LiveJumpModeQueue?>(null) }
     var liveJumpModeEnabled by remember { mutableStateOf(false) }
+    var liveJumpPreviewItem by remember { mutableStateOf<PlayerJumpPreviewItem?>(null) }
+    var liveJumpPreviewDirection by remember { mutableStateOf(0) }
+    var liveJumpPreviewProgress by remember { mutableStateOf(0f) }
     var liveJumpModeHoldJob by remember { mutableStateOf<Job?>(null) }
     var liveJumpModeHoldKey by remember { mutableStateOf<Key?>(null) }
     var liveJumpModeConsumedKey by remember { mutableStateOf<Key?>(null) }
@@ -306,6 +311,18 @@ fun LivePlayerScreen() {
         liveUpPanelFollowing = false
         statusText = "切换到 ${target.title}"
         return true
+    }
+
+    fun liveJumpTarget(offset: Int) = liveJumpModeQueue
+        ?.let { queue ->
+            val currentIndex = queue.items.indexOfFirst { it.roomId == roomId }
+            if (currentIndex == -1) null else queue.items.getOrNull(currentIndex + offset)
+        }
+
+    fun hideLiveJumpPreview() {
+        liveJumpPreviewItem = null
+        liveJumpPreviewDirection = 0
+        liveJumpPreviewProgress = 0f
     }
 
     fun handleLiveJumpModeKeyUp(key: Key, offset: Int): Boolean {
@@ -976,8 +993,10 @@ fun LivePlayerScreen() {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val downPosition = down.position
+                    val overlayAtDown = activeOverlay
                     var handled = false
                     var moved = false
+                    var liveJumpCommitOffset = 0
                     do {
                         val event = awaitPointerEvent()
                         val change = event.changes.firstOrNull { it.id == down.id } ?: continue
@@ -986,20 +1005,47 @@ fun LivePlayerScreen() {
                             moved = true
                         }
                         if (
-                            !handled &&
-                            activeOverlay == LiveOverlayPanel.None &&
+                            (overlayAtDown == LiveOverlayPanel.None || overlayAtDown == LiveOverlayPanel.BottomMenu) &&
                             liveJumpModeEnabled &&
-                            abs(delta.x) >= viewConfiguration.touchSlop * 8f &&
+                            abs(delta.x) >= viewConfiguration.touchSlop * 4f &&
                             abs(delta.x) >= abs(delta.y) * 1.5f
                         ) {
+                            val offset = if (delta.x < 0f) 1 else -1
+                            val target = liveJumpTarget(offset)
+                            val threshold = viewConfiguration.touchSlop * 9f
+                            val progress = (abs(delta.x) / threshold).coerceIn(0f, 1f)
+                            liveJumpCommitOffset = if (target != null && progress >= 1f) offset else 0
+                            liveJumpPreviewDirection = offset
+                            liveJumpPreviewProgress = progress
+                            liveJumpPreviewItem = target?.let {
+                                PlayerJumpPreviewItem(
+                                    title = it.title,
+                                    cover = it.cover
+                                )
+                            } ?: PlayerJumpPreviewItem(
+                                title = if (offset < 0) "已经是上一个直播间" else "已经是下一个直播间",
+                                cover = null
+                            )
                             handled = true
-                            switchLiveJumpRoom(if (delta.x < 0f) 1 else -1)
                             change.consume()
                         }
                     } while (event.changes.any { it.id == down.id && it.pressed })
 
-                    if (!handled && !moved && activeOverlay == LiveOverlayPanel.None) {
-                        openLiveBottomMenuFromSurface()
+                    if (liveJumpCommitOffset != 0) {
+                        switchLiveJumpRoom(liveJumpCommitOffset)
+                        hideLiveJumpPreview()
+                        return@awaitEachGesture
+                    }
+                    if (handled) {
+                        hideLiveJumpPreview()
+                        return@awaitEachGesture
+                    }
+                    if (!handled && !moved) {
+                        when (activeOverlay) {
+                            LiveOverlayPanel.None -> openLiveBottomMenuFromSurface()
+                            LiveOverlayPanel.BottomMenu -> activeOverlay = LiveOverlayPanel.None
+                            else -> Unit
+                        }
                     }
                 }
             },
@@ -1036,6 +1082,17 @@ fun LivePlayerScreen() {
                     state = liveDanmakuState
                 )
             }
+        }
+
+        liveJumpPreviewItem?.let { item ->
+            PlayerJumpPreview(
+                modifier = Modifier.align(
+                    if (liveJumpPreviewDirection < 0) Alignment.CenterStart else Alignment.CenterEnd
+                ),
+                item = item,
+                progress = liveJumpPreviewProgress,
+                fillMaxWidthFraction = 0.42f
+            )
         }
 
         LaunchedEffect(liveJumpModeEnabled, activeOverlay) {

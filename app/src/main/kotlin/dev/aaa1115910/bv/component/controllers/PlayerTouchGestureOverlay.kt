@@ -16,8 +16,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
@@ -34,24 +38,34 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import coil.compose.AsyncImage
 import dev.aaa1115910.bv.viewmodel.player.PlayerTouchDragMode
 import dev.aaa1115910.bv.viewmodel.player.PlayerTouchGesturePolicy
 import dev.aaa1115910.bv.viewmodel.player.PlayerTouchTapZone
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
+
+data class PlayerJumpPreviewItem(
+    val title: String,
+    val cover: String?
+)
 
 @Composable
 fun PlayerTouchGestureOverlay(
@@ -73,6 +87,8 @@ fun PlayerTouchGestureOverlay(
     onTempSpeedStart: () -> Unit,
     onTempSpeedEnd: () -> Unit,
     jumpModeEnabled: Boolean = false,
+    previousJumpPreview: PlayerJumpPreviewItem? = null,
+    nextJumpPreview: PlayerJumpPreviewItem? = null,
     onJumpToPreviousVideo: () -> Unit = {},
     onJumpToNextVideo: () -> Unit = {}
 ) {
@@ -101,6 +117,8 @@ fun PlayerTouchGestureOverlay(
     val latestOnTempSpeedStart by rememberUpdatedState(onTempSpeedStart)
     val latestOnTempSpeedEnd by rememberUpdatedState(onTempSpeedEnd)
     val latestJumpModeEnabled by rememberUpdatedState(jumpModeEnabled)
+    val latestPreviousJumpPreview by rememberUpdatedState(previousJumpPreview)
+    val latestNextJumpPreview by rememberUpdatedState(nextJumpPreview)
     val latestOnJumpToPreviousVideo by rememberUpdatedState(onJumpToPreviousVideo)
     val latestOnJumpToNextVideo by rememberUpdatedState(onJumpToNextVideo)
 
@@ -111,6 +129,9 @@ fun PlayerTouchGestureOverlay(
     var pendingSingleTapJob by remember { mutableStateOf<Job?>(null) }
     var lastTapAtMs by remember { mutableStateOf(0L) }
     var lastTapZone by remember { mutableStateOf<PlayerTouchTapZone?>(null) }
+    var jumpPreviewItem by remember { mutableStateOf<PlayerJumpPreviewItem?>(null) }
+    var jumpPreviewDirection by remember { mutableStateOf(0) }
+    var jumpPreviewProgress by remember { mutableStateOf(0f) }
 
     fun showHint(
         text: String,
@@ -141,6 +162,12 @@ fun PlayerTouchGestureOverlay(
     fun hideHintNow() {
         hintHideJob?.cancel()
         hintText = null
+    }
+
+    fun hideJumpPreview() {
+        jumpPreviewItem = null
+        jumpPreviewDirection = 0
+        jumpPreviewProgress = 0f
     }
 
     fun singleTap() {
@@ -218,7 +245,7 @@ fun PlayerTouchGestureOverlay(
                     var tapSuppressed = false
                     var seekStarted = false
                     var tempSpeedActive = false
-                    var jumpTriggered = false
+                    var jumpCommitDirection = 0
                     var volumeStart = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0
                     var brightnessStart = activity?.readCurrentBrightness() ?: 0.5f
                     val downPosition = down.position
@@ -286,6 +313,7 @@ fun PlayerTouchGestureOverlay(
                                         PlayerTouchDragMode.Jump -> {
                                             if (!latestJumpModeEnabled) {
                                                 dragMode = PlayerTouchDragMode.Blocked
+                                                hideJumpPreview()
                                             }
                                         }
                                         PlayerTouchDragMode.None,
@@ -327,15 +355,16 @@ fun PlayerTouchGestureOverlay(
                                         change.consume()
                                     }
                                     PlayerTouchDragMode.Jump -> {
-                                        if (!jumpTriggered) {
-                                            jumpTriggered = true
-                                            if (delta.y < 0f) {
-                                                latestOnJumpToNextVideo()
-                                                showHint("下一个视频", hold = false)
+                                        val direction = if (delta.y < 0f) 1 else -1
+                                        val threshold = viewConfiguration.touchSlop * 9f
+                                        val progress = (abs(delta.y) / threshold).coerceIn(0f, 1f)
+                                        jumpCommitDirection = if (progress >= 1f) direction else 0
+                                        jumpPreviewDirection = direction
+                                        jumpPreviewProgress = progress
+                                        jumpPreviewItem = if (direction < 0) {
+                                            latestPreviousJumpPreview ?: PlayerJumpPreviewItem("上一个视频", null)
                                         } else {
-                                                latestOnJumpToPreviousVideo()
-                                                showHint("上一个视频", hold = false)
-                                            }
+                                            latestNextJumpPreview ?: PlayerJumpPreviewItem("下一个视频", null)
                                         }
                                         change.consume()
                                     }
@@ -357,7 +386,14 @@ fun PlayerTouchGestureOverlay(
                             PlayerTouchDragMode.Seek -> latestOnSeekPreviewEnd(seekStarted)
                             PlayerTouchDragMode.Brightness,
                             PlayerTouchDragMode.Volume -> scheduleHideHint()
-                            PlayerTouchDragMode.Jump -> scheduleHideHint()
+                            PlayerTouchDragMode.Jump -> {
+                                if (jumpCommitDirection < 0) {
+                                    latestOnJumpToPreviousVideo()
+                                } else if (jumpCommitDirection > 0) {
+                                    latestOnJumpToNextVideo()
+                                }
+                                hideJumpPreview()
+                            }
                             PlayerTouchDragMode.None -> {
                                 if (!tapSuppressed) {
                                     handleTap(pointerUp.position.x, gestureWidth)
@@ -370,6 +406,15 @@ fun PlayerTouchGestureOverlay(
                 }
             },
     ) {
+        jumpPreviewItem?.let { item ->
+            PlayerJumpPreview(
+                modifier = Modifier.align(
+                    if (jumpPreviewDirection < 0) Alignment.TopCenter else Alignment.BottomCenter
+                ),
+                item = item,
+                progress = jumpPreviewProgress
+            )
+        }
         hintText?.let { text ->
             PlayerTouchHint(
                 modifier = Modifier
@@ -385,6 +430,60 @@ fun PlayerTouchGestureOverlay(
 private enum class PlayerTouchHintStyle {
     Default,
     TempSpeed
+}
+
+@Composable
+fun PlayerJumpPreview(
+    item: PlayerJumpPreviewItem,
+    progress: Float,
+    fillMaxWidthFraction: Float = 1f,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth(fillMaxWidthFraction)
+            .height((96 + 92 * progress).dp)
+            .graphicsLayer {
+                alpha = 0.48f + progress * 0.42f
+            }
+            .background(Color.Black.copy(alpha = 0.72f))
+    ) {
+        if (!item.cover.isNullOrBlank()) {
+            AsyncImage(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(0.dp)),
+                model = item.cover,
+                contentDescription = null,
+                contentScale = ContentScale.Crop
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.36f))
+            )
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 36.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = if (progress >= 1f) "松手切换" else "继续滑动切换",
+                color = Color.White.copy(alpha = 0.82f),
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                modifier = Modifier.padding(top = 6.dp),
+                text = item.title,
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
 }
 
 @Composable

@@ -168,11 +168,13 @@ internal sealed interface AutoNextTarget {
     val aid: Long
     val cid: Long
     val title: String
+    val cover: String?
 
     data class NextVideo(
         override val aid: Long,
         override val cid: Long,
         override val title: String,
+        override val cover: String? = null,
         val epid: Int? = null,
         val seasonId: Int? = null
     ) : AutoNextTarget
@@ -180,7 +182,8 @@ internal sealed interface AutoNextTarget {
     data class RelatedVideo(
         override val aid: Long,
         override val cid: Long,
-        override val title: String
+        override val title: String,
+        override val cover: String? = null
     ) : AutoNextTarget
 }
 
@@ -198,6 +201,7 @@ internal fun resolveAutoNextTarget(state: PlayerUiState): AutoNextTarget? {
                 aid = nextPlayTarget.video.aid,
                 cid = nextPlayTarget.video.cid,
                 title = nextPlayTarget.title,
+                cover = nextPlayTarget.video.cover,
                 epid = nextPlayTarget.video.epid,
                 seasonId = nextPlayTarget.video.seasonId
             )
@@ -208,7 +212,8 @@ internal fun resolveAutoNextTarget(state: PlayerUiState): AutoNextTarget? {
         AutoNextTarget.RelatedVideo(
             aid = related.avid,
             cid = related.cid!!,
-            title = related.title
+            title = related.title,
+            cover = related.cover
         )
     }
 }
@@ -358,6 +363,7 @@ private fun AutoNextTarget.toVideoListItem(): VideoListItem {
             aid = aid,
             cid = cid,
             title = title,
+            cover = cover,
             epid = epid,
             seasonId = seasonId
         )
@@ -365,7 +371,8 @@ private fun AutoNextTarget.toVideoListItem(): VideoListItem {
         is AutoNextTarget.RelatedVideo -> VideoListItem(
             aid = aid,
             cid = cid,
-            title = title
+            title = title,
+            cover = cover
         )
     }
 }
@@ -1639,7 +1646,8 @@ class VideoPlayerV3ViewModel(
             VideoListItem(
                 aid = aid,
                 cid = resolvedCid,
-                title = title
+                title = title,
+                cover = cover
             )
         } else {
             videoInfoRepository.resolveDefaultVideoListItem(

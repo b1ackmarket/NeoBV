@@ -8,6 +8,7 @@ data class VideoListItem(
     val epid: Int? = null,
     val seasonId: Int? = null,
     val title: String,
+    val cover: String? = null,
     // 针对UGC合集内视频的分P
     val ugcPages: List<VideoPage>? = null
 )

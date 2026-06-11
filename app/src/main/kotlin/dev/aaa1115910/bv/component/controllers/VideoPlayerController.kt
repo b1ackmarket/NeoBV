@@ -233,6 +233,12 @@ fun VideoPlayerController(
             videoList = uiState.availableVideoList
         )
     }
+    val previousJumpPreview = uiState.jumpModeState.items
+        .getOrNull(uiState.jumpModeState.currentIndex - 1)
+        ?.let { PlayerJumpPreviewItem(title = it.title, cover = it.cover) }
+    val nextJumpPreview = uiState.jumpModeState.items
+        .getOrNull(uiState.jumpModeState.currentIndex + 1)
+        ?.let { PlayerJumpPreviewItem(title = it.title, cover = it.cover) }
     val onlineCountVideoKey = uiState.aid to uiState.cid
     val canShowInitialOnlineCountTip =
         !uiState.onlineCountText.isNullOrBlank() && uiState.playerState == PlayerState.Playing
@@ -688,6 +694,8 @@ fun VideoPlayerController(
             onTempSpeedStart = { startTouchTempSpeed() },
             onTempSpeedEnd = { stopTouchTempSpeed() },
             jumpModeEnabled = uiState.jumpModeState.enabled,
+            previousJumpPreview = previousJumpPreview,
+            nextJumpPreview = nextJumpPreview,
             onJumpToPreviousVideo = onJumpToPreviousVideo,
             onJumpToNextVideo = onJumpToNextVideo
         )

@@ -6,6 +6,7 @@ import org.koin.core.annotation.Single
 data class LiveJumpModeQueueItem(
     val roomId: Int,
     val title: String,
+    val cover: String,
     val upName: String,
     val online: Int
 )
@@ -59,6 +60,7 @@ fun List<LiveRoomCard>.toLiveJumpModeItems(): List<LiveJumpModeQueueItem> {
             LiveJumpModeQueueItem(
                 roomId = room.roomId,
                 title = room.title,
+                cover = room.cover,
                 upName = room.upName,
                 online = room.online
             )
