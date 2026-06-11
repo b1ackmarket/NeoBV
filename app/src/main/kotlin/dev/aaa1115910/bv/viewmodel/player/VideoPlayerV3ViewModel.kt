@@ -2051,9 +2051,10 @@ class VideoPlayerV3ViewModel(
 
         _uiState.update {
             val actualCodec = VideoCodec.fromCodecString(actualVideoItem.codecs.orEmpty())
-            val mediaProfileState = actualCodec?.let { codecValue ->
-                it.mediaProfileState.copy(videoCodec = codecValue)
-            } ?: it.mediaProfileState
+            val mediaProfileState = it.mediaProfileState.copy(
+                qualityId = actualVideoItem.quality,
+                videoCodec = actualCodec ?: it.mediaProfileState.videoCodec
+            )
             it.copy(
                 availableVideoCodec = normalizeAvailableVideoCodecs(
                     current = it.availableVideoCodec,
