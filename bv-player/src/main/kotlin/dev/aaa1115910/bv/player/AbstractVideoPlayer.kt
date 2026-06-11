@@ -17,7 +17,11 @@ abstract class AbstractVideoPlayer {
     abstract fun playUrl(videoUrl: String? = null, audioUrl: String? = null)
 
     /** 设置 MPD 播放地址 */
-    abstract fun playDash(mpdUrl: String)
+    abstract fun playDash(
+        mpdUrl: String,
+        drmLicenseUrl: String? = null,
+        drmRequestHeaders: Map<String, String> = emptyMap()
+    )
 
     /** 设置 HLS 播放地址 */
     abstract fun playHls(hlsUrl: String)

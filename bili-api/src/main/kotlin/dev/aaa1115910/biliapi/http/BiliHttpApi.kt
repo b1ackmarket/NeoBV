@@ -98,7 +98,9 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.readRawBytes
+import io.ktor.http.ContentType
 import io.ktor.http.Parameters
+import io.ktor.http.content.TextContent
 import io.ktor.http.URLProtocol
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.InternalAPI
@@ -108,7 +110,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import org.jsoup.nodes.Document
 import java.io.InputStream
@@ -382,6 +387,11 @@ object BiliHttpApi {
         dedeUserID: Long? = null,
         buvid3: String? = null
     ): BiliResponse<PlayUrlData> = client.get("/pgc/player/web/playurl") {
+        val cookieParts = mutableListOf<String>()
+        sessData?.let { cookieParts.add("SESSDATA=$it") }
+        dedeUserID?.let { cookieParts.add("DedeUserID=$it") }
+        buvid3?.let { cookieParts.add("buvid3=$it") }
+        val cookieString = cookieParts.joinToString(";")
         require(av != null || bv != null) { "av and bv cannot be null at the same time" }
         require(epid != null || cid != null) { "epid and cid cannot be null at the same time" }
         av?.let { parameter("avid", it) }
@@ -397,11 +407,7 @@ object BiliHttpApi {
         drmTechType?.let { parameter("drm_tech_type", it) }
         fromClient?.let { parameter("from_client", it) }
         curLanguage?.takeIf { it.isNotBlank() }?.let { parameter("cur_language", it) }
-        val cookieParts = mutableListOf<String>()
-        sessData?.let { cookieParts.add("SESSDATA=$it") }
-        dedeUserID?.let { cookieParts.add("DedeUserID=$it") }
-        buvid3?.let { cookieParts.add("buvid3=$it") }
-        if (cookieParts.isNotEmpty()) header("Cookie", cookieParts.joinToString(";"))
+        if (cookieParts.isNotEmpty()) header("Cookie", cookieString)
         //必须得加上 referer 才能通过账号身份验证
         header("referer", "https://www.bilibili.com")
     }.body()
@@ -424,8 +430,16 @@ object BiliHttpApi {
         fromClient: String? = null,
         curLanguage: String? = null,
         sessData: String? = null,
+        uidCkMd5: String? = null,
+        dedeUserID: Long? = null,
         buvid3: String? = null
     ): BiliResponse<PlayUrlV2Data> = client.get("/pgc/player/web/v2/playurl") {
+        val cookieParts = mutableListOf<String>()
+        sessData?.let { cookieParts.add("SESSDATA=$it") }
+        dedeUserID?.let { cookieParts.add("DedeUserID=$it") }
+        uidCkMd5?.takeIf { it.isNotBlank() }?.let { cookieParts.add("DedeUserID__ckMd5=$it") }
+        buvid3?.let { cookieParts.add("buvid3=$it") }
+        val cookieString = cookieParts.joinToString(";")
         av?.let { parameter("avid", it) }
         bv?.let { parameter("bvid", it) }
         epid?.let { parameter("ep_id", it) }
@@ -439,19 +453,73 @@ object BiliHttpApi {
         drmTechType?.let { parameter("drm_tech_type", it) }
         fromClient?.let { parameter("from_client", it) }
         curLanguage?.takeIf { it.isNotBlank() }?.let { parameter("cur_language", it) }
-        val cookieParts = mutableListOf<String>()
-        sessData?.let { cookieParts.add("SESSDATA=$it") }
-        buvid3?.let { cookieParts.add("buvid3=$it") }
         if (cookieParts.isNotEmpty()) {
-            val cookieString = cookieParts.joinToString(";")
-            println("PGC v2 Cookie: $cookieString")
             header("Cookie", cookieString)
-        } else {
-            println("PGC v2 Cookie is empty! sessData=$sessData, buvid3=$buvid3")
         }
         //必须得加上 referer 才能通过账号身份验证
         header("referer", "https://www.bilibili.com")
+        header("Origin", "https://www.bilibili.com")
     }.body()
+
+    suspend fun getOgvPlayView(
+        epid: Int,
+        qn: Int,
+        fnval: Int,
+        fnver: Int = 0,
+        drmTechType: Int = 2,
+        versionName: String = "4.9.83",
+        appId: Int = 100,
+        sessData: String? = null,
+        biliJct: String? = null,
+        dedeUserID: Long? = null,
+        uidCkMd5: String? = null,
+        buvid3: String? = null
+    ): BiliResponse<dev.aaa1115910.biliapi.http.entity.video.OgvPlayViewData> =
+        client.post("/ogv/player/playview") {
+            val cookieParts = mutableListOf<String>()
+            sessData?.takeIf { it.isNotBlank() }?.let { cookieParts.add("SESSDATA=$it") }
+            dedeUserID?.let { cookieParts.add("DedeUserID=$it") }
+            uidCkMd5?.takeIf { it.isNotBlank() }?.let { cookieParts.add("DedeUserID__ckMd5=$it") }
+            biliJct?.takeIf { it.isNotBlank() }?.let { cookieParts.add("bili_jct=$it") }
+            buvid3?.takeIf { it.isNotBlank() }?.let { cookieParts.add("buvid3=$it") }
+            val cookieString = cookieParts.joinToString(";")
+            biliJct?.takeIf { it.isNotBlank() }?.let { parameter("csrf", it) }
+            setBody(
+                TextContent(
+                    json.encodeToString(
+                        JsonObject.serializer(),
+                        buildJsonObject {
+                            put("scene", JsonPrimitive("normal"))
+                            put("video_index", buildJsonObject {
+                                put("bvid", JsonNull)
+                                put("cid", JsonNull)
+                                put("ogv_season_id", JsonNull)
+                                put("ogv_episode_id", JsonPrimitive(epid))
+                            })
+                            put("video_param", buildJsonObject {
+                                put("qn", JsonPrimitive(qn))
+                            })
+                            put("player_param", buildJsonObject {
+                                put("fnver", JsonPrimitive(fnver))
+                                put("fnval", JsonPrimitive(fnval))
+                                put("drm_tech_type", JsonPrimitive(drmTechType))
+                                put("version_name", JsonPrimitive(versionName))
+                                put("app_id", JsonPrimitive(appId))
+                            })
+                            put("exp_info", buildJsonObject {
+                                put("ogv_half_pay", JsonPrimitive(true))
+                                put("device_support_hdr", JsonPrimitive(true))
+                                put("device_support_dolby", JsonPrimitive(false))
+                            })
+                        }
+                    ),
+                    ContentType.Application.Json
+                )
+            )
+            if (cookieParts.isNotEmpty()) header("Cookie", cookieString)
+            header("referer", "https://www.bilibili.com")
+            header("Origin", "https://www.bilibili.com")
+        }.body()
 
     /**
      * 通过[cid]获取视频弹幕

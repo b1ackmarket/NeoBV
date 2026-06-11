@@ -113,6 +113,7 @@ class UserRepository(
     private fun updateAuthRepository() {
         authRepository.sessionData = sessData
         authRepository.biliJct = biliJct
+        authRepository.uidCkMd5 = Prefs.uidCkMd5.takeIf { it.isNotEmpty() }
         authRepository.accessToken = accessToken
         authRepository.mid = uid
         authRepository.buvid3 = Prefs.buvid3

@@ -20,6 +20,7 @@ data class PlayData(
     val aiAudioTranslations: List<AiAudioTranslation> = emptyList(),
     val currentAiAudioLanguage: String = "",
     val needPay: Boolean = false,
+    val durationSeconds: Int = 0,
 ) {
     companion object {
         private fun List<SupportFormat>.toQualityDescriptions(): Map<Int, String> {
@@ -254,7 +255,8 @@ data class PlayData(
                         backUrl = it.backupUrl,
                         codecs = it.codecs,
                         initialization = it.segmentBase.initialization,
-                        indexRange = it.segmentBase.indexRange
+                        indexRange = it.segmentBase.indexRange,
+                        widevinePssh = it.widevinePssh
                     )
                 }
             } else {
@@ -268,7 +270,8 @@ data class PlayData(
                         // durl 模式下没有这些信息，给默认值
                         bandwidth = 0, width = 0, height = 0, frameRate = "", codecs = "",
                         initialization = null,
-                        indexRange = null
+                        indexRange = null,
+                        widevinePssh = ""
                     )
                 }
             }
@@ -278,7 +281,10 @@ data class PlayData(
                     bandwidth = it.bandwidth,
                     codecId = it.id,
                     backUrl = it.backupUrl,
-                    codecs = it.codecs
+                    codecs = it.codecs,
+                    initialization = it.segmentBase.initialization,
+                    indexRange = it.segmentBase.indexRange,
+                    widevinePssh = it.widevinePssh
                 )
             } ?: emptyList()
             val dolby = dolbyItem?.let {
@@ -287,7 +293,10 @@ data class PlayData(
                     bandwidth = it.bandwidth,
                     codecId = it.id,
                     backUrl = it.backupUrl,
-                    codecs = it.codecs
+                    codecs = it.codecs,
+                    initialization = it.segmentBase.initialization,
+                    indexRange = it.segmentBase.indexRange,
+                    widevinePssh = it.widevinePssh
                 )
             }
             val flac = flacItem?.let {
@@ -296,7 +305,10 @@ data class PlayData(
                     bandwidth = it.bandwidth,
                     codecId = it.id,
                     backUrl = it.backupUrl,
-                    codecs = it.codecs
+                    codecs = it.codecs,
+                    initialization = it.segmentBase.initialization,
+                    indexRange = it.segmentBase.indexRange,
+                    widevinePssh = it.widevinePssh
                 )
             }
 
@@ -317,7 +329,8 @@ data class PlayData(
                     }
                     ?: emptyList(),
                 currentAiAudioLanguage = playUrlData.currentLanguage,
-                needPay = isPreview
+                needPay = isPreview,
+                durationSeconds = playUrlData.dash?.duration ?: 0
             )
         }
 
@@ -509,7 +522,8 @@ data class DashVideo(
     val backUrl: List<String>,
     val codecs: String? = null,
     val initialization: String? = null,
-    val indexRange: String? = null
+    val indexRange: String? = null,
+    val widevinePssh: String = ""
 )
 
 /**
@@ -524,5 +538,8 @@ data class DashAudio(
     val bandwidth: Int,
     val codecId: Int,
     val backUrl: List<String>,
-    val codecs: String? = null
+    val codecs: String? = null,
+    val initialization: String? = null,
+    val indexRange: String? = null,
+    val widevinePssh: String = ""
 )

@@ -21,6 +21,7 @@ import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuFilterRuleData
 import dev.aaa1115910.biliapi.grpc.utils.handleGrpcException
 import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.http.BiliHttpProxyApi
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -57,6 +58,8 @@ class VideoPlayRepository(
         const val DefaultVideoFnval = 4048
         const val PgcVideoFnvalWithAiRepair = 12240
     }
+
+    private val logger = KotlinLogging.logger("VideoPlayRepository")
 
     private val playerStub
         get() = runCatching {
@@ -151,13 +154,13 @@ class VideoPlayRepository(
         preferApiType: ApiType = ApiType.Web,
         enableProxy: Boolean = false,
         proxyArea: String = "",
-        curAiAudioLanguage: String? = null
+        curAiAudioLanguage: String? = null,
+        preferOgvWithDrm: Boolean = false
     ): PlayData {
-        println("get pgc play data: [aid=$aid, cid=$cid, epid=$epid, preferCodec=$preferCodec, preferApiType=$preferApiType, enableProxy=$enableProxy, proxyArea=$proxyArea]")
         return when (preferApiType) {
             ApiType.Web -> {
-                val playUrlData = if (enableProxy) {
-                    BiliHttpProxyApi.getPgcVideoPlayUrlV2(
+                if (enableProxy) {
+                    val playUrlData = BiliHttpProxyApi.getPgcVideoPlayUrlV2(
                         av = aid,
                         cid = cid,
                         epid = epid,
@@ -167,24 +170,46 @@ class VideoPlayRepository(
                         fourk = 1,
                         supportMultiAudio = true,
                         curLanguage = curAiAudioLanguage,
-                        sessData = authRepository.sessionData
-                    )
+                        sessData = authRepository.sessionData,
+                        uidCkMd5 = authRepository.uidCkMd5,
+                        dedeUserID = authRepository.mid,
+                        buvid3 = authRepository.buvid3
+                    ).getResponseData()
+                    PlayData.fromPlayUrlV2Data(playUrlData)
                 } else {
-                    BiliHttpApi.getPgcVideoPlayUrlV2(
-                        av = aid,
-                        cid = cid,
-                        epid = epid,
-                        fnval = PgcVideoFnvalWithAiRepair,
-                        qn = 127,
-                        fnver = 0,
-                        fourk = 1,
-                        supportMultiAudio = true,
-                        curLanguage = curAiAudioLanguage,
-                        sessData = authRepository.sessionData
-                    )
-                }.getResponseData()
-
-                PlayData.fromPlayUrlV2Data(playUrlData)
+                    if (preferOgvWithDrm) {
+                        runCatching {
+                            val playViewData = BiliHttpApi.getOgvPlayView(
+                                epid = epid,
+                                fnval = PgcVideoFnvalWithAiRepair,
+                                qn = 127,
+                                fnver = 0,
+                                drmTechType = 2,
+                                sessData = authRepository.sessionData,
+                                biliJct = authRepository.biliJct,
+                                uidCkMd5 = authRepository.uidCkMd5,
+                                dedeUserID = authRepository.mid,
+                                buvid3 = authRepository.buvid3
+                            ).getResponseData()
+                            PlayData.fromPlayUrlData(playViewData.videoInfo)
+                        }.getOrElse { error ->
+                            logger.warn(error) { "OGV playview failed, fallback to web/v2/playurl" }
+                            getPgcWebPlayData(
+                                aid = aid,
+                                cid = cid,
+                                epid = epid,
+                                curAiAudioLanguage = curAiAudioLanguage
+                            )
+                        }
+                    } else {
+                        getPgcWebPlayData(
+                            aid = aid,
+                            cid = cid,
+                            epid = epid,
+                            curAiAudioLanguage = curAiAudioLanguage
+                        )
+                    }
+                }
             }
 
             ApiType.App -> {
@@ -235,6 +260,30 @@ class VideoPlayRepository(
                 }
             }
         }
+    }
+
+    private suspend fun getPgcWebPlayData(
+        aid: Long?,
+        cid: Long?,
+        epid: Int,
+        curAiAudioLanguage: String? = null
+    ): PlayData {
+        val playUrlData = BiliHttpApi.getPgcVideoPlayUrlV2(
+            av = aid,
+            cid = cid,
+            epid = epid,
+            fnval = PgcVideoFnvalWithAiRepair,
+            qn = 127,
+            fnver = 0,
+            fourk = 1,
+            supportMultiAudio = true,
+            curLanguage = curAiAudioLanguage,
+            sessData = authRepository.sessionData,
+            uidCkMd5 = authRepository.uidCkMd5,
+            dedeUserID = authRepository.mid,
+            buvid3 = authRepository.buvid3
+        ).getResponseData()
+        return PlayData.fromPlayUrlV2Data(playUrlData)
     }
 
     suspend fun getSubtitle(

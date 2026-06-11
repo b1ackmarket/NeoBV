@@ -12,6 +12,10 @@ import io.ktor.util.logging.KtorSimpleLogger
 import io.ktor.utils.io.KtorDsl
 
 private val LOGGER = KtorSimpleLogger("dev.aaa1115910.biliapi.http.plugins.BiliUserAgent")
+private val DEFAULT_USER_AGENT_CONFIG = BiliUserAgentConfig().apply { buildUserAgents() }
+
+val DefaultAppUserAgent: String = DEFAULT_USER_AGENT_CONFIG.appUserAgent
+val DefaultWebUserAgent: String = DEFAULT_USER_AGENT_CONFIG.webUserAgent
 
 @KtorDsl
 class BiliUserAgentConfig(

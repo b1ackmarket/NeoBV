@@ -83,6 +83,11 @@ object BiliHttpProxyApi {
         dedeUserID: Long? = null,
         buvid3: String? = null
     ): BiliResponse<PlayUrlData> = client?.get("/pgc/player/web/playurl") {
+        val cookieParts = mutableListOf<String>()
+        sessData?.let { cookieParts.add("SESSDATA=$it") }
+        dedeUserID?.let { cookieParts.add("DedeUserID=$it") }
+        buvid3?.let { cookieParts.add("buvid3=$it") }
+        val cookieString = cookieParts.joinToString(";")
         require(av != null || bv != null) { "av and bv cannot be null at the same time" }
         require(epid != null || cid != null) { "epid and cid cannot be null at the same time" }
         av?.let { parameter("avid", it) }
@@ -98,11 +103,7 @@ object BiliHttpProxyApi {
         drmTechType?.let { parameter("drm_tech_type", it) }
         fromClient?.let { parameter("from_client", it) }
         curLanguage?.takeIf { it.isNotBlank() }?.let { parameter("cur_language", it) }
-        val cookieParts = mutableListOf<String>()
-        sessData?.let { cookieParts.add("SESSDATA=$it") }
-        dedeUserID?.let { cookieParts.add("DedeUserID=$it") }
-        buvid3?.let { cookieParts.add("buvid3=$it") }
-        if (cookieParts.isNotEmpty()) header("Cookie", cookieParts.joinToString(";"))
+        if (cookieParts.isNotEmpty()) header("Cookie", cookieString)
         //必须得加上 referer 才能通过账号身份验证
         header("referer", "https://www.bilibili.com")
     }?.body() ?: throw IllegalStateException("no proxy server")
@@ -122,8 +123,16 @@ object BiliHttpProxyApi {
         fromClient: String? = null,
         curLanguage: String? = null,
         sessData: String? = null,
+        uidCkMd5: String? = null,
+        dedeUserID: Long? = null,
         buvid3: String? = null
     ): BiliResponse<PlayUrlV2Data> = client?.get("/pgc/player/web/v2/playurl") {
+        val cookieParts = mutableListOf<String>()
+        sessData?.let { cookieParts.add("SESSDATA=$it") }
+        dedeUserID?.let { cookieParts.add("DedeUserID=$it") }
+        uidCkMd5?.takeIf { it.isNotBlank() }?.let { cookieParts.add("DedeUserID__ckMd5=$it") }
+        buvid3?.let { cookieParts.add("buvid3=$it") }
+        val cookieString = cookieParts.joinToString(";")
         require(av != null || bv != null) { "av and bv cannot be null at the same time" }
         require(epid != null || cid != null) { "epid and cid cannot be null at the same time" }
         av?.let { parameter("avid", it) }
@@ -139,12 +148,10 @@ object BiliHttpProxyApi {
         drmTechType?.let { parameter("drm_tech_type", it) }
         fromClient?.let { parameter("from_client", it) }
         curLanguage?.takeIf { it.isNotBlank() }?.let { parameter("cur_language", it) }
-        val cookieParts = mutableListOf<String>()
-        sessData?.let { cookieParts.add("SESSDATA=$it") }
-        buvid3?.let { cookieParts.add("buvid3=$it") }
-        if (cookieParts.isNotEmpty()) header("Cookie", cookieParts.joinToString(";"))
+        if (cookieParts.isNotEmpty()) header("Cookie", cookieString)
         //必须得加上 referer 才能通过账号身份验证
         header("referer", "https://www.bilibili.com")
+        header("Origin", "https://www.bilibili.com")
     }?.body() ?: throw IllegalStateException("no proxy server")
 
     /**

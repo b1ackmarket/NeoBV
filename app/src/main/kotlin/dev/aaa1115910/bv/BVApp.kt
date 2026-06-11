@@ -123,6 +123,7 @@ class BVApp : Application(), KoinComponent {
         authRepository.apply {
             sessionData = Prefs.sessData.takeIf { it.isNotEmpty() }
             biliJct = Prefs.biliJct.takeIf { it.isNotEmpty() }
+            uidCkMd5 = Prefs.uidCkMd5.takeIf { it.isNotEmpty() }
             accessToken = Prefs.accessToken.takeIf { it.isNotEmpty() }
             mid = Prefs.uid.takeIf { it != 0L }
             buvid3 = Prefs.buvid3

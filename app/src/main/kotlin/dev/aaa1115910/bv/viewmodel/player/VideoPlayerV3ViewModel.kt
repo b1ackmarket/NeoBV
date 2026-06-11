@@ -94,6 +94,7 @@ import dev.aaa1115910.bv.ui.state.SubtitleMemory
 import dev.aaa1115910.bv.ui.state.SubtitleState
 import dev.aaa1115910.bv.util.PlayerUiTextFormatter
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.util.WidevineUtil
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
@@ -123,7 +124,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.koin.android.annotation.KoinViewModel
-import java.net.URI
 import java.util.Calendar
 import java.util.Locale
 import kotlin.coroutines.cancellation.CancellationException
@@ -389,6 +389,8 @@ class VideoPlayerV3ViewModel(
     private var currentStreamCandidate: StreamCandidate? = null
     private var fallbackPlanner: PlaybackFallbackPlanner? = null
     private var isRetryingPlayback = false
+    private var currentMediaUrls: MediaUrls? = null
+    private var isRetryingPgcWithoutOgv = false
 
     private val detachedWorkScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -1800,8 +1802,6 @@ class VideoPlayerV3ViewModel(
             val playData = fetchPlayData(avid, cid, epid, preferApi, proxyArea)
             this@VideoPlayerV3ViewModel.playData = playData
 
-            logger.fInfo { "Load play data response success. Play data: $playData" }
-
             // 2. 解析并去重可用的清晰度 (使用 associate 替代 forEach + mutableMap)
             val resolutionMap = playData.dashVideos.associate { video ->
                 video.quality to video.quality.toVideoQualityDisplayName(
@@ -1822,7 +1822,7 @@ class VideoPlayerV3ViewModel(
                 calculateTargetQuality(
                     availableQualities = resolutionMap.keys,
                     defaultQualityCode = preferredQualityId.takeIf { it > 0 } ?: Prefs.defaultQuality.code
-                )
+            )
             val targetAudio = calculateTargetAudio(availableAudioList, Prefs.defaultAudio)
             val targetCodec = getTargetVideoCodec()
 
@@ -1874,7 +1874,8 @@ class VideoPlayerV3ViewModel(
                 preferApiType = preferApi,
                 enableProxy = Prefs.enableProxy,
                 proxyArea = proxyArea.toQueryParam(),
-                curAiAudioLanguage = aiAudioLanguage
+                curAiAudioLanguage = aiAudioLanguage,
+                preferOgvWithDrm = shouldPreferOgvWithDrm(preferApi)
             )
         } else {
             videoPlayRepository.getPlayData(
@@ -1884,6 +1885,12 @@ class VideoPlayerV3ViewModel(
                 preferApiType = preferApi
             )
         }
+    }
+
+    private fun shouldPreferOgvWithDrm(preferApi: ApiType): Boolean {
+        if (preferApi != ApiType.Web || Prefs.enableProxy) return false
+        val widevineInfo = WidevineUtil.readInfo()
+        return widevineInfo.canTryProtectedPlayback
     }
 
     private fun buildAvailableAudioList(playData: PlayData): List<Audio> {
@@ -1963,7 +1970,6 @@ class VideoPlayerV3ViewModel(
                 mediaProfileState = it.mediaProfileState.copy(videoCodec = targetVideoCodec)
             )
         }
-        logger.fInfo { "Select codec: $targetVideoCodec" }
         return targetVideoCodec
     }
 
@@ -1985,10 +1991,10 @@ class VideoPlayerV3ViewModel(
         }
         logger.fInfo { "Available dash videos count: ${currentPlayData.dashVideos.size}" }
 
-        val audioItem = currentPlayData.dashAudios.find { it.codecId == targetAudio.code }
-            ?: currentPlayData.dolby.takeIf { it?.codecId == targetAudio.code }
-            ?: currentPlayData.flac.takeIf { it?.codecId == targetAudio.code }
-            ?: currentPlayData.dashAudios.minByOrNull { it.codecId }
+        val audioItem = currentPlayData.dashAudios.find { targetAudio.matchesCode(it.codecId) }
+            ?: currentPlayData.dolby.takeIf { targetAudio.matchesCode(it?.codecId ?: 0) }
+            ?: currentPlayData.flac.takeIf { targetAudio.matchesCode(it?.codecId ?: 0) }
+            ?: currentPlayData.dashAudios.maxByOrNull { Audio.fromCode(it.codecId).ordinal }
 
         var audioUrl: String? = audioItem?.baseUrl
         val audioUrls = mutableListOf<String>()
@@ -2012,10 +2018,6 @@ class VideoPlayerV3ViewModel(
         )
         fallbackPlanner = planner
         currentStreamCandidate = preferredCandidate
-        logger.fInfo {
-            "Preferred candidate: ${preferredCandidate?.quality}/${preferredCandidate?.codecPrefix} " +
-                "video=${preferredCandidate?.videoUrl}"
-        }
 
         val actualVideoItem = currentPlayData.dashVideos.firstOrNull { video ->
             preferredCandidate != null &&
@@ -2031,9 +2033,6 @@ class VideoPlayerV3ViewModel(
         videoUrls.add(actualVideoItem.baseUrl)
         videoUrls.addAll(actualVideoItem.backUrl)
 
-        logger.fInfo { "all video hosts: ${videoUrls.map { with(URI(it)) { "$scheme://$authority" } }}" }
-        logger.fInfo { "all audio hosts: ${audioUrls.map { with(URI(it)) { "$scheme://$authority" } }}" }
-
         //replace cdn
         if (Prefs.enableProxy && state.proxyArea != ProxyArea.MainLand) {
             videoUrl = videoUrl.replaceUrlDomainWithAliCdn()
@@ -2045,8 +2044,6 @@ class VideoPlayerV3ViewModel(
         }
 
         logger.fInfo { "Audio encoding：${(Audio.fromCode(audioItem?.codecId ?: 0))}" }
-        logger.info { "Video url: $videoUrl" }
-        logger.info { "Audio url: $audioUrl" }
 
         _uiState.update {
             val actualCodec = VideoCodec.fromCodecString(actualVideoItem.codecs.orEmpty())
@@ -2068,8 +2065,9 @@ class VideoPlayerV3ViewModel(
             )
         }
 
+        val hasDrmProtection = actualVideoItem.widevinePssh.isNotBlank()
         val shouldUseDashMpd =
-            actualVideoItem.quality >= Resolution.R8K.code &&
+            (hasDrmProtection || actualVideoItem.quality >= Resolution.R8K.code) &&
                 !actualVideoItem.initialization.isNullOrBlank() &&
                 !actualVideoItem.indexRange.isNullOrBlank()
 
@@ -2083,7 +2081,14 @@ class VideoPlayerV3ViewModel(
                 frameRate = actualVideoItem.frameRate,
                 bandwidth = actualVideoItem.bandwidth,
                 initialization = actualVideoItem.initialization,
-                indexRange = actualVideoItem.indexRange
+                indexRange = actualVideoItem.indexRange,
+                widevinePssh = actualVideoItem.widevinePssh,
+                audioCodec = audioItem?.codecs,
+                audioBandwidth = audioItem?.bandwidth,
+                audioInitialization = audioItem?.initialization,
+                audioIndexRange = audioItem?.indexRange,
+                audioWidevinePssh = audioItem?.widevinePssh,
+                durationSeconds = currentPlayData.durationSeconds
             )
             HttpServer.setMpdContent(mpdContent)
             HttpServer.getMpdUrl()
@@ -2094,12 +2099,18 @@ class VideoPlayerV3ViewModel(
         return MediaUrls(
             videoUrl = playbackUrl,
             audioUrl = if (shouldUseDashMpd) null else audioUrl,
-            useDashMpd = shouldUseDashMpd
+            useDashMpd = shouldUseDashMpd,
+            drmLicenseUrl = if (shouldUseDashMpd && hasDrmProtection) {
+                "https://bvc-drm.bilivideo.com/bili_widevine"
+            } else {
+                null
+            }
         )
     }
 
     private fun tryFallbackPlayback(error: Exception): Boolean {
         if (isRetryingPlayback) return false
+        if (tryFallbackPgcWithoutOgv(error)) return true
         val planner = fallbackPlanner ?: return false
         val currentCandidate = currentStreamCandidate ?: return false
         val nextCandidate = planner.nextAfterFailure(currentCandidate) ?: return false
@@ -2128,16 +2139,95 @@ class VideoPlayerV3ViewModel(
         return true
     }
 
+    private fun tryFallbackPgcWithoutOgv(error: Exception): Boolean {
+        val state = _uiState.value
+        val mediaUrls = currentMediaUrls ?: return false
+        if (isRetryingPgcWithoutOgv || mediaUrls.drmLicenseUrl.isNullOrBlank()) return false
+        if (!state.fromSeason || state.epid == null || state.aid <= 0L || state.cid <= 0L) return false
+
+        logger.fWarn {
+            "Retry PGC playback without OGV after DRM playback error. " +
+                "aid=${state.aid} cid=${state.cid} epid=${state.epid} error=${error.message}"
+        }
+        isRetryingPgcWithoutOgv = true
+        viewModelScope.launch(Dispatchers.Main) {
+            runCatching {
+                val currentPositionMs = videoPlayer?.currentPosition
+                val fallbackPlayData = withContext(Dispatchers.IO) {
+                    videoPlayRepository.getPgcPlayData(
+                        aid = state.aid,
+                        cid = state.cid,
+                        epid = state.epid,
+                        preferCodec = Prefs.defaultVideoCodec.toBiliApiCodeType(),
+                        preferApiType = ApiType.Web,
+                        enableProxy = Prefs.enableProxy,
+                        proxyArea = state.proxyArea.toQueryParam(),
+                        curAiAudioLanguage = state.currentAiAudioLanguage.takeIf { it.isNotBlank() },
+                        preferOgvWithDrm = false
+                    )
+                }
+                playData = fallbackPlayData
+                val availableAudioList = buildAvailableAudioList(fallbackPlayData)
+                val targetAudio = calculateTargetAudio(availableAudioList, state.mediaProfileState.audio)
+                val targetQuality = calculateTargetQuality(
+                    fallbackPlayData.dashVideos.map { it.quality }.toSet(),
+                    state.mediaProfileState.qualityId
+                )
+                _uiState.update {
+                    it.copy(
+                        availableQuality = fallbackPlayData.dashVideos.associate { video ->
+                            video.quality to video.quality.toVideoQualityDisplayName(
+                                context = BVApp.context,
+                                apiDescription = fallbackPlayData.qualityDescriptions[video.quality]
+                            )
+                        },
+                        availableAudio = availableAudioList,
+                        mediaProfileState = it.mediaProfileState.copy(
+                            qualityId = targetQuality,
+                            audio = targetAudio
+                        )
+                    )
+                }
+                val fallbackUrls = resolveMediaUrls(
+                    qn = targetQuality,
+                    codec = state.mediaProfileState.videoCodec,
+                    audio = targetAudio
+                ) ?: throw IllegalStateException("旧 PGC 播放源解析失败")
+                executePlayback(fallbackUrls, currentPositionMs)
+            }.onFailure {
+                logger.fWarn { "Fallback to PGC web/v2 failed: ${it.message}" }
+            }
+            isRetryingPgcWithoutOgv = false
+        }
+        return true
+    }
+
     private fun executePlayback(mediaUrls: MediaUrls, startPositionMs: Long? = null) {
         val player = videoPlayer ?: run {
             logger.error { "VideoPlayer is not initialized!" }
             return
         }
+        currentMediaUrls = mediaUrls
 
-        logger.info { "Execute playback -> Video: ${mediaUrls.videoUrl}, Audio: ${mediaUrls.audioUrl}, dash=${mediaUrls.useDashMpd}" }
-        logger.fInfo { "Current stream candidate before play: $currentStreamCandidate" }
+        logger.info {
+            "Execute playback -> dash=${mediaUrls.useDashMpd} hls=${mediaUrls.useHls} " +
+                "audio=${!mediaUrls.audioUrl.isNullOrBlank()} drm=${!mediaUrls.drmLicenseUrl.isNullOrBlank()}"
+        }
         if (mediaUrls.useDashMpd) {
-            player.playDash(mediaUrls.videoUrl)
+            player.playDash(
+                mpdUrl = mediaUrls.videoUrl,
+                drmLicenseUrl = mediaUrls.drmLicenseUrl,
+                drmRequestHeaders = mediaUrls.drmLicenseUrl?.let {
+                    mapOf(
+                        "Origin" to "https://www.bilibili.com",
+                        "Referer" to "https://www.bilibili.com",
+                        "User-Agent" to when (Prefs.playbackApiType) {
+                            ApiType.Web -> "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+                            ApiType.App -> "Mozilla/5.0"
+                        }
+                    )
+                } ?: emptyMap()
+            )
         } else if (mediaUrls.useHls) {
             player.playHls(mediaUrls.videoUrl)
         } else {
@@ -2559,7 +2649,7 @@ class VideoPlayerV3ViewModel(
                 bufferedPercentage = player.bufferedPercentage,
                 debugInfo = listOf(
                     _uiState.value.mediaStatsInfo,
-                    player.debugInfo.toPlayerStatsDebugText()
+                    player.debugInfo.toPlayerStatsDebugText(_uiState.value.mediaStatsInfo.isNotBlank())
                 ).filter { info -> info.isNotBlank() }.joinToString("\n")
             )
         }
@@ -2793,7 +2883,8 @@ class VideoPlayerV3ViewModel(
         val videoUrl: String,
         val audioUrl: String?,
         val useDashMpd: Boolean = false,
-        val useHls: Boolean = false
+        val useHls: Boolean = false,
+        val drmLicenseUrl: String? = null
     )
 }
 
@@ -2980,9 +3071,21 @@ internal fun buildBiliMediaStatsInfo(
     }.joinToString("\n")
 }
 
-private fun String.toPlayerStatsDebugText(): String {
+private fun String.toPlayerStatsDebugText(hasBiliMediaStats: Boolean): String {
+    val duplicatePrefixes = listOf(
+        "mime type:",
+        "video codec:",
+        "video info:",
+        "video fps:",
+        "audio codec:",
+        "audio info:"
+    )
     return lineSequence()
-        .filterNot { it.startsWith("mime type:", ignoreCase = true) }
+        .filterNot { line ->
+            hasBiliMediaStats && duplicatePrefixes.any { prefix ->
+                line.startsWith(prefix, ignoreCase = true)
+            }
+        }
         .joinToString("\n")
 }
 

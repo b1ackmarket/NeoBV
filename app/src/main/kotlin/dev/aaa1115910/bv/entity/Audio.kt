@@ -12,7 +12,22 @@ enum class Audio(val code: Int, private val strRes: Int) {
 
     companion object {
         fun fromCode(code: Int): Audio {
-            return entries.find { it.code == code } ?: A64K
+            return when (code) {
+                100008 -> A64K
+                100009 -> A132K
+                100010 -> A192K
+                else -> entries.find { it.code == code } ?: A64K
+            }
+        }
+    }
+
+    fun matchesCode(code: Int): Boolean {
+        return code == this.code || when (this) {
+            A64K -> code == 100008
+            A132K -> code == 100009
+            A192K -> code == 100010
+            ADolbyAtoms,
+            AHiRes -> false
         }
     }
 

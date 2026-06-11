@@ -127,6 +127,24 @@ internal class BiliHttpApiTest {
     }
 
     @Test
+    fun `get ogv play view`() {
+        runBlocking {
+            println(
+                BiliHttpApi.getOgvPlayView(
+                    epid = 318890,
+                    qn = 120,
+                    fnval = 4048,
+                    drmTechType = 2,
+                    sessData = SESSDATA,
+                    biliJct = BILI_JCT,
+                    dedeUserID = UID,
+                    buvid3 = BUVID
+                )
+            )
+        }
+    }
+
+    @Test
     fun `get video danmaku from xml`() {
         assertDoesNotThrow {
             runBlocking {

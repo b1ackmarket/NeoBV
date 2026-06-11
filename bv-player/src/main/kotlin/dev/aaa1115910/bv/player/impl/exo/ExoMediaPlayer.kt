@@ -219,12 +219,25 @@ class ExoMediaPlayer(
     }
 
     @OptIn(UnstableApi::class)
-    override fun playDash(mpdUrl: String) {
+    override fun playDash(
+        mpdUrl: String,
+        drmLicenseUrl: String?,
+        drmRequestHeaders: Map<String, String>
+    ) {
         currentMediaUrl = mpdUrl
-        val mediaItem = MediaItem.Builder()
+        val mediaItemBuilder = MediaItem.Builder()
             .setUri(mpdUrl)
             .setMimeType(MimeTypes.APPLICATION_MPD)
-            .build()
+        if (!drmLicenseUrl.isNullOrBlank()) {
+            mediaItemBuilder.setDrmConfiguration(
+                MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                    .setLicenseUri(drmLicenseUrl)
+                    .setLicenseRequestHeaders(drmRequestHeaders)
+                    .setMultiSession(true)
+                    .build()
+            )
+        }
+        val mediaItem = mediaItemBuilder.build()
         mMediaSource = DashMediaSource.Factory(dataSourceFactory)
             .createMediaSource(mediaItem)
     }

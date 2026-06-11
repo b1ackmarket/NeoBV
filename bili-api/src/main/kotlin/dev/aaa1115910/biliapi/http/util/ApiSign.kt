@@ -47,6 +47,7 @@ internal fun shouldUseWbiSignForGetPath(encodedPath: String): Boolean {
     return encodedPath.contains("wbi") ||
             encodedPath.contains("/pgc/player/web/playurl") ||
             encodedPath.contains("/pgc/player/web/v2/playurl") ||
+            encodedPath.contains("/ogv/player/playview") ||
             encodedPath.contains("/xlive/web-room/v1/index/getDanmuInfo") ||
             encodedPath.contains("/x/web-interface/search/type") ||
             encodedPath.contains("/x/polymer/web-space/seasons_series_list")
@@ -131,6 +132,13 @@ fun HttpClient.encApiSign() = plugin(HttpSend)
 
             HttpMethod.Post -> {
                 if (request.body is EmptyContent) return@intercept execute(request)
+                if (shouldUseWbiSignForGetPath(request.url.encodedPath)) {
+                    request.encWbi()
+                    return@intercept execute(request)
+                }
+                if (request.body !is FormDataContent) {
+                    return@intercept execute(request)
+                }
                 val parameters = (request.body as FormDataContent).formData
                 val isParametersContainKeywords = parameters.contains("access_key")
                 val isPathContainKeywords = request.url.encodedPath.contains("passport")

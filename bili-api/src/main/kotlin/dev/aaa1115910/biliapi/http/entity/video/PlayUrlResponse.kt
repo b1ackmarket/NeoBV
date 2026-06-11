@@ -48,7 +48,7 @@ data class PlayUrlData(
     val fnval: Int = 0,
     @SerialName("video_project")
     val videoProject: Boolean = false,
-    val type: String = "",
+    val type: JsonElement? = null,
     val bp: Int = 0,
     @SerialName("vip_type")
     val vipType: Int = 0,
@@ -61,25 +61,25 @@ data class PlayUrlData(
     @SerialName("has_paid")
     val hasPaid: Boolean = false,
     val status: Int = 0,
-    val from: String,
-    val result: String,
-    val message: String,
-    val quality: Int,
-    val format: String,
+    val from: String = "",
+    val result: String = "",
+    val message: String = "",
+    val quality: Int = 0,
+    val format: String = "",
     @SerialName("timelength")
-    val timeLength: Int,
+    val timeLength: Int = 0,
     @SerialName("accept_format")
-    val acceptFormat: String,
+    val acceptFormat: String = "",
     @SerialName("accept_description")
     val acceptDescription: List<String> = emptyList(),
     @SerialName("accept_quality")
     val acceptQuality: List<Int> = emptyList(),
     @SerialName("video_codecid")
-    val videoCodecId: Int,
+    val videoCodecId: Int = 0,
     @SerialName("seek_param")
-    val seekParam: String,
+    val seekParam: String = "",
     @SerialName("seek_type")
-    val seekType: String,
+    val seekType: String = "",
     val durl: List<Durl> = emptyList(),
     val dash: Dash? = null,
     @SerialName("support_formats")
@@ -301,8 +301,9 @@ data class Durl(
 //TODO
 @Serializable
 data class Dash(
-    val duration: Int,
-    val minBufferTime: Float,
+    val duration: Int = 0,
+    @SerialName("min_buffer_time")
+    val minBufferTime: Float = 0f,
     val video: List<DashData> = emptyList(),
     val audio: List<DashData>? = null,
     val dolby: DashDolby = DashDolby(),
@@ -317,7 +318,7 @@ data class DashDolby(
 
 @Serializable
 data class DashFlac(
-    val display: Boolean,
+    val display: Boolean = false,
     val audio: DashData? = null
 )
 
@@ -329,26 +330,28 @@ data class DashData(
     val backupUrl: List<String> = emptyList(),
     val bandwidth: Int,
     @SerialName("mime_type")
-    val mimeType: String,
-    val codecs: String,
-    val width: Int,
-    val height: Int,
+    val mimeType: String = "",
+    val codecs: String = "",
+    val width: Int = 0,
+    val height: Int = 0,
     @SerialName("frame_rate")
-    val frameRate: String,
-    val sar: String,
+    val frameRate: String = "",
+    val sar: String = "",
     @SerialName("start_with_sap")
-    val startWithSap: Int,
+    val startWithSap: Int = 0,
     @SerialName("segment_base")
-    val segmentBase: SegmentBase,
+    val segmentBase: SegmentBase = SegmentBase(),
     @SerialName("codecid")
-    val codecId: Int
+    val codecId: Int = id,
+    @SerialName("widevine_pssh")
+    val widevinePssh: String = ""
 )
 
 @Serializable
 data class SegmentBase(
-    val initialization: String,
+    val initialization: String = "",
     @SerialName("index_range")
-    val indexRange: String
+    val indexRange: String = ""
 )
 
 /**
@@ -369,12 +372,12 @@ data class SupportFormat(
     val quality: Int,
     val format: String,
     @SerialName("new_description")
-    val newDescription: String,
+    val newDescription: String = "",
     val description: String? = null,
     @SerialName("display_desc")
-    val displayDesc: String,
+    val displayDesc: String = "",
     @SerialName("superscript")
-    val superScript: String,
+    val superScript: String = "",
     val codecs: List<String>? = emptyList(),
     @SerialName("need_login")
     val needLogin: Boolean = false,
