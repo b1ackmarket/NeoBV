@@ -950,6 +950,10 @@ fun LivePlayerScreen() {
                     }
 
                     Key.Menu -> {
+                        if (activeOverlay == LiveOverlayPanel.BottomMenu) {
+                            activeOverlay = LiveOverlayPanel.RightMenu
+                            true
+                        } else
                         if (
                             activeOverlay == LiveOverlayPanel.None ||
                             activeOverlay == LiveOverlayPanel.RightMenu
