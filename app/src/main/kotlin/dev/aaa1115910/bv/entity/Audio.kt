@@ -27,7 +27,7 @@ enum class Audio(val code: Int, private val strRes: Int) {
             A64K -> code == 100008
             A132K -> code == 100009
             A192K -> code == 100010
-            ADolbyAtoms -> code == 30255
+            ADolbyAtoms -> code == 30250 || code == 30255
             AHiRes -> false
         }
     }

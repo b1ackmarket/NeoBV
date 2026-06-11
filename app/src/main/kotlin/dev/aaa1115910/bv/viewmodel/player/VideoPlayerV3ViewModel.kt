@@ -1865,6 +1865,8 @@ class VideoPlayerV3ViewModel(
         proxyArea: ProxyArea,
         aiAudioLanguage: String? = _uiState.value.currentAiAudioLanguage.takeIf { it.isNotBlank() }
     ): PlayData {
+        val requestedQn = _uiState.value.mediaProfileState.qualityId.takeIf { it > 0 }
+            ?: Prefs.defaultQuality.code
         return if (_uiState.value.fromSeason) {
             videoPlayRepository.getPgcPlayData(
                 aid = avid,
@@ -1875,14 +1877,16 @@ class VideoPlayerV3ViewModel(
                 enableProxy = Prefs.enableProxy,
                 proxyArea = proxyArea.toQueryParam(),
                 curAiAudioLanguage = aiAudioLanguage,
-                preferOgvWithDrm = shouldPreferOgvWithDrm(preferApi)
+                preferOgvWithDrm = shouldPreferOgvWithDrm(preferApi),
+                requestedQn = requestedQn
             )
         } else {
             videoPlayRepository.getPlayData(
                 aid = avid,
                 cid = cid,
                 curAiAudioLanguage = aiAudioLanguage,
-                preferApiType = preferApi
+                preferApiType = preferApi,
+                requestedQn = requestedQn
             )
         }
     }
@@ -2163,7 +2167,9 @@ class VideoPlayerV3ViewModel(
                         enableProxy = Prefs.enableProxy,
                         proxyArea = state.proxyArea.toQueryParam(),
                         curAiAudioLanguage = state.currentAiAudioLanguage.takeIf { it.isNotBlank() },
-                        preferOgvWithDrm = false
+                        preferOgvWithDrm = false,
+                        requestedQn = state.mediaProfileState.qualityId.takeIf { it > 0 }
+                            ?: Prefs.defaultQuality.code
                     )
                 }
                 playData = fallbackPlayData

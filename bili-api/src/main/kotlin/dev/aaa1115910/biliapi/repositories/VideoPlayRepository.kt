@@ -84,7 +84,8 @@ class VideoPlayRepository(
         aid: Long,
         cid: Long,
         curAiAudioLanguage: String? = null,
-        preferApiType: ApiType = ApiType.Web
+        preferApiType: ApiType = ApiType.Web,
+        requestedQn: Int = 127
     ): PlayData {
         return when (preferApiType) {
             ApiType.Web -> {
@@ -92,7 +93,7 @@ class VideoPlayRepository(
                     av = aid,
                     cid = cid,
                     fnval = DefaultVideoFnval,
-                    qn = 127,
+                    qn = requestedQn,
                     fnver = 0,
                     fourk = 1,
                     curLanguage = curAiAudioLanguage,
@@ -117,7 +118,7 @@ class VideoPlayRepository(
                                         this.aid = aid
                                         this.cid = cid
                                         fnval = DefaultVideoFnval
-                                        qn = 127
+                                        qn = requestedQn.toLong()
                                         fnver = 0
                                         fourk = true
                                         forceHost = 2
@@ -155,7 +156,8 @@ class VideoPlayRepository(
         enableProxy: Boolean = false,
         proxyArea: String = "",
         curAiAudioLanguage: String? = null,
-        preferOgvWithDrm: Boolean = false
+        preferOgvWithDrm: Boolean = false,
+        requestedQn: Int = 127
     ): PlayData {
         return when (preferApiType) {
             ApiType.Web -> {
@@ -165,7 +167,7 @@ class VideoPlayRepository(
                         cid = cid,
                         epid = epid,
                         fnval = PgcVideoFnvalWithAiRepair,
-                        qn = 127,
+                        qn = requestedQn,
                         fnver = 0,
                         fourk = 1,
                         supportMultiAudio = true,
@@ -182,7 +184,7 @@ class VideoPlayRepository(
                             val playViewData = BiliHttpApi.getOgvPlayView(
                                 epid = epid,
                                 fnval = PgcVideoFnvalWithAiRepair,
-                                qn = 127,
+                                qn = requestedQn,
                                 fnver = 0,
                                 drmTechType = 2,
                                 sessData = authRepository.sessionData,
@@ -198,7 +200,8 @@ class VideoPlayRepository(
                                 aid = aid,
                                 cid = cid,
                                 epid = epid,
-                                curAiAudioLanguage = curAiAudioLanguage
+                                curAiAudioLanguage = curAiAudioLanguage,
+                                requestedQn = requestedQn
                             )
                         }
                     } else {
@@ -206,7 +209,8 @@ class VideoPlayRepository(
                             aid = aid,
                             cid = cid,
                             epid = epid,
-                            curAiAudioLanguage = curAiAudioLanguage
+                            curAiAudioLanguage = curAiAudioLanguage,
+                            requestedQn = requestedQn
                         )
                     }
                 }
@@ -223,7 +227,7 @@ class VideoPlayRepository(
                         val req = playViewReq {
                             this.epid = epid.toLong()
                             cid?.let { this.cid = it }
-                            qn = 127
+                            qn = requestedQn.toLong()
                             fnver = 0
                             fnval = PgcVideoFnvalWithAiRepair
                             fourk = true
@@ -266,14 +270,15 @@ class VideoPlayRepository(
         aid: Long?,
         cid: Long?,
         epid: Int,
-        curAiAudioLanguage: String? = null
+        curAiAudioLanguage: String? = null,
+        requestedQn: Int = 127
     ): PlayData {
         val playUrlData = BiliHttpApi.getPgcVideoPlayUrlV2(
             av = aid,
             cid = cid,
             epid = epid,
             fnval = PgcVideoFnvalWithAiRepair,
-            qn = 127,
+            qn = requestedQn,
             fnver = 0,
             fourk = 1,
             supportMultiAudio = true,
