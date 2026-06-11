@@ -53,6 +53,7 @@ import dev.aaa1115910.bv.util.CodecMedia
 import dev.aaa1115910.bv.util.CodecMode
 import dev.aaa1115910.bv.util.CodecType
 import dev.aaa1115910.bv.util.CodecUtil
+import dev.aaa1115910.bv.util.PlaybackCapabilityInfo
 import dev.aaa1115910.bv.util.WidevineInfo
 import dev.aaa1115910.bv.util.WidevineUtil
 import dev.aaa1115910.bv.util.requestFocus
@@ -73,6 +74,8 @@ fun MediaCodecScreen(
     var loadFailed by remember { mutableStateOf(false) }
     var widevineInfo by remember { mutableStateOf<WidevineInfo?>(null) }
     var showWidevineInfo by remember { mutableStateOf(false) }
+    var playbackCapabilityInfo by remember { mutableStateOf<PlaybackCapabilityInfo?>(null) }
+    var showPlaybackCapabilityInfo by remember { mutableStateOf(false) }
 
     val decoderList = remember { mutableStateListOf<CodecInfoData>() }
 
@@ -84,6 +87,9 @@ fun MediaCodecScreen(
                 CodecUtil.parseCodecs().filter { it.type == CodecType.Decoder }
             }.getOrNull()
         }
+        playbackCapabilityInfo = withContext(Dispatchers.Default) {
+            CodecUtil.readPlaybackCapabilityInfo()
+        }
         widevineInfo = withContext(Dispatchers.Default) {
             WidevineUtil.readInfo()
         }
@@ -91,11 +97,13 @@ fun MediaCodecScreen(
             loadFailed = true
             decoderList.clear()
             currentCodecInfoData = null
-            showWidevineInfo = widevineInfo != null
+            showPlaybackCapabilityInfo = playbackCapabilityInfo != null
+            showWidevineInfo = false
         } else {
             decoderList.swapList(list)
             currentCodecInfoData = list.firstOrNull()
-            showWidevineInfo = widevineInfo != null
+            showPlaybackCapabilityInfo = playbackCapabilityInfo != null
+            showWidevineInfo = false
         }
         loading = false
     }
@@ -137,11 +145,20 @@ fun MediaCodecScreen(
                     .fillMaxHeight(),
                 codecInfoDataList = decoderList,
                 currentCodecInfoData = currentCodecInfoData,
+                playbackCapabilityInfo = playbackCapabilityInfo,
+                showPlaybackCapabilityInfo = showPlaybackCapabilityInfo,
+                onPlaybackCapabilitySelected = {
+                    showPlaybackCapabilityInfo = true
+                    showWidevineInfo = false
+                },
                 widevineInfo = widevineInfo,
                 showWidevineInfo = showWidevineInfo,
-                onWidevineInfoSelected = { showWidevineInfo = true },
-                onWidevineInfoDeselected = { showWidevineInfo = false },
+                onWidevineInfoSelected = {
+                    showPlaybackCapabilityInfo = false
+                    showWidevineInfo = true
+                },
                 onCodecInfoDataChanged = {
+                    showPlaybackCapabilityInfo = false
                     showWidevineInfo = false
                     currentCodecInfoData = it
                 },
@@ -153,6 +170,8 @@ fun MediaCodecScreen(
                     .fillMaxSize(),
                 onBackNav = { focusListRequestKey++ },
                 currentCodecInfoData = currentCodecInfoData,
+                playbackCapabilityInfo = playbackCapabilityInfo,
+                showPlaybackCapabilityInfo = showPlaybackCapabilityInfo,
                 widevineInfo = widevineInfo,
                 showWidevineInfo = showWidevineInfo,
                 loading = loading,
@@ -167,24 +186,29 @@ fun MediaCodecListItems(
     modifier: Modifier = Modifier,
     codecInfoDataList: List<CodecInfoData>,
     currentCodecInfoData: CodecInfoData?,
+    playbackCapabilityInfo: PlaybackCapabilityInfo?,
+    showPlaybackCapabilityInfo: Boolean,
+    onPlaybackCapabilitySelected: () -> Unit,
     widevineInfo: WidevineInfo?,
     showWidevineInfo: Boolean,
     onWidevineInfoSelected: () -> Unit,
-    onWidevineInfoDeselected: () -> Unit,
     onCodecInfoDataChanged: (CodecInfoData) -> Unit,
     focusRequestKey: Int
 ) {
     val scope = rememberCoroutineScope()
     val codecInfoDataSnapshot = codecInfoDataList.toList()
+    val playbackCapabilityFocusRequester = remember { FocusRequester() }
     val widevineFocusRequester = remember { FocusRequester() }
     val itemFocusRequesters = remember(codecInfoDataSnapshot) {
         codecInfoDataSnapshot.associateWith { FocusRequester() }
     }
 
-    LaunchedEffect(itemFocusRequesters, widevineInfo, showWidevineInfo) {
+    LaunchedEffect(itemFocusRequesters, playbackCapabilityInfo, showPlaybackCapabilityInfo, widevineInfo, showWidevineInfo) {
         delay(100)
         runCatching {
-            if (showWidevineInfo && widevineInfo != null) {
+            if (showPlaybackCapabilityInfo && playbackCapabilityInfo != null) {
+                playbackCapabilityFocusRequester.requestFocus()
+            } else if (showWidevineInfo && widevineInfo != null) {
                 widevineFocusRequester.requestFocus()
             } else {
                 currentCodecInfoData?.let { itemFocusRequesters[it]?.requestFocus() }
@@ -194,7 +218,9 @@ fun MediaCodecListItems(
 
     LaunchedEffect(focusRequestKey) {
         if (focusRequestKey == 0) return@LaunchedEffect
-        if (showWidevineInfo && widevineInfo != null) {
+        if (showPlaybackCapabilityInfo && playbackCapabilityInfo != null) {
+            playbackCapabilityFocusRequester.requestFocus(scope)
+        } else if (showWidevineInfo && widevineInfo != null) {
             widevineFocusRequester.requestFocus(scope)
         } else {
             currentCodecInfoData?.let { itemFocusRequesters[it]?.requestFocus(scope) }
@@ -206,6 +232,21 @@ fun MediaCodecListItems(
         contentPadding = PaddingValues(24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        playbackCapabilityInfo?.let {
+            item {
+                PlaybackCapabilityListItem(
+                    modifier = Modifier
+                        .focusRequester(playbackCapabilityFocusRequester)
+                        .fillMaxWidth(),
+                    onFocus = onPlaybackCapabilitySelected,
+                    onClick = {
+                        playbackCapabilityFocusRequester.requestFocus(scope)
+                        onPlaybackCapabilitySelected()
+                    },
+                    selected = showPlaybackCapabilityInfo
+                )
+            }
+        }
         widevineInfo?.let { info ->
             item {
                 WidevineListItem(
@@ -214,7 +255,6 @@ fun MediaCodecListItems(
                         .fillMaxWidth(),
                     widevineInfo = info,
                     onFocus = onWidevineInfoSelected,
-                    onLoseFocus = onWidevineInfoDeselected,
                     onClick = {
                         widevineFocusRequester.requestFocus(scope)
                         onWidevineInfoSelected()
@@ -235,10 +275,44 @@ fun MediaCodecListItems(
                     focusRequester.requestFocus(scope)
                     onCodecInfoDataChanged(codecInfoData)
                 },
-                selected = currentCodecInfoData == codecInfoData
+                selected = !showPlaybackCapabilityInfo && !showWidevineInfo && currentCodecInfoData == codecInfoData
             )
         }
     }
+}
+
+@Composable
+fun PlaybackCapabilityListItem(
+    modifier: Modifier = Modifier,
+    onFocus: () -> Unit,
+    onClick: () -> Unit = {},
+    selected: Boolean
+) {
+    ListItem(
+        modifier = modifier
+            .touchClick(onClick)
+            .onFocusChanged { if (it.hasFocus) onFocus() },
+        selected = selected,
+        onClick = onClick,
+        headlineContent = {
+            Text(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                text = "播放能力"
+            )
+        },
+        overlineContent = {
+            Text(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 8.dp),
+                text = "HDR / 音频",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    )
 }
 
 @Composable
@@ -246,14 +320,13 @@ fun WidevineListItem(
     modifier: Modifier = Modifier,
     widevineInfo: WidevineInfo,
     onFocus: () -> Unit,
-    onLoseFocus: () -> Unit = {},
     onClick: () -> Unit = {},
     selected: Boolean
 ) {
     ListItem(
         modifier = modifier
             .touchClick(onClick)
-            .onFocusChanged { if (it.hasFocus) onFocus() else onLoseFocus() },
+            .onFocusChanged { if (it.hasFocus) onFocus() },
         selected = selected,
         onClick = onClick,
         headlineContent = {
@@ -330,6 +403,8 @@ fun MediaCodecDetails(
     modifier: Modifier = Modifier,
     onBackNav: () -> Unit,
     currentCodecInfoData: CodecInfoData?,
+    playbackCapabilityInfo: PlaybackCapabilityInfo? = null,
+    showPlaybackCapabilityInfo: Boolean = false,
     widevineInfo: WidevineInfo? = null,
     showWidevineInfo: Boolean = false,
     loading: Boolean = false,
@@ -337,7 +412,29 @@ fun MediaCodecDetails(
 ) {
     val context = LocalContext.current
 
-    if (showWidevineInfo && widevineInfo != null) {
+    if (showPlaybackCapabilityInfo && playbackCapabilityInfo != null) {
+        LazyColumn(
+            modifier = modifier
+                .fillMaxSize()
+                .onPreviewKeyEvent {
+                    val result = it.key.nativeKeyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT
+                    if (result) onBackNav()
+                    result
+                },
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(
+                horizontal = 48.dp,
+                vertical = 24.dp
+            )
+        ) {
+            item {
+                MediaCodecDetailItem(
+                    title = "播放能力",
+                    text = playbackCapabilityInfo.toDisplayText()
+                )
+            }
+        }
+    } else if (showWidevineInfo && widevineInfo != null) {
         LazyColumn(
             modifier = modifier
                 .fillMaxSize()

@@ -15,6 +15,66 @@ object CodecUtil {
                 runCatching { CodecInfoData.fromCodecInfo(codecInfo) }.getOrNull()
             }
     }
+
+    fun readPlaybackCapabilityInfo(): PlaybackCapabilityInfo {
+        val codecInfos = runCatching {
+            MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.toList()
+        }.getOrDefault(emptyList())
+        val decoders = codecInfos.filterNot { it.isEncoder }
+        val profileNames = decoders.flatMap { codecInfo ->
+            codecInfo.supportedTypes.flatMap { type ->
+                runCatching {
+                    codecInfo.getCapabilitiesForType(type).profileLevels.mapNotNull { profileLevel ->
+                        MediaCodecInfo.CodecProfileLevel::class.java.fields
+                            .firstOrNull { field ->
+                                field.name.contains("Profile") &&
+                                    runCatching { field.getInt(null) == profileLevel.profile }.getOrDefault(false)
+                            }
+                            ?.name
+                    }
+                }.getOrDefault(emptyList())
+            }
+        }
+
+        fun supportsMime(mime: String): Boolean {
+            return decoders.any { codecInfo ->
+                codecInfo.supportedTypes.any { it.equals(mime, ignoreCase = true) }
+            }
+        }
+
+        fun supportsProfile(keyword: String): Boolean {
+            return profileNames.any { it.contains(keyword, ignoreCase = true) }
+        }
+
+        return PlaybackCapabilityInfo(
+            hdr10 = if (supportsProfile("HDR10")) "支持" else "未知",
+            hdr10Plus = if (supportsProfile("HDR10Plus") || supportsProfile("HDR10_PLUS")) "支持" else "未知",
+            hlg = if (supportsProfile("HLG")) "支持" else "未知",
+            dolbyVision = if (supportsMime("video/dolby-vision")) "支持" else "未知",
+            hdrVivid = "系统未提供统一公开能力字段",
+            dolbyAtmos = if (supportsMime("audio/eac3-joc") || supportsMime("audio/ac4")) "支持" else "未知"
+        )
+    }
+}
+
+data class PlaybackCapabilityInfo(
+    val hdr10: String,
+    val hdr10Plus: String,
+    val hlg: String,
+    val dolbyVision: String,
+    val hdrVivid: String,
+    val dolbyAtmos: String
+) {
+    fun toDisplayText(): String {
+        return listOf(
+            "HDR10：$hdr10",
+            "HDR10+：$hdr10Plus",
+            "HLG：$hlg",
+            "杜比视界：$dolbyVision",
+            "HDR Vivid：$hdrVivid",
+            "杜比全景声：$dolbyAtmos"
+        ).joinToString("\n")
+    }
 }
 
 data class CodecInfoData(
@@ -44,9 +104,9 @@ data class CodecInfoData(
                 maxSupportedInstances = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
                     capabilities.maxSupportedInstances else null,
                 colorFormats = capabilities.colorFormats.toList(),
-                audioBitrateRange = runCatching { with(capabilities.audioCapabilities.bitrateRange) { lower..upper } }.getOrNull(),
-                videoBitrateRange = runCatching { with(capabilities.videoCapabilities.bitrateRange) { lower..upper } }.getOrNull(),
-                videoFrame = runCatching { with(capabilities.videoCapabilities.supportedFrameRates) { lower..upper } }.getOrNull(),
+                audioBitrateRange = capabilities.audioCapabilities?.bitrateRange?.let { it.lower..it.upper },
+                videoBitrateRange = capabilities.videoCapabilities?.bitrateRange?.let { it.lower..it.upper },
+                videoFrame = capabilities.videoCapabilities?.supportedFrameRates?.let { it.lower..it.upper },
                 supportedFrameRates = runCatching { codecInfo.getSupportedFrameRates() }
                     .getOrDefault(emptyList()),
                 achievableFrameRates = runCatching {
@@ -146,7 +206,7 @@ private fun MediaCodecInfo.getSupportedFrameRates(): List<SupportedFrameRate> {
     return resolutions.map { (width, height) ->
         val frameRates = runCatching {
             val videoCapabilities = getCapabilitiesForType(supportedTypes.first()).videoCapabilities
-            videoCapabilities.getSupportedFrameRatesFor(width, height)
+            videoCapabilities?.getSupportedFrameRatesFor(width, height)
         }.getOrNull()
         SupportedFrameRate(
             resolution = width to height,
@@ -161,7 +221,7 @@ private fun MediaCodecInfo.getAchievableFrameRates(): List<SupportedFrameRate> {
     return resolutions.map { (width, height) ->
         val frameRates = runCatching {
             val videoCapabilities = getCapabilitiesForType(supportedTypes.first()).videoCapabilities
-            videoCapabilities.getAchievableFrameRatesFor(width, height)
+            videoCapabilities?.getAchievableFrameRatesFor(width, height)
         }.getOrNull()
         SupportedFrameRate(
             resolution = width to height,
