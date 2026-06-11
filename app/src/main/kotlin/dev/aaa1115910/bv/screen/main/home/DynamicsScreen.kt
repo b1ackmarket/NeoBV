@@ -267,7 +267,7 @@ fun DynamicsScreen(
             ) {
                 itemsIndexed(
                     items = filteredDynamics,
-                    key = { _, item -> "${item.authorMid}_${item.aid}_${item.cid}" }
+                    key = { index, item -> "${item.authorMid}_${item.aid}_${item.cid}_$index" }
                 ) { index, item ->
                     SmallVideoCard(
                         modifier = Modifier
