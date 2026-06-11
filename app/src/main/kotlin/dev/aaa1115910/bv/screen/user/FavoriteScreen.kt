@@ -47,6 +47,7 @@ import dev.aaa1115910.bv.repository.JumpModeRepository
 import dev.aaa1115910.bv.repository.JumpModeSource
 import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.ui.effect.UiEffect
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
@@ -125,7 +126,8 @@ fun FavoriteScreen(
             favoriteViewModel.favoriteFolderMetadataList.forEachIndexed { index, folderMetadata ->
                 Tab(
                     modifier = Modifier
-                        .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
+                        .ifElse(index == 0, Modifier.focusRequester(focusRequester))
+                        .touchClick { updateCurrentFavoriteFolder(folderMetadata) },
                     selected = currentTabIndex == index,
                     onFocus = {
                         if (favoriteViewModel.currentFavoriteFolderMetadata != folderMetadata) {

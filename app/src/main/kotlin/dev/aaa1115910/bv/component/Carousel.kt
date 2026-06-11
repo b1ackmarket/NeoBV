@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,7 +36,9 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Button
@@ -128,6 +131,8 @@ fun Carousel(
     var hasFocus by remember { mutableStateOf(false) }
     var isMovingBackward by remember { mutableStateOf(false) }
     var currentIndex by remember { mutableIntStateOf(0) }
+    var dragDistance by remember { mutableStateOf(0f) }
+    val swipeThreshold = with(LocalDensity.current) { 48.dp.toPx() }
 
     LaunchedEffect(currentIndex, itemCount) {
         while (true) {
@@ -142,6 +147,27 @@ fun Carousel(
         modifier = modifier
             .onFocusChanged { focusState ->
                 hasFocus = focusState.isFocused
+            }
+            .pointerInput(itemCount, swipeThreshold) {
+                detectHorizontalDragGestures(
+                    onDragStart = { dragDistance = 0f },
+                    onHorizontalDrag = { _, dragAmount ->
+                        dragDistance += dragAmount
+                    },
+                    onDragEnd = {
+                        if (itemCount > 1 && kotlin.math.abs(dragDistance) >= swipeThreshold) {
+                            if (dragDistance < 0) {
+                                isMovingBackward = false
+                                currentIndex = (currentIndex + 1) % itemCount
+                            } else {
+                                isMovingBackward = true
+                                currentIndex = (currentIndex - 1 + itemCount) % itemCount
+                            }
+                        }
+                        dragDistance = 0f
+                    },
+                    onDragCancel = { dragDistance = 0f }
+                )
             }
             .clickable { onClick(currentIndex) }
             .onKeyEvent {

@@ -48,6 +48,7 @@ import dev.aaa1115910.bv.repository.LiveJumpModeRepository
 import dev.aaa1115910.bv.repository.toLiveJumpModeItems
 import dev.aaa1115910.bv.repository.toJumpModeItems
 import dev.aaa1115910.bv.ui.effect.UiEffect
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.HistoryContentType
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
@@ -246,13 +247,14 @@ private fun HistoryTypeTabs(
         separator = { Spacer(modifier = Modifier.width(12.dp)) },
     ) {
         tabs.forEachIndexed { index, type ->
-                Tab(
-                    modifier = Modifier
-                        .focusRequester(focusRequesters[index]),
-                    selected = selectedType == type,
-                    onFocus = { onFocusSelect(type) },
-                    onClick = { onClickSelect(type) }
-                ) {
+            Tab(
+                modifier = Modifier
+                    .focusRequester(focusRequesters[index])
+                    .touchClick { onClickSelect(type) },
+                selected = selectedType == type,
+                onFocus = { onFocusSelect(type) },
+                onClick = { onClickSelect(type) }
+            ) {
                 Box(
                     modifier = Modifier.height(32.dp),
                     contentAlignment = Alignment.Center
