@@ -16,6 +16,7 @@ enum class Audio(val code: Int, private val strRes: Int) {
                 100008 -> A64K
                 100009 -> A132K
                 100010 -> A192K
+                30255 -> ADolbyAtoms
                 else -> entries.find { it.code == code } ?: A64K
             }
         }
@@ -26,7 +27,7 @@ enum class Audio(val code: Int, private val strRes: Int) {
             A64K -> code == 100008
             A132K -> code == 100009
             A192K -> code == 100010
-            ADolbyAtoms,
+            ADolbyAtoms -> code == 30255
             AHiRes -> false
         }
     }
