@@ -71,7 +71,10 @@ fun PlayerTouchGestureOverlay(
     onSeekPreview: (Long) -> Unit,
     onSeekPreviewEnd: (Boolean) -> Unit,
     onTempSpeedStart: () -> Unit,
-    onTempSpeedEnd: () -> Unit
+    onTempSpeedEnd: () -> Unit,
+    jumpModeEnabled: Boolean = false,
+    onJumpToPreviousVideo: () -> Unit = {},
+    onJumpToNextVideo: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
@@ -97,6 +100,9 @@ fun PlayerTouchGestureOverlay(
     val latestOnSeekPreviewEnd by rememberUpdatedState(onSeekPreviewEnd)
     val latestOnTempSpeedStart by rememberUpdatedState(onTempSpeedStart)
     val latestOnTempSpeedEnd by rememberUpdatedState(onTempSpeedEnd)
+    val latestJumpModeEnabled by rememberUpdatedState(jumpModeEnabled)
+    val latestOnJumpToPreviousVideo by rememberUpdatedState(onJumpToPreviousVideo)
+    val latestOnJumpToNextVideo by rememberUpdatedState(onJumpToNextVideo)
 
     var hintText by remember { mutableStateOf<String?>(null) }
     var hintAtUpperEighth by remember { mutableStateOf(false) }
@@ -212,6 +218,7 @@ fun PlayerTouchGestureOverlay(
                     var tapSuppressed = false
                     var seekStarted = false
                     var tempSpeedActive = false
+                    var jumpTriggered = false
                     var volumeStart = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0
                     var brightnessStart = activity?.readCurrentBrightness() ?: 0.5f
                     val downPosition = down.position
@@ -276,6 +283,11 @@ fun PlayerTouchGestureOverlay(
                                         PlayerTouchDragMode.Volume -> {
                                             volumeStart = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: volumeStart
                                         }
+                                        PlayerTouchDragMode.Jump -> {
+                                            if (!latestJumpModeEnabled) {
+                                                dragMode = PlayerTouchDragMode.Blocked
+                                            }
+                                        }
                                         PlayerTouchDragMode.None,
                                         PlayerTouchDragMode.Blocked -> Unit
                                     }
@@ -314,6 +326,19 @@ fun PlayerTouchGestureOverlay(
                                         )
                                         change.consume()
                                     }
+                                    PlayerTouchDragMode.Jump -> {
+                                        if (!jumpTriggered) {
+                                            jumpTriggered = true
+                                            if (delta.y < 0f) {
+                                                latestOnJumpToNextVideo()
+                                                showHint("下一个视频", hold = false)
+                                        } else {
+                                                latestOnJumpToPreviousVideo()
+                                                showHint("上一个视频", hold = false)
+                                            }
+                                        }
+                                        change.consume()
+                                    }
                                     PlayerTouchDragMode.Blocked -> change.consume()
                                     PlayerTouchDragMode.None -> Unit
                                 }
@@ -332,6 +357,7 @@ fun PlayerTouchGestureOverlay(
                             PlayerTouchDragMode.Seek -> latestOnSeekPreviewEnd(seekStarted)
                             PlayerTouchDragMode.Brightness,
                             PlayerTouchDragMode.Volume -> scheduleHideHint()
+                            PlayerTouchDragMode.Jump -> scheduleHideHint()
                             PlayerTouchDragMode.None -> {
                                 if (!tapSuppressed) {
                                     handleTap(pointerUp.position.x, gestureWidth)

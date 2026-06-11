@@ -7,6 +7,8 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +40,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -71,6 +74,7 @@ import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.touchClick
 import kotlinx.coroutines.delay
+import kotlin.math.roundToLong
 
 @Composable
 fun ControllerVideoInfo(
@@ -101,6 +105,9 @@ fun ControllerVideoInfo(
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
     onSeekGoTime: () -> Unit,
+    onTouchSeekStart: (Long) -> Unit,
+    onTouchSeekPreview: (Long) -> Unit,
+    onTouchSeekEnd: (Boolean) -> Unit,
     onPlayPause: () -> Unit,
     onShowVideoList: () -> Unit,
     onDanmakuSwitchChange: () -> Unit,
@@ -163,6 +170,9 @@ fun ControllerVideoInfo(
                 onDirectionLeft = onDirectionLeft,
                 onDirectionRight = onDirectionRight,
                 onSeekGoTime = onSeekGoTime,
+                onTouchSeekStart = onTouchSeekStart,
+                onTouchSeekPreview = onTouchSeekPreview,
+                onTouchSeekEnd = onTouchSeekEnd,
                 onPlayPause = onPlayPause,
                 onShowVideoList = onShowVideoList,
                 onDanmakuSwitchChange = onDanmakuSwitchChange,
@@ -298,6 +308,9 @@ fun ControllerVideoInfoBottom(
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
     onSeekGoTime: () -> Unit,
+    onTouchSeekStart: (Long) -> Unit,
+    onTouchSeekPreview: (Long) -> Unit,
+    onTouchSeekEnd: (Boolean) -> Unit,
     onPlayPause: () -> Unit,
     onShowVideoList: () -> Unit,
     onDanmakuSwitchChange: () -> Unit,
@@ -316,6 +329,13 @@ fun ControllerVideoInfoBottom(
     var isSeekFocused by remember { mutableStateOf(false) }
     val previewChapterTitle = remember(videoProgressChapters, goTime, isSeeking) {
         if (isSeeking) videoProgressChapters.currentChapterAt(goTime)?.title.orEmpty() else ""
+    }
+    fun positionFromSeekTouch(x: Float, width: Int): Long {
+        val duration = seekerState.totalDuration.coerceAtLeast(0L)
+        if (duration <= 0L || width <= 0) return 0L
+        return (duration * (x.coerceIn(0f, width.toFloat()) / width.toFloat()))
+            .roundToLong()
+            .coerceIn(0L, duration)
     }
 
     LaunchedEffect(show) {
@@ -450,11 +470,23 @@ fun ControllerVideoInfoBottom(
                 )
                 .focusable()
                 .focusRequester(seekFocusRequester)
-                .touchClick {
-                    if (isSeeking) {
-                        onSeekGoTime()
-                    } else {
-                        onPlayPause()
+                .pointerInput(seekerState.totalDuration) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val startTime = positionFromSeekTouch(down.position.x, size.width)
+                        onTouchSeekStart(startTime)
+                        var committed = true
+                        do {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: continue
+                            if (change.pressed) {
+                                onTouchSeekPreview(positionFromSeekTouch(change.position.x, size.width))
+                                change.consume()
+                            } else {
+                                committed = true
+                            }
+                        } while (event.changes.any { it.id == down.id && it.pressed })
+                        onTouchSeekEnd(committed)
                     }
                 }
                 .onKeyEvent {
@@ -735,6 +767,9 @@ private fun ControllerVideoInfoPreview() {
             onDirectionRight = {},
             onDirectionLeft = {},
             onSeekGoTime = {},
+            onTouchSeekStart = {},
+            onTouchSeekPreview = {},
+            onTouchSeekEnd = {},
             onPlayPause = {},
             onShowVideoList = {},
             onDanmakuSwitchChange = {},

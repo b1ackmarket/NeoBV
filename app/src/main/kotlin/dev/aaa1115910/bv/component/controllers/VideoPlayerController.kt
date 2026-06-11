@@ -686,7 +686,10 @@ fun VideoPlayerController(
             onSeekPreview = { preview -> updateTouchSeekPreview(preview) },
             onSeekPreviewEnd = { commit -> finishTouchSeek(commit) },
             onTempSpeedStart = { startTouchTempSpeed() },
-            onTempSpeedEnd = { stopTouchTempSpeed() }
+            onTempSpeedEnd = { stopTouchTempSpeed() },
+            jumpModeEnabled = uiState.jumpModeState.enabled,
+            onJumpToPreviousVideo = onJumpToPreviousVideo,
+            onJumpToNextVideo = onJumpToNextVideo
         )
         if (BuildConfig.DEBUG || uiState.showPlayerStats) {
             Box(
@@ -777,6 +780,9 @@ fun VideoPlayerController(
             onDirectionLeft = { onDirectionLeft() },
             onDirectionRight = { onDirectionRight() },
             onSeekGoTime = { onSeekGoTime() },
+            onTouchSeekStart = { start -> startTouchSeek(start) },
+            onTouchSeekPreview = { preview -> updateTouchSeekPreview(preview) },
+            onTouchSeekEnd = { commit -> finishTouchSeek(commit) },
             onPlayPause = { onPlayPause() },
             onShowVideoList = {
                 if (uiState.isExternalMedia) return@ControllerVideoInfo

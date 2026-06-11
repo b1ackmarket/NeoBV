@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,7 +42,9 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -133,6 +137,7 @@ private data class LiveDanmakuDebugStats(
 fun LivePlayerScreen() {
     val context = LocalContext.current
     val activity = context as Activity
+    val viewConfiguration = LocalViewConfiguration.current
     var roomId by remember { mutableStateOf(activity.intent.getIntExtra("room_id", 0)) }
     var title by remember { mutableStateOf(activity.intent.getStringExtra("title").orEmpty()) }
     var upName by remember { mutableStateOf(activity.intent.getStringExtra("up_name").orEmpty()) }
@@ -317,6 +322,12 @@ fun LivePlayerScreen() {
             return switchLiveJumpRoom(offset)
         }
         return hadPendingHold
+    }
+
+    fun openLiveBottomMenuFromSurface() {
+        if (activeOverlay == LiveOverlayPanel.None) {
+            activeOverlay = openLiveBottomMenu()
+        }
     }
 
     fun handleLiveDanmakuEvent(event: DanmakuEvent) {
@@ -921,7 +932,12 @@ fun LivePlayerScreen() {
                     }
 
                     Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
-                        false
+                        if (activeOverlay == LiveOverlayPanel.None) {
+                            openLiveBottomMenuFromSurface()
+                            true
+                        } else {
+                            false
+                        }
                     }
 
                     Key.DirectionDown -> {
@@ -950,6 +966,37 @@ fun LivePlayerScreen() {
                     }
 
                     else -> false
+                }
+            }
+            .pointerInput(activeOverlay, liveJumpModeEnabled) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val downPosition = down.position
+                    var handled = false
+                    var moved = false
+                    do {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: continue
+                        val delta = change.position - downPosition
+                        if (abs(delta.x) > viewConfiguration.touchSlop || abs(delta.y) > viewConfiguration.touchSlop) {
+                            moved = true
+                        }
+                        if (
+                            !handled &&
+                            activeOverlay == LiveOverlayPanel.None &&
+                            liveJumpModeEnabled &&
+                            abs(delta.x) >= viewConfiguration.touchSlop * 8f &&
+                            abs(delta.x) >= abs(delta.y) * 1.5f
+                        ) {
+                            handled = true
+                            switchLiveJumpRoom(if (delta.x < 0f) 1 else -1)
+                            change.consume()
+                        }
+                    } while (event.changes.any { it.id == down.id && it.pressed })
+
+                    if (!handled && !moved && activeOverlay == LiveOverlayPanel.None) {
+                        openLiveBottomMenuFromSurface()
+                    }
                 }
             },
         contentAlignment = Alignment.Center
