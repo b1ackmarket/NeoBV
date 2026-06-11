@@ -62,6 +62,7 @@ import dev.aaa1115910.bv.screen.main.LoginRequiredPlaceholder
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toWanString
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
@@ -180,6 +181,9 @@ fun DynamicsScreen(
                     } else {
                         selectedAuthor == author
                     }
+                    val selectAuthor = {
+                        dynamicViewModel.selectAuthor(if (isAllAuthors) null else author)
+                    }
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -191,10 +195,9 @@ fun DynamicsScreen(
                                 } else {
                                     FocusRequester.Default
                                 }
-                            },
-                        onClick = {
-                            dynamicViewModel.selectAuthor(if (isAllAuthors) null else author)
-                        },
+                            }
+                            .touchClick(selectAuthor),
+                        onClick = selectAuthor,
                         shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.large),
                         colors = ClickableSurfaceDefaults.colors(
                             containerColor = if (isSelected) {
