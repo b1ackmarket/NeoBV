@@ -44,6 +44,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -140,6 +141,7 @@ fun LivePlayerScreen() {
     val context = LocalContext.current
     val activity = context as Activity
     val viewConfiguration = LocalViewConfiguration.current
+    val density = LocalDensity.current
     var roomId by remember { mutableStateOf(activity.intent.getIntExtra("room_id", 0)) }
     var title by remember { mutableStateOf(activity.intent.getStringExtra("title").orEmpty()) }
     var upName by remember { mutableStateOf(activity.intent.getStringExtra("up_name").orEmpty()) }
@@ -874,6 +876,8 @@ fun LivePlayerScreen() {
     }
 
     val showTopOverlay = shouldShowLiveTopOverlay(activeOverlay)
+    val liveSidePanelWidthPx = with(density) { 420.dp.toPx() }
+    val liveRightMenuWidthPx = with(density) { 520.dp.toPx() }
     val liveAspectRatio = when {
         player.videoWidth > 0 && player.videoHeight > 0 -> {
             player.videoWidth / player.videoHeight.toFloat()
@@ -989,7 +993,14 @@ fun LivePlayerScreen() {
                     else -> false
                 }
             }
-            .pointerInput(activeOverlay, liveJumpModeEnabled) {
+            .pointerInput(
+                activeOverlay,
+                liveJumpModeEnabled,
+                liveJumpModeQueue,
+                roomId,
+                liveSidePanelWidthPx,
+                liveRightMenuWidthPx
+            ) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val downPosition = down.position
@@ -1041,10 +1052,30 @@ fun LivePlayerScreen() {
                         return@awaitEachGesture
                     }
                     if (!handled && !moved) {
-                        when (activeOverlay) {
-                            LiveOverlayPanel.None -> openLiveBottomMenuFromSurface()
-                            LiveOverlayPanel.BottomMenu -> activeOverlay = LiveOverlayPanel.None
-                            else -> Unit
+                        when (overlayAtDown) {
+                            LiveOverlayPanel.None -> {
+                                if (activeOverlay == LiveOverlayPanel.None) {
+                                    openLiveBottomMenuFromSurface()
+                                }
+                            }
+                            LiveOverlayPanel.BottomMenu -> {
+                                if (activeOverlay == LiveOverlayPanel.BottomMenu) {
+                                    activeOverlay = LiveOverlayPanel.None
+                                }
+                            }
+                            LiveOverlayPanel.Comments,
+                            LiveOverlayPanel.UpSpace -> {
+                                val sidePanelStart = size.width - liveSidePanelWidthPx
+                                if (downPosition.x < sidePanelStart) {
+                                    activeOverlay = LiveOverlayPanel.None
+                                }
+                            }
+                            LiveOverlayPanel.RightMenu -> {
+                                val rightMenuStart = size.width - liveRightMenuWidthPx
+                                if (downPosition.x < rightMenuStart) {
+                                    activeOverlay = LiveOverlayPanel.None
+                                }
+                            }
                         }
                     }
                 }

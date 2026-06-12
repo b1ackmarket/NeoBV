@@ -24,7 +24,7 @@ object PlayerTouchGesturePolicy {
     private const val directionRatio = 1.25f
     private const val seekActivationSlopMultiplier = 4f
     private const val verticalActivationSlopMultiplier = 4f
-    private const val jumpActivationSlopMultiplier = 8f
+    private const val jumpActivationSlopMultiplier = 4f
     private const val jumpDirectionRatio = 1.5f
     private const val blockSlopMultiplier = 6f
     private const val seekFullWidthDurationRatio = 0.5f
