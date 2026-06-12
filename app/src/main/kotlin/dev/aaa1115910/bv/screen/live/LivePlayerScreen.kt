@@ -99,6 +99,8 @@ import dev.aaa1115910.bv.repository.LiveStreamResolver
 import dev.aaa1115910.bv.telemetry.FirebaseTelemetry
 import dev.aaa1115910.bv.telemetry.TelemetryErrorType
 import dev.aaa1115910.bv.telemetry.TelemetryScreen
+import dev.aaa1115910.bv.util.LayoutConfig
+import dev.aaa1115910.bv.util.LiveBottomOsdControl
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toWanString
@@ -1314,9 +1316,11 @@ fun LivePlayerScreen() {
         LiveBottomMenuController(
             modifier = Modifier.align(Alignment.BottomCenter),
             show = activeOverlay == LiveOverlayPanel.BottomMenu,
-            items = buildList {
-                add(
+            items = run {
+                val availableItems = buildList {
+                    add(
                     LiveBottomMenuItem(
+                        control = LiveBottomOsdControl.PlayPause,
                         iconRes = R.drawable.play_pause_24px,
                         label = if (isLivePaused) "继续" else "暂停"
                     ) {
@@ -1331,9 +1335,10 @@ fun LivePlayerScreen() {
                         }
                         activeOverlay = LiveOverlayPanel.None
                     }
-                )
-                add(
+                    )
+                    add(
                     LiveBottomMenuItem(
+                        control = LiveBottomOsdControl.Refresh,
                         iconRes = R.drawable.related_videos_24px,
                         label = "刷新"
                     ) {
@@ -1347,9 +1352,10 @@ fun LivePlayerScreen() {
                         reloadToken += 1
                         activeOverlay = LiveOverlayPanel.None
                     }
-                )
-                add(
+                    )
+                    add(
                     LiveBottomMenuItem(
+                        control = LiveBottomOsdControl.Danmaku,
                         iconRes = if (liveDanmakuState.enabledTypes.isEmpty()) {
                             R.drawable.danmaku_off_24px
                         } else {
@@ -1369,9 +1375,10 @@ fun LivePlayerScreen() {
                             Prefs.defaultLiveDanmakuTypes = nextTypes
                         }
                     }
-                )
-                add(
+                    )
+                    add(
                     LiveBottomMenuItem(
+                        control = LiveBottomOsdControl.JumpMode,
                         iconRes = if (liveJumpModeEnabled) {
                             R.drawable.jump_mode_on_24px
                         } else {
@@ -1381,26 +1388,41 @@ fun LivePlayerScreen() {
                     ) {
                         toggleLiveJumpMode()
                     }
-                )
-                add(
+                    )
+                    add(
                     LiveBottomMenuItem(
+                        control = LiveBottomOsdControl.Comments,
                         iconRes = R.drawable.comment_24px,
                         label = "评论"
                     ) {
                         activeOverlay = LiveOverlayPanel.Comments
                     }
-                )
-                if ((roomContext?.ownerMid ?: 0L) > 0L) {
-                    add(
+                    )
+                    if ((roomContext?.ownerMid ?: 0L) > 0L) {
+                        add(
                         LiveBottomMenuItem(
+                            control = LiveBottomOsdControl.UpPage,
                             iconRes = R.drawable.contact_page_24px,
                             label = "up主页"
                         ) {
                             loadLiveUpPanelVideos()
                             activeOverlay = LiveOverlayPanel.UpSpace
                         }
+                        )
+                    }
+                    add(
+                        LiveBottomMenuItem(
+                            control = LiveBottomOsdControl.Settings,
+                            iconRes = R.drawable.settings_24px,
+                            label = "设置"
+                        ) {
+                            activeOverlay = LiveOverlayPanel.RightMenu
+                        }
                     )
                 }
+                val itemsByControl = availableItems.associateBy { it.control }
+                LayoutConfig.applyLivePlayerBottomOsd(items = availableItems.map { it.control })
+                    .mapNotNull(itemsByControl::get)
             },
             onDismiss = {
                 activeOverlay = LiveOverlayPanel.None

@@ -15,7 +15,8 @@ enum class LayoutConfigGroup(val id: String, val displayName: String) {
     Pgc("pgc", "影视顶部"),
     Personal("personal", "个人顶部"),
     Live("live", "直播顶部"),
-    PlayerBottomOsd("playerBottomOsd", "播放器底部 OSD")
+    PlayerBottomOsd("playerBottomOsd", "播放器底部 OSD"),
+    LivePlayerBottomOsd("livePlayerBottomOsd", "直播播放器底部 OSD")
 }
 
 enum class PlayerBottomOsdControl(val id: String, val label: String) {
@@ -29,6 +30,16 @@ enum class PlayerBottomOsdControl(val id: String, val label: String) {
     Comments("comments", "评论"),
     Loop("loop", "循环播放"),
     Settings("settings", "播放设置")
+}
+
+enum class LiveBottomOsdControl(val id: String, val label: String) {
+    PlayPause("playPause", "播放暂停"),
+    Refresh("refresh", "刷新"),
+    Danmaku("danmaku", "弹幕开关"),
+    JumpMode("jumpMode", "跳动模式"),
+    Comments("comments", "评论"),
+    UpPage("upPage", "UP主页"),
+    Settings("settings", "直播设置")
 }
 
 @Serializable
@@ -86,6 +97,9 @@ object LayoutConfig {
             LayoutConfigGroup.Live.id to defaultLiveItems(),
             LayoutConfigGroup.PlayerBottomOsd.id to PlayerBottomOsdControl.entries.map {
                 LayoutConfigItem(it.id, it.label)
+            },
+            LayoutConfigGroup.LivePlayerBottomOsd.id to LiveBottomOsdControl.entries.map {
+                LayoutConfigItem(it.id, it.label)
             }
         )
     }
@@ -134,6 +148,28 @@ object LayoutConfig {
         items: List<PlayerBottomOsdControl> = PlayerBottomOsdControl.entries
     ): List<PlayerBottomOsdControl> {
         val saved = state.groups[LayoutConfigGroup.PlayerBottomOsd.id].orEmpty()
+        if (saved.isEmpty()) return items
+        val defaultItems = items.map { LayoutConfigItem(id = it.id, label = it.label) }
+        val order = mergeItems(defaultItems, saved)
+            .filterNot { it.hidden }
+            .map { it.id }
+        return order.mapNotNull { id -> items.firstOrNull { it.id == id } }
+            .ifEmpty { items.take(1) }
+    }
+
+    fun applyLivePlayerBottomOsd(
+        state: LayoutConfigState = read(),
+        items: List<LiveBottomOsdControl> = LiveBottomOsdControl.entries
+    ): List<LiveBottomOsdControl> {
+        if (!Prefs.enableLayoutWebConfig) return items
+        return applyLivePlayerBottomOsdState(state, items)
+    }
+
+    internal fun applyLivePlayerBottomOsdState(
+        state: LayoutConfigState,
+        items: List<LiveBottomOsdControl> = LiveBottomOsdControl.entries
+    ): List<LiveBottomOsdControl> {
+        val saved = state.groups[LayoutConfigGroup.LivePlayerBottomOsd.id].orEmpty()
         if (saved.isEmpty()) return items
         val defaultItems = items.map { LayoutConfigItem(id = it.id, label = it.label) }
         val order = mergeItems(defaultItems, saved)

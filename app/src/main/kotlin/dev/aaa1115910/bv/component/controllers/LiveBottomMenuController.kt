@@ -32,10 +32,12 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.util.LiveBottomOsdControl
 import dev.aaa1115910.bv.util.touchClick
 import kotlinx.coroutines.delay
 
 data class LiveBottomMenuItem(
+    val control: LiveBottomOsdControl,
     val iconRes: Int,
     val label: String,
     val onClick: () -> Unit
