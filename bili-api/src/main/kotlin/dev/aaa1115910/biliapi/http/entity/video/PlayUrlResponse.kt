@@ -411,5 +411,6 @@ enum class VideoQuality(val qn: Int, val displayName: String) {
     Q4K(120, ""),
     HDR(125, ""),
     Dolby(126, ""),
-    Q8K(127, "")
+    Q8K(127, ""),
+    HDRVivid(129, "HDR Vivid")
 }
