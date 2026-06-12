@@ -32,6 +32,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.util.touchClick
 import kotlinx.coroutines.delay
 
 data class LiveBottomMenuItem(
@@ -74,6 +75,7 @@ fun LiveBottomMenuController(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 items.forEachIndexed { index, item ->
+                    val clickItem = item.onClick
                     Surface(
                         modifier = Modifier
                             .then(if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier)
@@ -83,8 +85,9 @@ fun LiveBottomMenuController(
                                     return@onPreviewKeyEvent true
                                 }
                                 false
-                            },
-                        onClick = item.onClick
+                            }
+                            .touchClick(clickItem),
+                        onClick = clickItem
                     ) {
                         Column(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
