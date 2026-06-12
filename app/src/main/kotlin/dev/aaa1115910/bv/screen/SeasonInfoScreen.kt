@@ -35,6 +35,7 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.ViewModule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Scaffold
@@ -1010,6 +1011,50 @@ fun SeasonEpisodeRow(
                             imageVector = Icons.Rounded.ViewModule,
                             contentDescription = null
                         )
+                    }
+                }
+            }
+            val matchedEpisode = episodes.find { it.id == lastPlayedId }
+            if (matchedEpisode != null && episodes.size > 1) {
+                item {
+                    Surface(
+                        modifier = modifier
+                            .size(60.dp, 80.dp)
+                            .touchClick {
+                                onClick(
+                                    matchedEpisode.aid,
+                                    matchedEpisode.cid,
+                                    matchedEpisode.id,
+                                    matchedEpisode.longTitle,
+                                    lastPlayedTime
+                                )
+                            },
+                        colors = ClickableSurfaceDefaults.colors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
+                            pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
+                        ),
+                        shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
+                        onClick = {
+                            onClick(
+                                matchedEpisode.aid,
+                                matchedEpisode.cid,
+                                matchedEpisode.id,
+                                matchedEpisode.longTitle,
+                                lastPlayedTime
+                            )
+                        }
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                modifier = Modifier.size(36.dp),
+                                imageVector = Icons.Rounded.History,
+                                contentDescription = null
+                            )
+                        }
                     }
                 }
             }

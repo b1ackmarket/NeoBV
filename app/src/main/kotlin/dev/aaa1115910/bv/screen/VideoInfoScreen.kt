@@ -1303,22 +1303,6 @@ fun VideoUgcSeasonRow(
                 }
             }
 
-            val matchedEp = episodes.find { it.cid == lastPlayedCid }
-            if (matchedEp != null && episodes.size > 1) {
-                item {
-                    // ugc分季历史播放按钮
-                    VideoPartRowButton(
-                        onClick = { onClick(matchedEp.aid, matchedEp.cid) }
-                    ) {
-                        Icon(
-                            modifier = Modifier.size(36.dp),
-                            imageVector = Icons.Rounded.History,
-                            contentDescription = null
-                        )
-                    }
-                }
-            }
-
             itemsIndexed(items = episodes) { index, episode ->
                 VideoPartButton(
                     modifier = Modifier

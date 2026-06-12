@@ -74,35 +74,15 @@ class VideoDetailRepository(
                         }.getOrDefault(false)
                     }
 
-
-                    val historyAndPlayerIcon = async {
-                        runCatching {
-                            val videoModeInfo = BiliHttpApi.getVideoMoreInfo(
-                                avid = aid,
-                                cid = videoDetailWithoutUserActions.await().cid,
-                                sessData = authRepository.sessionData ?: "",
-                                buvid3 = authRepository.buvid3 ?: ""
-                            ).getResponseData()
-                            val history = VideoDetail.History(
-                                progress = videoModeInfo.lastPlayTime / 1000,
-                                lastPlayedCid = videoModeInfo.lastPlayCid
-                            )
-                            history
-                        }.onFailure {
-                            println("Get video history failed: $it")
-                        }.getOrDefault(VideoDetail.History(0, 0))
-                    }
-
                     videoDetailWithoutUserActions.await().let { detail ->
                         val newUserActions = detail.userActions.copy(
                             favorite = isFavoured.await(),
                             like = isLiked.await(),
                             coin = isCoined.await()
                         )
-                        val newHistory = historyAndPlayerIcon.await()
                         detail.copy(
                             userActions = newUserActions,
-                            history = newHistory
+                            history = detail.recentArchiveHistory()
                         )
                     }
                 }
@@ -114,9 +94,37 @@ class VideoDetailRepository(
                         this.aid = aid.toLong()
                     }) ?: throw IllegalStateException("Player stub is not initialized")
                 }.onFailure { handleGrpcException(it) }.getOrThrow()
-                VideoDetail.fromViewReply(viewReply)
+                VideoDetail.fromViewReply(viewReply).let { detail ->
+                    detail.copy(
+                        history = detail.recentArchiveHistory()
+                    )
+                }
             }
         }
+    }
+
+    private suspend fun VideoDetail.recentArchiveHistory(): VideoDetail.History {
+        val pageCids = pages.map { it.cid }.toSet()
+        val sessData = authRepository.sessionData?.takeIf { it.isNotBlank() }
+            ?: return VideoDetail.History(0, 0)
+        return runCatching {
+            val recentHistory = BiliHttpApi.getHistories(
+                business = "archive",
+                pageSize = 20,
+                sessData = sessData
+            ).getResponseData().list.firstOrNull { item ->
+                item.history.oid == aid && item.history.cid in pageCids
+            }
+
+            recentHistory?.let {
+                VideoDetail.History(
+                    progress = it.progress,
+                    lastPlayedCid = it.history.cid
+                )
+            } ?: VideoDetail.History(0, 0)
+        }.onFailure {
+            println("Get recent archive history failed: aid=$aid, error=$it")
+        }.getOrDefault(VideoDetail.History(0, 0))
     }
 
     suspend fun getUgcPages(
