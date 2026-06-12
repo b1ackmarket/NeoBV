@@ -33,11 +33,13 @@ import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.PlayerCommentItem
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.entity.toVideoQualityDisplayName
 import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
@@ -59,6 +61,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 internal fun hasSecondaryControllerOverlay(
     showListController: Boolean,
@@ -783,6 +786,15 @@ fun VideoPlayerController(
             subtitleEnabled = uiState.subtitleId != -1L || uiState.secondarySubtitleId != -1L,
             subtitleAvailable = uiState.subtitleList.any { it.id != -1L },
             isExternalMedia = uiState.isExternalMedia,
+            playbackStatusText = buildPlaybackStatusText(
+                speed = uiState.playSpeed,
+                quality = uiState.mediaProfileState.qualityId.toVideoQualityDisplayName(
+                    context = context,
+                    apiDescription = uiState.availableQuality[uiState.mediaProfileState.qualityId]
+                ),
+                audio = uiState.mediaProfileState.audio,
+                audioText = uiState.mediaProfileState.audio.getDisplayName(context)
+            ),
             jumpModeState = uiState.jumpModeState,
             isLooping = isLooping,
             onDirectionLeft = { onDirectionLeft() },
@@ -931,4 +943,18 @@ fun VideoPlayerController(
             }
         )
     }
+}
+
+private fun buildPlaybackStatusText(speed: Float, quality: String, audio: Audio, audioText: String): String {
+    val speedText = if (kotlin.math.abs(speed - speed.toInt()) < 0.001f) {
+        "${speed.toInt()}x"
+    } else {
+        "${String.format(Locale.US, "%.2f", speed).trimEnd('0').trimEnd('.')}x"
+    }
+    val audioSuffix = when (audio) {
+        Audio.ADolbyAtoms,
+        Audio.AHiRes -> " · $audioText"
+        else -> ""
+    }
+    return "$speedText · $quality$audioSuffix"
 }

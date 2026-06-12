@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -100,6 +101,7 @@ fun ControllerVideoInfo(
     subtitleEnabled: Boolean,
     subtitleAvailable: Boolean,
     isExternalMedia: Boolean = false,
+    playbackStatusText: String = "",
     jumpModeState: JumpModeState,
     isLooping: Boolean,
     onDirectionLeft: () -> Unit,
@@ -160,6 +162,7 @@ fun ControllerVideoInfo(
                 subtitleEnabled = subtitleEnabled,
                 subtitleAvailable = subtitleAvailable,
                 isExternalMedia = isExternalMedia,
+                playbackStatusText = playbackStatusText,
                 jumpModeState = jumpModeState,
                 isLooping = isLooping,
                 videoListButtonLabel = videoListButtonLabel,
@@ -298,6 +301,7 @@ fun ControllerVideoInfoBottom(
     subtitleEnabled: Boolean,
     subtitleAvailable: Boolean,
     isExternalMedia: Boolean = false,
+    playbackStatusText: String = "",
     jumpModeState: JumpModeState,
     isLooping: Boolean,
     videoListButtonLabel: String,
@@ -628,57 +632,71 @@ fun ControllerVideoInfoBottom(
                     return@onKeyEvent false
                 }
                 .padding(horizontal = 24.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            icons.forEachIndexed { index, button ->
-                val clickButton = { if (button.enabled) button.onClick() }
-                Surface(
-                    modifier = Modifier
-                        .focusRequester(iconFocusRequesters[index])
-                        .onKeyEvent {
-                            if (it.type == KeyEventType.KeyUp) {
-                                if (it.key == Key.DirectionLeft || it.key == Key.DirectionRight) return@onKeyEvent true
-                                return@onKeyEvent false
-                            }
-                            when (it.key) {
-                                Key.DirectionLeft -> {
-                                    if (index == 0) {
-                                        iconFocusRequesters.lastOrNull()?.requestFocus()
-                                        true
-                                    } else {
-                                        false
-                                    }
-                                }
-
-                                Key.DirectionRight -> {
-                                    if (index == icons.lastIndex) {
-                                        iconFocusRequesters.firstOrNull()?.requestFocus()
-                                        true
-                                    } else {
-                                        false
-                                    }
-                                }
-
-                                else -> false
-                            }
-                        }
-                        .touchClick(clickButton),
-                    onClick = clickButton,
-                    shape = ClickableSurfaceDefaults.shape(
-                        shape = MaterialTheme.shapes.small,
-                    ),
-                    colors = ClickableSurfaceDefaults.colors(),
-                ) {
-                    Icon(
-                        painter = painterResource(id = button.iconRes),
-                        contentDescription = button.contentDescription,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
+            ) {
+                icons.forEachIndexed { index, button ->
+                    val clickButton = { if (button.enabled) button.onClick() }
+                    Surface(
                         modifier = Modifier
-                            .size(32.dp)
-                            .padding(4.dp),
-                        tint = LocalContentColor.current.copy(alpha = if (button.enabled) 1f else 0.32f)
-                    )
+                            .focusRequester(iconFocusRequesters[index])
+                            .onKeyEvent {
+                                if (it.type == KeyEventType.KeyUp) {
+                                    if (it.key == Key.DirectionLeft || it.key == Key.DirectionRight) return@onKeyEvent true
+                                    return@onKeyEvent false
+                                }
+                                when (it.key) {
+                                    Key.DirectionLeft -> {
+                                        if (index == 0) {
+                                            iconFocusRequesters.lastOrNull()?.requestFocus()
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
+
+                                    Key.DirectionRight -> {
+                                        if (index == icons.lastIndex) {
+                                            iconFocusRequesters.firstOrNull()?.requestFocus()
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
+
+                                    else -> false
+                                }
+                            }
+                            .touchClick(clickButton),
+                        onClick = clickButton,
+                        shape = ClickableSurfaceDefaults.shape(
+                            shape = MaterialTheme.shapes.small,
+                        ),
+                        colors = ClickableSurfaceDefaults.colors(),
+                    ) {
+                        Icon(
+                            painter = painterResource(id = button.iconRes),
+                            contentDescription = button.contentDescription,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .padding(4.dp),
+                            tint = LocalContentColor.current.copy(alpha = if (button.enabled) 1f else 0.32f)
+                        )
+                    }
                 }
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            if (playbackStatusText.isNotBlank()) {
+                Text(
+                    text = playbackStatusText,
+                    color = Color.White.copy(alpha = 0.78f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -762,6 +780,7 @@ private fun ControllerVideoInfoPreview() {
             danmakuEnabled = false,
             subtitleEnabled = false,
             subtitleAvailable = true,
+            playbackStatusText = "1x · 1080P",
             jumpModeState = JumpModeState(),
             isLooping = false,
             onDirectionRight = {},
