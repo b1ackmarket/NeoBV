@@ -341,7 +341,7 @@ object BiliHttpApi {
         curLanguage: String? = null,
         sessData: String? = null,
         dedeUserID: Long? = null
-    ): BiliResponse<PlayUrlData> = client.get("/x/player/playurl") {
+    ): BiliResponse<PlayUrlData> = client.get("/x/player/wbi/playurl") {
         require(av != null || bv != null) { "av and bv cannot be null at the same time" }
         parameter("avid", av)
         parameter("bvid", bv)
@@ -355,15 +355,23 @@ object BiliHttpApi {
         parameter("type", type)
         parameter("platform", platform)
         parameter("support_multi_audio", true)
+        parameter("web_location", "1315873")
+        parameter("gaia_source", "pre-load")
+        parameter("isGaiaAvoided", "true")
+        parameter("dm_img_list", "[]")
+        parameter("dm_img_str", "V2ViR0xSZW5kZXJlcg")
+        parameter("dm_cover_img_str", "QU5HTEUgKEdvb2dsZSwgVnVsa2FuIDEuMy4wKQ")
+        parameter("dm_img_inter", """{"ds":[],"wh":[0,0,0],"of":[0,0,0]}""")
         curLanguage?.takeIf { it.isNotBlank() }?.let { parameter("cur_language", it) }
         if (sessData.isNullOrEmpty()) {
             // parameter("voice_balance", 1)
-            parameter("web_location", "1315873")
-            parameter("gaia_source", "pre-load")
-            parameter("isGaiaAvoided", "true")
             parameter("try_look", "1")
         }
-        sessData?.let { header("Cookie", "SESSDATA=$sessData;DedeUserID=$dedeUserID") }
+        buildCookie(
+            "SESSDATA" to sessData,
+            "DedeUserID" to dedeUserID?.toString(),
+            "buvid3" to buvid3
+        ).takeIf { it.isNotBlank() }?.let { header("Cookie", it) }
     }.body()
 
     /**
