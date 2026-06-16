@@ -31,8 +31,10 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Surface
@@ -244,7 +246,28 @@ fun LiveMenuController(
                                     MenuListItem(
                                         modifier = Modifier
                                             .ifElse(index == 0, Modifier.focusRequester(firstItemFocusRequester))
-                                            .focusRequester(navItemRequesters[index]),
+                                            .focusRequester(navItemRequesters[index])
+                                            .onKeyEvent {
+                                                if (it.type == KeyEventType.KeyUp) {
+                                                    if (it.key == Key.DirectionUp || it.key == Key.DirectionDown) return@onKeyEvent true
+                                                    return@onKeyEvent false
+                                                }
+                                                when (it.key) {
+                                                    Key.DirectionUp -> {
+                                                        if (index == 0) {
+                                                            navItemRequesters.lastOrNull()?.requestFocus()
+                                                            true
+                                                        } else false
+                                                    }
+                                                    Key.DirectionDown -> {
+                                                        if (index == LiveMenuNavItem.entries.lastIndex) {
+                                                            navItemRequesters.firstOrNull()?.requestFocus()
+                                                            true
+                                                        } else false
+                                                    }
+                                                    else -> false
+                                                }
+                                            },
                                         text = item.toDisplayName(),
                                         selected = focusState == MenuFocusState.MenuNav && selectedNav == item,
                                         onClick = {
@@ -259,6 +282,7 @@ fun LiveMenuController(
                                         onFocus = { selectedNav = item }
                                     )
                                 }
+
                             }
                         }
                     }

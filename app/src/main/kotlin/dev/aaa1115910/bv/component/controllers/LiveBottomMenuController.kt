@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.painterResource
@@ -50,12 +51,14 @@ fun LiveBottomMenuController(
     items: List<LiveBottomMenuItem>,
     onDismiss: () -> Unit
 ) {
-    val firstItemFocusRequester = remember { FocusRequester() }
+    val itemFocusRequesters = remember(items.size) {
+        List(items.size) { FocusRequester() }
+    }
 
     LaunchedEffect(show) {
         if (show && items.isNotEmpty()) {
             delay(80)
-            runCatching { firstItemFocusRequester.requestFocus() }
+            runCatching { itemFocusRequesters.firstOrNull()?.requestFocus() }
         }
     }
 
@@ -80,13 +83,34 @@ fun LiveBottomMenuController(
                     val clickItem = item.onClick
                     Surface(
                         modifier = Modifier
-                            .then(if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier)
+                            .focusRequester(itemFocusRequesters[index])
                             .onPreviewKeyEvent {
                                 if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionUp) {
                                     onDismiss()
                                     return@onPreviewKeyEvent true
                                 }
                                 false
+                            }
+                            .onKeyEvent {
+                                if (it.type == KeyEventType.KeyUp) {
+                                    if (it.key == Key.DirectionLeft || it.key == Key.DirectionRight) return@onKeyEvent true
+                                    return@onKeyEvent false
+                                }
+                                when (it.key) {
+                                    Key.DirectionLeft -> {
+                                        if (index == 0) {
+                                            itemFocusRequesters.lastOrNull()?.requestFocus()
+                                            true
+                                        } else false
+                                    }
+                                    Key.DirectionRight -> {
+                                        if (index == items.lastIndex) {
+                                            itemFocusRequesters.firstOrNull()?.requestFocus()
+                                            true
+                                        } else false
+                                    }
+                                    else -> false
+                                }
                             }
                             .touchClick(clickItem),
                         onClick = clickItem
