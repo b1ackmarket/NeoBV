@@ -547,10 +547,11 @@ fun ControllerVideoInfoBottom(
         val availableButtons = listOfNotNull(
             if (!isExternalMedia) ControllerInfoButton(
                 control = PlayerBottomOsdControl.VideoList,
-                iconRes = R.drawable.related_videos_24px,
+                iconRes = R.drawable.playlist_play_24px,
                 contentDescription = videoListButtonLabel,
                 onClick = onShowVideoList
             ) else null,
+
             if (!isExternalMedia) ControllerInfoButton(
                 control = PlayerBottomOsdControl.Danmaku,
                 iconRes = if (danmakuEnabled) R.drawable.danmaku_on_24px else R.drawable.danmaku_off_24px,
@@ -675,17 +676,21 @@ fun ControllerVideoInfoBottom(
                         shape = ClickableSurfaceDefaults.shape(
                             shape = MaterialTheme.shapes.small,
                         ),
-                        colors = ClickableSurfaceDefaults.colors(),
-                    ) {
-                        Icon(
-                            painter = painterResource(id = button.iconRes),
-                            contentDescription = button.contentDescription,
-                            modifier = Modifier
-                                .size(32.dp)
-                                .padding(4.dp),
-                            tint = LocalContentColor.current.copy(alpha = if (button.enabled) 1f else 0.32f)
-                        )
-                    }
+                        ) {
+                            Box(
+                                modifier = Modifier.size(40.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = button.iconRes),
+                                    contentDescription = button.contentDescription,
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .padding(4.dp),
+                                    tint = LocalContentColor.current.copy(alpha = if (button.enabled) 1f else 0.32f)
+                                )
+                            }
+                        }
                 }
             }
             Spacer(modifier = Modifier.weight(1f))
