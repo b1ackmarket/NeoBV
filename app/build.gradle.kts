@@ -184,8 +184,17 @@ android {
         outputs.configureEach {
             (this as ApkVariantOutputImpl).apply {
                 val abi = this.filters.find { it.filterType == "ABI" }?.identifier ?: "universal"
+                val apkVersionName = if (variant.buildType.name == "release") {
+                    if (AppConfiguration.isGitDirty()) {
+                        "${AppConfiguration.baseVersion}.dirty"
+                    } else {
+                        AppConfiguration.baseVersion
+                    }
+                } else {
+                    AppConfiguration.versionName
+                }
                 outputFileName =
-                    "NeoBV_${AppConfiguration.versionCode}_${AppConfiguration.versionName}.${variant.buildType.name}_${variant.flavorName}_$abi.apk"
+                    "NeoBV_${AppConfiguration.versionCode}_$apkVersionName.${variant.buildType.name}_${variant.flavorName}_$abi.apk"
                 versionNameOverride =
                     "${variant.versionName}.${variant.buildType.name}"
             }

@@ -13,7 +13,8 @@ object AppConfiguration {
             ?: File(System.getProperty("user.dir")).canonicalFile
     }
     private val versionTagRegex = Regex("""^v(\d+\.\d+\.\d+(?:\.\d+)?)$""")
-    private val baseVersion: String by lazy {
+    val baseVersion: String by lazy {
+
         val githubRefName = System.getenv("GITHUB_REF_NAME")
         val githubRefType = System.getenv("GITHUB_REF_TYPE")
         val ciTag = githubRefName
@@ -64,7 +65,7 @@ object AppConfiguration {
             packageNames.contains("$applicationId.debug")
     }
 
-    private fun isGitDirty(): Boolean {
+    fun isGitDirty(): Boolean {
         val process = ProcessBuilder("git", "-C", rootDir.absolutePath, "diff", "--quiet", "HEAD", "--")
             .redirectErrorStream(true)
             .start()
