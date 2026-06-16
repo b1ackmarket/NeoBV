@@ -46,6 +46,7 @@ import dev.aaa1115910.bv.danmaku.readDanmakuFilterConfigFromPrefs
 import dev.aaa1115910.bv.danmaku.shouldFetchCloudDanmakuFilterRules
 import dev.aaa1115910.bv.danmaku.summarizeDanmakuFilterRules
 import dev.aaa1115910.bv.entity.Audio
+
 import dev.aaa1115910.bv.entity.PlayerCommentEmote
 import dev.aaa1115910.bv.entity.PlayerCommentItem
 import dev.aaa1115910.bv.entity.PlayerCommentPicture
@@ -392,6 +393,9 @@ class VideoPlayerV3ViewModel(
     var danmakuPlayer: DanmakuPlayer? by mutableStateOf(null)
         private set
 
+
+
+
     private var playData: PlayData? = null
     private var currentStreamCandidate: StreamCandidate? = null
     private var fallbackPlanner: PlaybackFallbackPlanner? = null
@@ -637,6 +641,7 @@ class VideoPlayerV3ViewModel(
                         ?: emptyList(),
                     lastEnabledTypes = Prefs.defaultDanmakuTypes.takeIf { it.isNotEmpty() } ?: DanmakuType.entries,
                 ),
+
                 subtitleState = SubtitleState(
                     fontSize = Prefs.defaultSubtitleFontSize,
                     opacity = Prefs.defaultSubtitleBackgroundOpacity,
@@ -1305,9 +1310,25 @@ class VideoPlayerV3ViewModel(
         seekerUpdateJob = viewModelScope.launch(Dispatchers.Main) {
             while (isActive) {
                 updateSeekerState()
+                // 同步更新实时网速（用于缓冲时显示）
+                val speed = videoPlayer?.tcpSpeed ?: 0L
+                val current = _uiState.value
+                var castRes = current.castResolution
+                if (current.isExternalMedia) {
+                    val w = videoPlayer?.videoWidth ?: 0
+                    val h = videoPlayer?.videoHeight ?: 0
+                    if (w > 0 && h > 0) {
+                        castRes = "${w}×${h}"
+                    }
+                }
+                if (speed != current.tcpSpeedBps || castRes != current.castResolution) {
+                    _uiState.update { it.copy(tcpSpeedBps = speed, castResolution = castRes) }
+                }
+
                 delay(100)
             }
         }
+
         startPluginPolling()
         startOnlineCountPolling()
     }
@@ -2224,6 +2245,8 @@ class VideoPlayerV3ViewModel(
         }
         currentMediaUrls = mediaUrls
 
+        _uiState.update { it.copy(isBuffering = true, tcpSpeedBps = 0L) }
+
         logger.info {
             "Execute playback -> dash=${mediaUrls.useDashMpd} hls=${mediaUrls.useHls} " +
                 "audio=${!mediaUrls.audioUrl.isNullOrBlank()} drm=${!mediaUrls.drmLicenseUrl.isNullOrBlank()}"
@@ -2253,6 +2276,7 @@ class VideoPlayerV3ViewModel(
             player.seekTo(startPositionMs)
         }
         player.start()
+        startSeekerUpdater()
     }
 
     // 加载合集内的分P
@@ -2326,6 +2350,8 @@ class VideoPlayerV3ViewModel(
             logger.fInfo { "Load danmaku success, size: ${list.size}" }
         }
     }
+
+
 
     private suspend fun loadCloudDanmakuFilterRules(
         config: DanmakuFilterConfig

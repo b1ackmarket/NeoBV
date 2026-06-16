@@ -752,6 +752,7 @@ fun VideoPlayerController(
             isBuffering = uiState.isBuffering,
             isError = uiState.playerState is PlayerState.Error,
             errorMessage = (uiState.playerState as? PlayerState.Error)?.message,
+            tcpSpeedBps = uiState.tcpSpeedBps,
         )
 
         RelatedVideosController(
@@ -788,13 +789,18 @@ fun VideoPlayerController(
             isExternalMedia = uiState.isExternalMedia,
             playbackStatusText = buildPlaybackStatusText(
                 speed = uiState.playSpeed,
-                quality = uiState.mediaProfileState.qualityId.toVideoQualityDisplayName(
-                    context = context,
-                    apiDescription = uiState.availableQuality[uiState.mediaProfileState.qualityId]
-                ),
+                quality = if (uiState.isExternalMedia && uiState.castResolution.isNotBlank()) {
+                    uiState.castResolution
+                } else {
+                    uiState.mediaProfileState.qualityId.toVideoQualityDisplayName(
+                        context = context,
+                        apiDescription = uiState.availableQuality[uiState.mediaProfileState.qualityId]
+                    )
+                },
                 audio = uiState.mediaProfileState.audio,
                 audioText = uiState.mediaProfileState.audio.getDisplayName(context)
             ),
+
             jumpModeState = uiState.jumpModeState,
             isLooping = isLooping,
             onDirectionLeft = { onDirectionLeft() },
@@ -931,6 +937,7 @@ fun VideoPlayerController(
             onDanmakuMaskChange = { enabled ->
                 onDanmakuSettingChange(DanmakuSettingAction.SetMaskEnabled(enabled))
             },
+
             onSubtitleChange = onSubtitleChange,
             onSubtitleSizeChange = { size ->
                 onSubtitleSettingChange(SubtitleSettingAction.SetFontSize(size))

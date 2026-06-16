@@ -13,6 +13,7 @@ import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bilisubtitle.entity.SubtitleItem
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.entity.Audio
+
 import dev.aaa1115910.bv.entity.ProgressSegmentMark
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -45,12 +46,16 @@ data class PlayerUiState(
     val subType: Int = 0,
     val isExternalMedia: Boolean = false,
     val isExternalAudio: Boolean = false,
+
     val externalMediaCover: String = "",
     val externalMediaCreator: String = "",
 
     // 播放状态
     val playerState: PlayerState = PlayerState.Ready,
     val isBuffering: Boolean = false, // 缓冲和暂停会同时出现，故单独列出
+    val tcpSpeedBps: Long = 0L, // 缓冲时的实时网速（bits/second）
+    val castResolution: String = "", // 投屏时的媒体真实物理分辨率字符串
+
     // 进度条缩略图
     val videoShot: VideoShot? = null,
     val videoHeatmap: VideoHeatmap? = null,
@@ -141,6 +146,7 @@ data class DanmakuState(
     val enabledTypes: List<DanmakuType> = emptyList(),
     val lastEnabledTypes: List<DanmakuType> = emptyList(),
 )
+
 
 data class SubtitleState(
     val fontSize: TextUnit = 0.sp,
