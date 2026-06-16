@@ -79,7 +79,7 @@ fun LeftNaviContent(
             .onPreviewKeyEvent { keyEvent ->
                 if (keyEvent.isDpadRight()) {
                     if (keyEvent.isKeyDown()) {
-                        onFocusToContent()
+                        runCatching { onFocusToContent() }
                         return@onPreviewKeyEvent true
                     }
                 }
