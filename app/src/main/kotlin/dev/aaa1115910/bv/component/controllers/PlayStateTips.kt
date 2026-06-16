@@ -31,7 +31,8 @@ fun PlayStateTips(
     isPlaying: Boolean,
     isBuffering: Boolean,
     isError: Boolean,
-    errorMessage: String? = null
+    errorMessage: String? = null,
+    tcpSpeedBps: Long = 0L
 ) {
     Box(
         modifier = modifier.fillMaxSize()
@@ -46,7 +47,7 @@ fun PlayStateTips(
             BufferingTip(
                 modifier = Modifier
                     .align(Alignment.Center),
-                speed = ""
+                speed = tcpSpeedBps.toNetSpeedText()
             )
         }
         if (isError) {
@@ -104,6 +105,20 @@ fun BufferingTip(
                 fontSize = 24.sp
             )
         }
+    }
+}
+
+/**
+ * 将 bits/second 转换为人类可读的网速字符串
+ * >= 1 MB/s 用 MB 单位，< 1 MB/s 用 KB 单位
+ */
+private fun Long.toNetSpeedText(): String {
+    if (this <= 0L) return ""
+    val kbps = this / 8.0 / 1024.0
+    return if (kbps >= 1024) {
+        " · ${String.format("%.1f", kbps / 1024)} MB/s"
+    } else {
+        " · ${String.format("%.1f", kbps)} KB/s"
     }
 }
 
