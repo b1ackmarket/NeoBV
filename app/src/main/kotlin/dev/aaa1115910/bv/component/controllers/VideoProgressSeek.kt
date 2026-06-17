@@ -72,7 +72,7 @@ fun VideoProgressSeek(
         } else {
             size.height - trackWidthPx / 2f - 3.dp.toPx()
         }
-        val chapterGapPx = if (isPersistentSeek) 2.dp.toPx() else 4.dp.toPx()
+        val chapterGapPx = if (isPersistentSeek) 2.dp.toPx() else 3.dp.toPx()
 
         if (hasHeatmap && duration > 0L) {
             drawVideoHeatmap(
@@ -247,7 +247,7 @@ private fun DrawScope.drawSegmentedProgressLine(
     gapPx: Float,
     startFraction: Float = 0f,
     endFraction: Float = 1f,
-    cap: StrokeCap = StrokeCap.Round
+    cap: StrokeCap = StrokeCap.Butt
 ) {
     val safeStartFraction = startFraction.coerceIn(0f, 1f)
     val safeEndFraction = endFraction.coerceIn(0f, 1f)
@@ -262,12 +262,12 @@ private fun DrawScope.drawSegmentedProgressLine(
         val endsAtChapterEdge = abs(segmentEnd - range.endFraction) < 0.0001f
         val startInset = when {
             !startsAtChapterEdge -> 0f
-            range.startFraction <= 0f -> strokeWidth / 2f
+            range.startFraction <= 0f -> if (cap == StrokeCap.Round) strokeWidth / 2f else 0f
             else -> gapPx / 2f
         }
         val endInset = when {
             !endsAtChapterEdge -> 0f
-            range.endFraction >= 1f -> strokeWidth / 2f
+            range.endFraction >= 1f -> if (cap == StrokeCap.Round) strokeWidth / 2f else 0f
             else -> gapPx / 2f
         }
         val startX = size.width * segmentStart + startInset

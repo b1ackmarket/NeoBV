@@ -71,6 +71,7 @@ fun UISetting(
 
     var showVideoInfo by remember { mutableStateOf(Prefs.showVideoInfo) }
     var showPersistentSeek by remember { mutableStateOf(Prefs.showPersistentSeek) }
+    var showChapterBar by remember { mutableStateOf(Prefs.showChapterBar) }
     var enableFocusPreview by remember { mutableStateOf(Prefs.enableFocusPreview) }
     var enableFocusPreviewMuted by remember { mutableStateOf(Prefs.enableFocusPreviewMuted) }
     var enableLayoutWebConfig by remember { mutableStateOf(Prefs.enableLayoutWebConfig) }
@@ -144,6 +145,17 @@ fun UISetting(
                         onCheckedChange = {
                             showPersistentSeek = it
                             Prefs.showPersistentSeek = it
+                        }
+                    )
+                }
+                item {
+                    SettingSwitchListItem(
+                        title = stringResource(R.string.settings_ui_show_chapter_bar_title),
+                        supportText = stringResource(R.string.settings_ui_show_chapter_bar_text),
+                        checked = showChapterBar,
+                        onCheckedChange = {
+                            showChapterBar = it
+                            Prefs.showChapterBar = it
                         }
                     )
                 }

@@ -50,7 +50,7 @@ fun VideoChapterImmersiveBar(
 
     Box(
         modifier = modifier
-            .height(48.dp)
+            .height(32.dp)
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
@@ -83,27 +83,37 @@ fun VideoChapterImmersiveBar(
                 val selected = currentChapter != null &&
                     chapter.startMs == currentChapter.startMs &&
                     chapter.endMs == currentChapter.endMs
+                
+                val fraction = when {
+                    position >= chapter.endMs -> 1f
+                    position <= chapter.startMs -> 0f
+                    else -> ((position - chapter.startMs).toFloat() / (chapter.endMs - chapter.startMs)).coerceIn(0f, 1f)
+                }
+
                 Box(
                     modifier = Modifier
                         .weight((chapter.endMs - chapter.startMs).coerceAtLeast(1L).toFloat())
                         .fillMaxHeight()
-                        .background(
-                            if (selected) {
-                                Color.White.copy(alpha = 0.16f)
-                            } else {
-                                Color.White.copy(alpha = 0.05f)
-                            }
-                        )
+                        .background(Color.White.copy(alpha = 0.03f))
                         .border(
                             width = 0.5.dp,
-                            color = Color.White.copy(alpha = if (selected) 0.28f else 0.12f)
-                        )
-                        .padding(horizontal = 8.dp),
+                            color = Color.White.copy(alpha = 0.14f)
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
+                    if (fraction > 0f) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .fillMaxHeight()
+                                .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                                .background(Color.White.copy(alpha = 0.20f))
+                        )
+                    }
                     Text(
+                        modifier = Modifier.padding(horizontal = 8.dp),
                         text = chapter.title,
-                        color = Color.White.copy(alpha = if (selected) 0.98f else 0.76f),
+                        color = Color.White.copy(alpha = if (selected) 0.98f else if (fraction >= 1f) 0.82f else 0.60f),
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis

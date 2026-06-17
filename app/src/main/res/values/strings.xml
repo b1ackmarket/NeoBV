@@ -281,6 +281,8 @@
     <string name="settings_ui_show_video_info_title">显示视频详情页</string>
     <string name="settings_ui_show_persistent_seek_text">是否常显迷你进度条</string>
     <string name="settings_ui_show_persistent_seek_title">显示迷你进度条</string>
+    <string name="settings_ui_show_chapter_bar_title">显示章节栏</string>
+    <string name="settings_ui_show_chapter_bar_text">有章节信息的视频是否在视频底部展示章节和进度</string>
     <string name="settings_ui_startup_page_title">更改启动页</string>
     <string name="settings_ui_homepage_text">推荐/热门，需重启应用生效</string>
     <string name="settings_ui_homepage_title">更改主页置顶</string>

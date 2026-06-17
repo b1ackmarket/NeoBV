@@ -310,6 +310,7 @@ object Prefs {
     )
     var showVideoInfo by pref(PrefKeys.prefShowVideoInfoKey, PrefDefaultValues.showVideoInfo)
     var showPersistentSeek by pref(PrefKeys.prefShowPersistentSeekKey, false)
+    var showChapterBar by pref(PrefKeys.prefShowChapterBarKey, true)
     var showPlayerStats by pref(PrefKeys.prefShowPlayerStatsKey, false)
     var receiveAlphaUpdates by pref(PrefKeys.prefReceiveAlphaUpdatesKey, false)
 
@@ -577,6 +578,7 @@ private object PrefKeys {
     val prefSeekStepSecondsKey = intPreferencesKey("seek_step_seconds")
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
     val prefShowPersistentSeekKey = booleanPreferencesKey("show_persistent_seek")
+    val prefShowChapterBarKey = booleanPreferencesKey("show_chapter_bar")
     val prefShowPlayerStatsKey = booleanPreferencesKey("show_player_stats")
     val prefReceiveAlphaUpdatesKey = booleanPreferencesKey("receive_alpha_updates")
 

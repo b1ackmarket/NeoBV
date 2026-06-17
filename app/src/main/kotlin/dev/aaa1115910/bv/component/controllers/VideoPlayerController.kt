@@ -84,12 +84,14 @@ internal fun hasClickableControllerOverlay(
 }
 
 internal fun shouldShowImmersiveChapterBar(
+    showChapterBar: Boolean,
     hasChapters: Boolean,
     showClickableControllers: Boolean,
     showJumpModePausedInfoController: Boolean,
     isSeeking: Boolean
 ): Boolean {
-    return hasChapters &&
+    return showChapterBar &&
+        hasChapters &&
         !showClickableControllers &&
         !showJumpModePausedInfoController &&
         !isSeeking
@@ -97,13 +99,15 @@ internal fun shouldShowImmersiveChapterBar(
 
 internal fun shouldShowImmersivePersistentSeek(
     showPersistentSeek: Boolean,
+    showChapterBar: Boolean,
     hasChapters: Boolean,
     showClickableControllers: Boolean,
     showJumpModePausedInfoController: Boolean,
     isSeeking: Boolean
 ): Boolean {
+    val willShowChapterBar = showChapterBar && hasChapters
     return showPersistentSeek &&
-        !hasChapters &&
+        !willShowChapterBar &&
         !showClickableControllers &&
         !showJumpModePausedInfoController &&
         !isSeeking
@@ -218,6 +222,7 @@ fun VideoPlayerController(
     var onlineCountTipVideoKey: Pair<Long, Long>? by remember { mutableStateOf(null) }
     val hasVideoProgressChapters = uiState.videoProgressChapters.isNotEmpty()
     val showImmersiveChapterBar = shouldShowImmersiveChapterBar(
+        showChapterBar = Prefs.showChapterBar,
         hasChapters = hasVideoProgressChapters,
         showClickableControllers = showClickableControllers,
         showJumpModePausedInfoController = showJumpModePausedInfoController,
@@ -225,6 +230,7 @@ fun VideoPlayerController(
     )
     val showImmersivePersistentSeek = shouldShowImmersivePersistentSeek(
         showPersistentSeek = Prefs.showPersistentSeek,
+        showChapterBar = Prefs.showChapterBar,
         hasChapters = hasVideoProgressChapters,
         showClickableControllers = showClickableControllers,
         showJumpModePausedInfoController = showJumpModePausedInfoController,
@@ -669,7 +675,8 @@ fun VideoPlayerController(
                 bufferedPercentage = seekerState.value.bufferedPercentage,
                 isPersistentSeek = true,
                 segmentMarks = uiState.sponsorBlockProgressMarks,
-                watchedSegmentMarks = uiState.watchedProgressMarks
+                watchedSegmentMarks = uiState.watchedProgressMarks,
+                chapters = uiState.videoProgressChapters
             )
         }
         PlayerTouchGestureOverlay(
