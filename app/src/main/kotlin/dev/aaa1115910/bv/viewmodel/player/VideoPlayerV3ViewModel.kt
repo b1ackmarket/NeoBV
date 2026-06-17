@@ -428,6 +428,7 @@ class VideoPlayerV3ViewModel(
     private var commentsLoadJob: Job? = null
     private var commentDetailLoadJob: Job? = null
     private var lastWatchedProgressPositionMs = 0L
+    private var lastSeekWallTimeMs = -1L
     private var commentPage = 1
     private var commentsHasMore = true
     private val loadedCommentIds = mutableSetOf<String>()
@@ -1302,7 +1303,9 @@ class VideoPlayerV3ViewModel(
 
     fun backToStart() {
         backToStartCountdownJob?.cancel()
-        _uiState.update { it.copy(showBackToStart = false) }
+        _uiState.update { it.copy(showBackToStart = false, isBuffering = true) }
+        lastWatchedProgressPositionMs = 0L
+        lastSeekWallTimeMs = System.currentTimeMillis()
 
         videoPlayer?.seekTo(0)
         danmakuPlayer?.seekTo(0)
@@ -1344,6 +1347,9 @@ class VideoPlayerV3ViewModel(
     }
 
     fun seekToTime(time: Long) {
+        lastWatchedProgressPositionMs = time
+        lastSeekWallTimeMs = System.currentTimeMillis()
+        _uiState.update { it.copy(isBuffering = true) }
         videoPlayer?.seekTo(time)
         _seekerState.update { it.copy(currentTime = time) }
         danmakuPlayer?.seekTo(time)
@@ -1354,16 +1360,19 @@ class VideoPlayerV3ViewModel(
 
     fun confirmPendingPluginAction() {
         val action = _uiState.value.pendingPluginAction ?: return
+        lastWatchedProgressPositionMs = action.targetPositionMs
+        lastSeekWallTimeMs = System.currentTimeMillis()
+        _uiState.update {
+            it.copy(
+                pendingPluginAction = null,
+                pluginTipMessage = "已跳过片段",
+                isBuffering = true
+            )
+        }
         videoPlayer?.seekTo(action.targetPositionMs)
         danmakuPlayer?.seekTo(action.targetPositionMs)
         danmakuPlayer?.pause()
         PluginManager.getPlayerPlugin<SponsorBlockPlugin>("sponsorblock")?.markHandled(action.segmentId)
-        _uiState.update {
-            it.copy(
-                pendingPluginAction = null,
-                pluginTipMessage = "已跳过片段"
-            )
-        }
         startTransientPluginTipCountdown()
     }
 
@@ -2929,7 +2938,9 @@ class VideoPlayerV3ViewModel(
         // akdanmaku 会在跳转后立即播放，如果需要缓冲则会导致弹幕不同步
         danmakuPlayer?.pause()
 
-        _uiState.update { it.copy(showBackToStart = true) }
+        lastWatchedProgressPositionMs = time
+        lastSeekWallTimeMs = System.currentTimeMillis()
+        _uiState.update { it.copy(showBackToStart = true, isBuffering = true) }
 
         backToStartCountdownJob?.cancel()
         backToStartCountdownJob = viewModelScope.launch {
@@ -2974,9 +2985,19 @@ class VideoPlayerV3ViewModel(
 
     private fun updateWatchedProgress(currentPos: Long, duration: Long) {
         val isPlaying = _uiState.value.playerState == PlayerState.Playing && videoPlayer?.isPlaying == true
-        if (!isPlaying || duration <= 0L) {
+        val isBuffering = _uiState.value.isBuffering
+        if (!isPlaying || isBuffering || duration <= 0L) {
             lastWatchedProgressPositionMs = currentPos
             return
+        }
+
+        if (lastSeekWallTimeMs != -1L) {
+            if (System.currentTimeMillis() - lastSeekWallTimeMs < 2000L) {
+                lastWatchedProgressPositionMs = currentPos
+                return
+            } else {
+                lastSeekWallTimeMs = -1L
+            }
         }
 
         val previous = lastWatchedProgressPositionMs
@@ -3299,27 +3320,16 @@ internal fun mergeWatchedProgressMarks(
     newMark: ProgressSegmentMark
 ): List<ProgressSegmentMark> {
     if (newMark.endMs <= newMark.startMs) return marks
+    val all = (marks + newMark).filter { it.endMs > it.startMs }.sortedBy { it.startMs }
     val merged = mutableListOf<ProgressSegmentMark>()
-    var start = newMark.startMs
-    var end = newMark.endMs
-    var inserted = false
-    (marks + newMark)
-        .sortedBy { it.startMs }
-        .forEach { mark ->
-            if (mark.endMs <= mark.startMs) return@forEach
-            if (!inserted && end < mark.startMs - 250L) {
-                merged += ProgressSegmentMark(start, end, newMark.colorArgb)
-                inserted = true
-            }
-            if (!inserted && mark.startMs <= end + 250L) {
-                start = minOf(start, mark.startMs)
-                end = maxOf(end, mark.endMs)
-            } else {
-                merged += mark
-            }
+    for (mark in all) {
+        val prev = merged.lastOrNull()
+        if (prev != null && mark.startMs <= prev.endMs + 250L) {
+            // 仅在真正相邻或重叠时合并（容差 250ms）
+            merged[merged.lastIndex] = prev.copy(endMs = maxOf(prev.endMs, mark.endMs))
+        } else {
+            merged += mark
         }
-    if (!inserted) {
-        merged += ProgressSegmentMark(start, end, newMark.colorArgb)
     }
     return merged
         .takeLast(128)
