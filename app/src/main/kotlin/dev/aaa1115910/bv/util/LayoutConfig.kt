@@ -29,7 +29,8 @@ enum class PlayerBottomOsdControl(val id: String, val label: String) {
     RelatedVideos("relatedVideos", "相关视频"),
     Comments("comments", "评论"),
     Loop("loop", "循环播放"),
-    Settings("settings", "播放设置")
+    Settings("settings", "播放设置"),
+    Stats("stats", "统计信息")
 }
 
 enum class LiveBottomOsdControl(val id: String, val label: String) {
@@ -39,7 +40,8 @@ enum class LiveBottomOsdControl(val id: String, val label: String) {
     JumpMode("jumpMode", "跳动模式"),
     Comments("comments", "评论"),
     UpPage("upPage", "UP主页"),
-    Settings("settings", "直播设置")
+    Settings("settings", "直播设置"),
+    Stats("stats", "统计信息")
 }
 
 @Serializable

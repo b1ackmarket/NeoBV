@@ -770,6 +770,8 @@ fun VideoPlayerController(
             isSeeking = isSeeking,
             goTime = goTime,
             seekerState = seekerState.value,
+            showStats = uiState.showPlayerStats,
+            onToggleStats = { setShowPlayerStats(!uiState.showPlayerStats) },
             title = uiState.title,
             authorName = uiState.authorName,
             publishDateText = uiState.publishDateText,
@@ -918,7 +920,6 @@ fun VideoPlayerController(
             onAiAudioTranslationChange = onAiAudioTranslationChange,
             onAspectRatioChange = onAspectRatioChange,
             onPlaySpeedChange = onPlaySpeedChange,
-            onShowPlayerStatsChange = setShowPlayerStats,
             onDanmakuSwitchChange = { danmakuTypes ->
                 onDanmakuSettingChange(DanmakuSettingAction.SetEnabledTypes(danmakuTypes))
             },

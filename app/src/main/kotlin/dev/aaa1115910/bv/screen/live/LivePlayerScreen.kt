@@ -1224,7 +1224,6 @@ fun LivePlayerScreen() {
             lineOptions = playbackSource?.lines.orEmpty(),
             currentLineIndex = playbackSource?.currentLineIndex ?: selectedLineIndex,
             danmakuState = liveDanmakuState,
-            showStats = showLiveStats,
             preferHighBitrate = preferLiveHighBitrate,
             onQualitySelected = { quality ->
                 if (quality.qn != selectedQuality) {
@@ -1250,10 +1249,6 @@ fun LivePlayerScreen() {
                 Prefs.defaultDanmakuSpeedFactor = newState.speedFactor
                 Prefs.defaultDanmakuArea = newState.area
                 Prefs.defaultDanmakuMask = newState.maskEnabled
-            },
-            onShowStatsChange = { show ->
-                showLiveStats = show
-                Prefs.showPlayerStats = show
             },
             onPreferHighBitrateChange = { enabled ->
                 if (enabled != preferLiveHighBitrate) {
@@ -1417,6 +1412,16 @@ fun LivePlayerScreen() {
                             label = "设置"
                         ) {
                             activeOverlay = LiveOverlayPanel.RightMenu
+                        }
+                    )
+                    add(
+                        LiveBottomMenuItem(
+                            control = LiveBottomOsdControl.Stats,
+                            iconRes = if (showLiveStats) R.drawable.osd_stats_32 else R.drawable.osd_stats_off_32,
+                            label = "统计信息"
+                        ) {
+                            showLiveStats = !showLiveStats
+                            Prefs.showPlayerStats = showLiveStats
                         }
                     )
                 }

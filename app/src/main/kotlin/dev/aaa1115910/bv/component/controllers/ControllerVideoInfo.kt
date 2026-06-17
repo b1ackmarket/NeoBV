@@ -120,7 +120,9 @@ fun ControllerVideoInfo(
     onShowComments: () -> Unit,
     onGoToVideoInfo: () -> Unit,
     onToggleLoop: () -> Unit,
-    onGoToUpPage: () -> Unit
+    onGoToUpPage: () -> Unit,
+    showStats: Boolean = false,
+    onToggleStats: () -> Unit = {}
 ) {
     Box(
         modifier = modifier.fillMaxSize()
@@ -186,7 +188,9 @@ fun ControllerVideoInfo(
                 onShowComments = onShowComments,
                 onGoToVideoInfo = onGoToVideoInfo,
                 onToggleLoop = onToggleLoop,
-                onGoToUpPage = onGoToUpPage
+                onGoToUpPage = onGoToUpPage,
+                showStats = showStats,
+                onToggleStats = onToggleStats
             )
         }
     }
@@ -325,7 +329,9 @@ fun ControllerVideoInfoBottom(
     onShowComments: () -> Unit,
     onGoToVideoInfo: () -> Unit,
     onToggleLoop: () -> Unit,
-    onGoToUpPage: () -> Unit
+    onGoToUpPage: () -> Unit,
+    showStats: Boolean = false,
+    onToggleStats: () -> Unit = {}
 ) {
     val seekFocusRequester = remember { FocusRequester() }
     val buttonsFocusRequester = remember { FocusRequester() }
@@ -611,6 +617,12 @@ fun ControllerVideoInfoBottom(
                 iconRes = R.drawable.settings_24px,
                 contentDescription = "播放设置",
                 onClick = onShowSettings
+            ),
+            ControllerInfoButton(
+                control = PlayerBottomOsdControl.Stats,
+                iconRes = if (showStats) R.drawable.osd_stats_32 else R.drawable.osd_stats_off_32,
+                contentDescription = "统计信息",
+                onClick = onToggleStats
             ),
         )
         val buttonsByControl = availableButtons.associateBy { it.control }

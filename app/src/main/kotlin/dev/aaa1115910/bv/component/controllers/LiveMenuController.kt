@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import dev.aaa1115910.bv.component.controllers.playermenu.DanmakuMenuList
-import dev.aaa1115910.bv.component.controllers.playermenu.PlayerStatsMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.RadioMenuList
 import dev.aaa1115910.bv.repository.LiveLineOption
@@ -52,7 +51,6 @@ enum class LiveMenuNavItem {
     Quality,
     Line,
     Danmaku,
-    Stats,
     BitrateBoost
 }
 
@@ -65,12 +63,10 @@ fun LiveMenuController(
     lineOptions: List<LiveLineOption>,
     currentLineIndex: Int,
     danmakuState: LiveDanmakuMenuState,
-    showStats: Boolean,
     preferHighBitrate: Boolean,
     onQualitySelected: (LiveQualityOption) -> Unit,
     onLineSelected: (Int) -> Unit,
     onDanmakuStateChange: (LiveDanmakuMenuState) -> Unit,
-    onShowStatsChange: (Boolean) -> Unit,
     onPreferHighBitrateChange: (Boolean) -> Unit
 ) {
     var selectedNav by remember { mutableStateOf(LiveMenuNavItem.Quality) }
@@ -170,21 +166,6 @@ fun LiveMenuController(
                                     onDanmakuMaskChange = {
                                         onDanmakuStateChange(danmakuState.copy(maskEnabled = it))
                                     },
-                                    onFocusStateChange = {
-                                        focusState = when (it) {
-                                            MenuFocusState.MenuNav -> {
-                                                navItemRequesters[selectedNav.ordinal].requestFocus()
-                                                MenuFocusState.MenuNav
-                                            }
-
-                                            else -> it
-                                        }
-                                    }
-                                )
-
-                                LiveMenuNavItem.Stats -> PlayerStatsMenuList(
-                                    currentShowPlayerStats = showStats,
-                                    onShowPlayerStatsChange = onShowStatsChange,
                                     onFocusStateChange = {
                                         focusState = when (it) {
                                             MenuFocusState.MenuNav -> {
@@ -305,11 +286,9 @@ private fun LiveMenuNavItem.toDisplayName(): String = when (this) {
     LiveMenuNavItem.Quality -> "画质"
     LiveMenuNavItem.Line -> "线路"
     LiveMenuNavItem.Danmaku -> "弹幕"
-    LiveMenuNavItem.Stats -> "统计信息"
     LiveMenuNavItem.BitrateBoost -> "码率增强"
 }
 
 private fun LiveMenuNavItem.opensMenuPanel(): Boolean =
     this == LiveMenuNavItem.Danmaku ||
-        this == LiveMenuNavItem.Stats ||
         this == LiveMenuNavItem.BitrateBoost
