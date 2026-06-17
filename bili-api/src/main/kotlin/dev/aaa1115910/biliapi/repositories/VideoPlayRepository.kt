@@ -554,4 +554,25 @@ class VideoPlayRepository(
         resolveSubtitleFallback(preferredTracks.await(), fallbackTracks.await())
     }
 
+    suspend fun getSegmentDanmakus(
+        aid: Long,
+        cid: Long,
+        durationMs: Long
+    ): List<bilibili.community.service.dm.v1.DanmakuElem> {
+        val list = mutableListOf<bilibili.community.service.dm.v1.DanmakuElem>()
+        val segmentCount = (durationMs / 360000.0).let { Math.ceil(it).toInt() }.coerceAtLeast(1)
+        for (i in 1..segmentCount) {
+            val reply = runCatching {
+                danmakuStub?.dmSegMobile(bilibili.community.service.dm.v1.dmSegMobileReq {
+                    pid = aid
+                    oid = cid
+                    type = 1
+                    segmentIndex = i.toLong()
+                })
+            }.onFailure { handleGrpcException(it) }.getOrNull()
+            reply?.elemsList?.let { list.addAll(it) }
+        }
+        return list
+    }
+
 }
