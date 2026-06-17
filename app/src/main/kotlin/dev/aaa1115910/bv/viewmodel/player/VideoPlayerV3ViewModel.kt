@@ -496,7 +496,7 @@ class VideoPlayerV3ViewModel(
 
         override fun onReady() {
             logger.info { "onReady" }
-            _uiState.update { it.copy(playerState = PlayerState.Ready) }
+            _uiState.update { it.copy(playerState = PlayerState.Ready, isBuffering = false) }
 
             updatePlaySpeed(forceUpdate = true)
             startSeekerUpdater()
