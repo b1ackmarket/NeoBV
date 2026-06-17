@@ -49,12 +49,14 @@ fun DanmakuMenuList(
     currentSpeedFactor: Float,
     currentArea: Float,
     currentMaskEnabled: Boolean,
+    currentDensity: Float = 1.0f,
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
     onDanmakuSizeChange: (Float) -> Unit,
     onDanmakuOpacityChange: (Float) -> Unit,
     onDanmakuSpeedFactorChange: (Float) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit,
+    onDanmakuDensityChange: (Float) -> Unit = {},
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
     val context = LocalContext.current
@@ -213,6 +215,20 @@ fun DanmakuMenuList(
                     selected = if (currentMaskEnabled) 1 else 0,
                     requestFocusWhen = shouldFocusItems,
                     onSelectedChanged = { onDanmakuMaskChange(it == 1) },
+                    onFocusBackToParent = {
+                        onFocusStateChange(MenuFocusState.Menu)
+                    }
+                )
+
+                VideoPlayerDanmakuMenuItem.Density -> RadioMenuList(
+                    modifier = menuItemsModifier,
+                    items = dev.aaa1115910.bv.entity.DanmakuDensity.entries.map { it.getDisplayName(context) },
+                    selected = dev.aaa1115910.bv.entity.DanmakuDensity.getIndexByRatio(currentDensity),
+                    requestFocusWhen = shouldFocusItems,
+                    onSelectedChanged = {
+                        val targetDensity = dev.aaa1115910.bv.entity.DanmakuDensity.entries[it].keepRatio
+                        onDanmakuDensityChange(targetDensity)
+                    },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
                     }

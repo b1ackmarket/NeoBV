@@ -392,7 +392,9 @@ class VideoPlayerV3ViewModel(
         private set
     var danmakuPlayer: DanmakuPlayer? by mutableStateOf(null)
         private set
-
+    /** 原始弹幕列表（仅过滤关键词/用户，未经密度采样），用于密度变化时重新采样 */
+    private var rawDanmakuList: List<DanmakuItemData> = emptyList()
+    private var reloadDanmakuJob: Job? = null
 
 
 
@@ -640,6 +642,7 @@ class VideoPlayerV3ViewModel(
                     enabledTypes = Prefs.defaultDanmakuTypes.takeIf { Prefs.defaultDanmakuEnabled }
                         ?: emptyList(),
                     lastEnabledTypes = Prefs.defaultDanmakuTypes.takeIf { it.isNotEmpty() } ?: DanmakuType.entries,
+                    density = Prefs.defaultDanmakuDensity,
                 ),
 
                 subtitleState = SubtitleState(
@@ -1167,6 +1170,7 @@ class VideoPlayerV3ViewModel(
             is DanmakuSettingAction.SetArea -> old.copy(area = action.value)
             is DanmakuSettingAction.SetSpeedFactor -> old.copy(speedFactor = action.value)
             is DanmakuSettingAction.SetMaskEnabled -> old.copy(maskEnabled = action.enabled)
+            is DanmakuSettingAction.SetDensity -> old.copy(density = action.density)
             is DanmakuSettingAction.SetEnabledTypes -> {
                 if (action.types.isEmpty()) {
                     old.copy(enabledTypes = emptyList(), lastEnabledTypes = old.enabledTypes)
@@ -1203,7 +1207,9 @@ class VideoPlayerV3ViewModel(
                     Prefs.defaultDanmakuTypes = new.enabledTypes
                 }
             }
+            reloadDanmakuWithDensity(new.density)
         }
+
         if (new.scale != old.scale) {
             updateDanmakuScale(new.scale)
             Prefs.defaultDanmakuScale = new.scale
@@ -1221,6 +1227,10 @@ class VideoPlayerV3ViewModel(
         }
         if (new.maskEnabled != old.maskEnabled) {
             Prefs.defaultDanmakuMask = new.maskEnabled
+        }
+        if (new.density != old.density) {
+            Prefs.defaultDanmakuDensity = new.density
+            reloadDanmakuWithDensity(new.density)
         }
     }
 
@@ -2298,7 +2308,23 @@ class VideoPlayerV3ViewModel(
     }
 
     private suspend fun loadDanmaku(aid: Long, cid: Long) {
+        runCatching {
+            val clazz = Class.forName("com.kuaishou.akdanmaku.DanmakuPlayer")
+            val methodsStr = clazz.methods.map { "${it.returnType.simpleName} ${it.name}(${it.parameterTypes.joinToString { it.simpleName }})" }.joinToString("\n")
+            logger.fInfo { "=== DanmakuPlayer Methods ===\n$methodsStr" }
+            
+            val getEngineMethod = clazz.methods.firstOrNull { it.name.startsWith("getEngine") }
+            if (getEngineMethod != null) {
+                val engineClazz = getEngineMethod.returnType
+                val engineMethodsStr = engineClazz.methods.map { "${it.returnType.simpleName} ${it.name}(${it.parameterTypes.joinToString { it.simpleName }})" }.joinToString("\n")
+                logger.fInfo { "=== Engine Methods (${engineClazz.name}) ===\n$engineMethodsStr" }
+            }
+        }.onFailure {
+            logger.fWarn { "Failed to reflect DanmakuPlayer: ${it.stackTraceToString()}" }
+        }
+
         if (_uiState.value.danmakuState.enabledTypes.isEmpty()) {
+
             withContext(Dispatchers.Main) {
                 updateDanmakuConfigTypeFilter(emptyList())
             }
@@ -2307,34 +2333,112 @@ class VideoPlayerV3ViewModel(
         }
 
         val list = runCatching {
-            val danmakuData = BiliHttpApi.getDanmakuXml(cid = cid, sessData = Prefs.sessData).data
             val filterConfig = readDanmakuFilterConfigFromPrefs()
             val cloudRules = loadCloudDanmakuFilterRules(filterConfig)
             val rules = buildDanmakuFilterRules(filterConfig, cloudRules)
             val filterMatcher = DanmakuFilterMatcher(filterConfig, rules)
             val summary = summarizeDanmakuFilterRules(filterConfig, cloudRules)
-            val enabledTypes = _uiState.value.danmakuState.enabledTypes
             var blockedCount = 0
 
-            danmakuData.asSequence().filterNot {
-                val blocked = filterMatcher.blocks(it) ||
-                    !it.allowsDanmakuTypes(enabledTypes)
-                if (blocked) blockedCount++
-                blocked
-            }.map {
-                DanmakuItemData(
-                    danmakuId = it.dmid,
-                    position = (it.time * 1000).toLong(),
-                    content = it.text,
-                    mode = when (it.type) {
-                        4 -> DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM
-                        5 -> DanmakuItemData.DANMAKU_MODE_CENTER_TOP
-                        else -> DanmakuItemData.DANMAKU_MODE_ROLLING
-                    },
-                    textSize = it.size,
-                    textColor = Color(it.color).toArgb()
-                )
-            }.toList().also {
+            val durationMs = withContext(Dispatchers.Main) { videoPlayer?.duration }?.takeIf { it > 0 }
+                ?: (playData?.durationSeconds?.let { it * 1000L } ?: 360000L)
+            logger.fInfo { "Try loading first segmented danmaku via gRPC: aid=$aid, cid=$cid" }
+            
+            // 1. 优先极速拉取第 1 个分段（前 6 分钟）的弹幕，以防起播延迟
+            val firstSegmentDuration = minOf(durationMs, 360000L)
+            val firstSegmentList = videoPlayRepository.getSegmentDanmakus(aid, cid, firstSegmentDuration)
+            logger.fWarn { "DANMAKU_LOAD_DEBUG: firstSegmentList size=${firstSegmentList.size}" }
+
+            val mappedDanmakus = if (firstSegmentList.isNotEmpty()) {
+                logger.fInfo { "Loaded ${firstSegmentList.size} danmakus from first segment successfully." }
+                val initialMapped = firstSegmentList.asSequence().filterNot {
+                    val blocked = filterMatcher.blocks(it.content, it.midHash)
+                    if (blocked) blockedCount++
+                    blocked
+                }.map {
+                    DanmakuItemData(
+                        danmakuId = it.id,
+                        position = it.progress.toLong(),
+                        content = it.content,
+                        mode = when (it.mode) {
+                            4 -> DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM
+                            5 -> DanmakuItemData.DANMAKU_MODE_CENTER_TOP
+                            else -> DanmakuItemData.DANMAKU_MODE_ROLLING
+                        },
+                        textSize = it.fontsize,
+                        textColor = 0xFF000000.toInt() or it.color.toInt()
+                    )
+                }.toList()
+
+                // 2. 开启后台协程静默加载剩余的分段弹幕并追加合并
+                val totalSegmentCount = (durationMs / 360000.0).let { Math.ceil(it).toInt() }.coerceAtLeast(1)
+                if (totalSegmentCount > 1) {
+                    viewModelScope.launch(Dispatchers.IO) {
+                        val allSegments = mutableListOf<bilibili.community.service.dm.v1.DanmakuElem>()
+                        // 已经拉过第 1 段，我们从第 2 段开始拉
+                        for (i in 2..totalSegmentCount) {
+                            val elems = videoPlayRepository.getSingleSegmentDanmaku(aid, cid, i.toLong())
+                            allSegments.addAll(elems)
+                        }
+                        
+                        if (allSegments.isNotEmpty()) {
+                            val combinedElems = firstSegmentList + allSegments
+                            var bgBlockedCount = 0
+                            val combinedMapped = combinedElems.asSequence().filterNot {
+                                val blocked = filterMatcher.blocks(it.content, it.midHash)
+                                if (blocked) bgBlockedCount++
+                                blocked
+                            }.map {
+                                DanmakuItemData(
+                                    danmakuId = it.id,
+                                    position = it.progress.toLong(),
+                                    content = it.content,
+                                    mode = when (it.mode) {
+                                        4 -> DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM
+                                        5 -> DanmakuItemData.DANMAKU_MODE_CENTER_TOP
+                                        else -> DanmakuItemData.DANMAKU_MODE_ROLLING
+                                    },
+                                    textSize = it.fontsize,
+                                    textColor = 0xFF000000.toInt() or it.color.toInt()
+                                )
+                            }.toList()
+                            
+                            withContext(Dispatchers.Main) {
+                                rawDanmakuList = combinedMapped
+                                applyDanmakuDensityAndSetData(_uiState.value.danmakuState.density)
+                                updateDanmakuConfigFilters(_uiState.value.danmakuState.enabledTypes, _uiState.value.danmakuState.density)
+                                logger.fInfo { "Lazy loaded remaining danmakus, combined total=${combinedMapped.size}" }
+                            }
+                        }
+                    }
+                }
+                
+                initialMapped
+            } else {
+                logger.fWarn { "Failed to load danmakus from gRPC or empty, fallback to legacy XML API" }
+                val xmlData = BiliHttpApi.getDanmakuXml(cid = cid, sessData = Prefs.sessData).data
+                logger.fWarn { "DANMAKU_LOAD_DEBUG: xmlData size=${xmlData.size}" }
+                xmlData.asSequence().filterNot {
+                    val blocked = filterMatcher.blocks(it.text, it.midHash)
+                    if (blocked) blockedCount++
+                    blocked
+                }.map {
+                    DanmakuItemData(
+                        danmakuId = it.dmid,
+                        position = (it.time * 1000).toLong(),
+                        content = it.text,
+                        mode = when (it.type) {
+                            4 -> DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM
+                            5 -> DanmakuItemData.DANMAKU_MODE_CENTER_TOP
+                            else -> DanmakuItemData.DANMAKU_MODE_ROLLING
+                        },
+                        textSize = it.size,
+                        textColor = 0xFF000000.toInt() or it.color
+                    )
+                }.toList()
+            }
+
+            mappedDanmakus.also {
                 logger.fInfo {
                     "Apply danmaku filters: cloud=${summary.cloudRuleCount}, " +
                         "localKeyword=${summary.localKeywordCount}, localRegex=${summary.localRegexCount}, " +
@@ -2345,12 +2449,171 @@ class VideoPlayerV3ViewModel(
             logger.fWarn { "Load danmaku failed: ${error.stackTraceToString()}" }
         }.getOrNull() ?: return
 
+        val density = _uiState.value.danmakuState.density
+        val enabledTypes = _uiState.value.danmakuState.enabledTypes
         withContext(Dispatchers.Main) {
-            danmakuPlayer?.updateData(list)
-            logger.fInfo { "Load danmaku success, size: ${list.size}" }
+            rawDanmakuList = list
+            applyDanmakuDensityAndSetData(density)
+            updateDanmakuConfigFilters(enabledTypes, density)
+            logger.fInfo { "Load danmaku success, total=${list.size}, density=$density" }
+            logger.fWarn { "DANMAKU_LOAD_DEBUG: success, total=${list.size}, density=$density" }
+
+            runCatching {
+                if (list.isNotEmpty()) {
+                    val lastPosMs = list.maxOfOrNull { it.position } ?: 0L
+                    val totalSec = (lastPosMs / 1000f).coerceAtLeast(1f)
+                    val avgPerSec = list.size / totalSec
+                    val groupedBySec = list.groupBy { it.position / 1000 }
+                    val maxPerSec = groupedBySec.maxOfOrNull { it.value.size } ?: 0
+                    logger.fInfo {
+                        "[DANMAKU_STATS] Total danmakus: ${list.size}, " +
+                        "Duration: ${lastPosMs}ms (${totalSec}s), " +
+                        "Avg/sec: ${String.format("%.2f", avgPerSec)}, " +
+                        "Max/sec: $maxPerSec"
+                    }
+                } else {
+                    logger.fInfo { "[DANMAKU_STATS] Danmaku list is empty." }
+                }
+            }
         }
+
     }
 
+    private fun reloadDanmakuWithDensity(density: Float) {
+        val enabledTypes = _uiState.value.danmakuState.enabledTypes
+        updateDanmakuConfigFilters(enabledTypes, density)
+        applyDanmakuDensityAndSetData(density)
+    }
+
+    private fun applyDanmakuDensityAndSetData(density: Float) {
+        val fullList = rawDanmakuList
+        if (fullList.isEmpty()) return
+
+        val filteredList = if (density > 0f && density < 1.0f) {
+            filterDanmakuByScreenArea(fullList, density)
+        } else {
+            fullList
+        }
+
+        syncDanmakuPlayerData(filteredList)
+
+        logger.fInfo { "Applied danmaku density filter: density=$density, total=${fullList.size}, filteredTotal=${filteredList.size}" }
+    }
+
+    private fun filterDanmakuByScreenArea(
+        fullList: List<DanmakuItemData>,
+        density: Float
+    ): List<DanmakuItemData> {
+        val scale = _uiState.value.danmakuState.scale.takeIf { it > 0f } ?: Prefs.defaultDanmakuScale
+        val areaFactor = _uiState.value.danmakuState.area.takeIf { it > 0f } ?: Prefs.defaultDanmakuArea
+        val maxScreenArea = 1920 * 1080 * areaFactor
+        val maxAllowedArea = maxScreenArea * density * 0.50f
+
+        val sortedDanmakus = fullList.sortedBy { it.position }
+        
+        // 原始未过滤的模拟队列与面积，用于计算实时局部密度（超载倍数）
+        val rawQueue = java.util.ArrayDeque<DanmakuItemData>()
+        var rawCurrentArea = 0L
+
+        // 过滤后的模拟队列与面积，仅用于计算日志中的 filteredRatio 与 filteredCount
+        val queue = java.util.ArrayDeque<DanmakuItemData>()
+        var currentArea = 0L
+
+        val result = mutableListOf<DanmakuItemData>()
+        var accumulator = 0f
+        var lastLogTime = -1L
+
+        for (danmaku in sortedDanmakus) {
+            val areaSize = estimateDanmakuArea(danmaku, scale)
+
+            // 更新原始模拟状态
+            while (rawQueue.isNotEmpty() && (rawQueue.peekFirst()?.position ?: 0L) < danmaku.position - 7000) {
+                val removed = rawQueue.pollFirst()!!
+                rawCurrentArea = (rawCurrentArea - estimateDanmakuArea(removed, scale)).coerceAtLeast(0)
+            }
+            rawQueue.addLast(danmaku)
+            rawCurrentArea += areaSize
+
+            // 计算当前瞬时超载倍数
+            val overloadRatio = if (rawCurrentArea <= maxAllowedArea) {
+                1.0f
+            } else {
+                rawCurrentArea.toFloat() / maxAllowedArea
+            }
+
+            // 均匀累加许可
+            accumulator += 1.0f / overloadRatio
+
+            // 更新过滤队列的滑动状态（仅用于日志统计）
+            while (queue.isNotEmpty() && (queue.peekFirst()?.position ?: 0L) < danmaku.position - 7000) {
+                val removed = queue.pollFirst()!!
+                currentArea = (currentArea - estimateDanmakuArea(removed, scale)).coerceAtLeast(0)
+            }
+
+            // 如果累加器达到或超过 1.0，则放行该弹幕
+            if (accumulator >= 1.0f) {
+                result.add(danmaku)
+                queue.addLast(danmaku)
+                currentArea += areaSize
+                accumulator -= 1.0f
+            }
+
+            // 限制累加器的上限，防止过度稀疏后突然的高频弹幕爆发
+            if (accumulator > 1.0f) {
+                accumulator = 1.0f
+            }
+
+            // 每隔 1 秒打印一次当前时间点的统计数据，便于分析热门时段的占屏比
+            val currentSec = danmaku.position / 1000
+            if (danmaku.position >= lastLogTime + 1000) {
+                if (rawCurrentArea > 0) {
+                    val rawRatio = rawCurrentArea.toFloat() / maxScreenArea
+                    val filteredRatio = currentArea.toFloat() / maxScreenArea
+                    logger.fInfo {
+                        "[DANMAKU_DENSITY_STATS] time=${currentSec}s, density=$density, scale=$scale, " +
+                        "rawRatio=${String.format("%.4f", rawRatio)}, " +
+                        "filteredRatio=${String.format("%.4f", filteredRatio)}, " +
+                        "rawCount=${rawQueue.size}, filteredCount=${queue.size}"
+                    }
+                }
+                lastLogTime = currentSec * 1000
+            }
+        }
+
+        return result
+    }
+
+    private fun estimateDanmakuArea(
+        danmaku: DanmakuItemData,
+        scale: Float
+    ): Long {
+        val actualTextSize = danmaku.textSize * scale
+        var charWidth = 0f
+        for (c in danmaku.content) {
+            charWidth += if (c.code in 0..127) 0.5f else 1.0f
+        }
+        val width = actualTextSize * charWidth
+        return (width * actualTextSize).toLong()
+    }
+
+    private fun syncDanmakuPlayerData(filteredList: List<DanmakuItemData>) {
+        val oldPlayer = danmakuPlayer ?: return
+        val currentPos = videoPlayer?.currentPosition ?: 0L
+        val wasPlaying = _uiState.value.playerState == PlayerState.Playing && videoPlayer?.isPlaying == true
+        oldPlayer.pause()
+
+        val newPlayer = DanmakuPlayer(SimpleRenderer())
+        danmakuPlayer = newPlayer
+        initDanmakuConfig()
+        newPlayer.updateData(filteredList)
+        newPlayer.seekTo(currentPos)
+        if (wasPlaying) {
+            newPlayer.start()
+        } else {
+            newPlayer.pause()
+        }
+        oldPlayer.release()
+    }
 
 
     private suspend fun loadCloudDanmakuFilterRules(
@@ -2516,11 +2779,12 @@ class VideoPlayerV3ViewModel(
     private suspend fun updateVideoProgressChapters() {
         val state = _uiState.value
         runCatching {
+            val playerDuration = withContext(Dispatchers.Main) { videoPlayer?.duration }
             val chapters = videoPlayRepository.getVideoProgressChapters(
                 aid = state.aid,
                 cid = state.cid,
                 durationMs = maxOf(
-                    videoPlayer?.duration?.coerceAtLeast(0L) ?: 0L,
+                    playerDuration?.coerceAtLeast(0L) ?: 0L,
                     seekerState.value.totalDuration
                 )
             )
@@ -2534,30 +2798,17 @@ class VideoPlayerV3ViewModel(
     private fun initDanmakuConfig() {
         val state = _uiState.value.danmakuState
         val danmakuTypes = state.enabledTypes
+        val density = state.density
         val area = state.area.takeIf { it > 0f } ?: Prefs.defaultDanmakuArea
         val scale = state.scale.takeIf { it > 0f } ?: Prefs.defaultDanmakuScale
         val factor = state.speedFactor.takeIf { it > 0f } ?: Prefs.defaultDanmakuSpeedFactor
 
-        danmakuTypeFilter.clear()
-        if (!danmakuTypes.contains(DanmakuType.All)) {
-            val types = DanmakuType.entries.toMutableList()
-            types.remove(DanmakuType.All)
-            types.removeAll(danmakuTypes)
-            val filterTypes = types.mapNotNull {
-                when (it) {
-                    DanmakuType.Rolling -> DanmakuItemData.DANMAKU_MODE_ROLLING
-                    DanmakuType.Top -> DanmakuItemData.DANMAKU_MODE_CENTER_TOP
-                    DanmakuType.Bottom -> DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM
-                    else -> null
-                }
-            }
-            filterTypes.forEach { danmakuTypeFilter.addFilterItem(it) }
-        }
+        updateDanmakuConfigFilters(danmakuTypes, density)
+
         danmakuConfig = danmakuConfig.copy(
             density = 120,
             textSizeScale = scale,
             screenPart = area,
-            dataFilter = listOf(danmakuTypeFilter),
             rollingSpeedFactor = factor
         )
         danmakuConfig.updateFilter()
@@ -2566,25 +2817,44 @@ class VideoPlayerV3ViewModel(
     }
 
     private fun updateDanmakuConfigTypeFilter(enabledDanmakuTypes: List<DanmakuType>) {
+        val density = _uiState.value.danmakuState.density
+        updateDanmakuConfigFilters(enabledDanmakuTypes, density)
+    }
+
+    private fun updateDanmakuConfigFilters(enabledDanmakuTypes: List<DanmakuType>, density: Float) {
         danmakuTypeFilter.clear()
 
-        if (!enabledDanmakuTypes.contains(DanmakuType.All)) {
-            val types = DanmakuType.entries.toMutableList()
-            types.remove(DanmakuType.All)
-            types.removeAll(enabledDanmakuTypes)
-            val filterTypes = types.mapNotNull {
-                when (it) {
-                    DanmakuType.Rolling -> DanmakuItemData.DANMAKU_MODE_ROLLING
-                    DanmakuType.Top -> DanmakuItemData.DANMAKU_MODE_CENTER_TOP
-                    DanmakuType.Bottom -> DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM
-                    else -> null
+        if (density <= 0f || enabledDanmakuTypes.isEmpty()) {
+            danmakuTypeFilter.addFilterItem(DanmakuItemData.DANMAKU_MODE_ROLLING)
+            danmakuTypeFilter.addFilterItem(DanmakuItemData.DANMAKU_MODE_CENTER_TOP)
+            danmakuTypeFilter.addFilterItem(DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM)
+        } else {
+            if (!enabledDanmakuTypes.contains(DanmakuType.All)) {
+                val types = DanmakuType.entries.toMutableList()
+                types.remove(DanmakuType.All)
+                types.removeAll(enabledDanmakuTypes)
+                val filterTypes = types.mapNotNull {
+                    when (it) {
+                        DanmakuType.Rolling -> DanmakuItemData.DANMAKU_MODE_ROLLING
+                        DanmakuType.Top -> DanmakuItemData.DANMAKU_MODE_CENTER_TOP
+                        DanmakuType.Bottom -> DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM
+                        else -> null
+                    }
                 }
+                filterTypes.forEach { danmakuTypeFilter.addFilterItem(it) }
             }
-            filterTypes.forEach { danmakuTypeFilter.addFilterItem(it) }
         }
-        logger.info { "Update danmaku type filters: ${danmakuTypeFilter.filterSet}" }
+
+        val filters = mutableListOf<com.kuaishou.akdanmaku.ecs.component.filter.DanmakuDataFilter>(danmakuTypeFilter)
+
+        danmakuConfig = danmakuConfig.copy(
+            dataFilter = filters
+        )
         danmakuConfig.updateFilter()
         danmakuPlayer?.updateConfig(danmakuConfig)
+
+        // 重新应用滚动速度，防止更新Config后速度重置
+        danmakuPlayer?.setDanmakuRollingSpeed(_uiState.value.danmakuState.speedFactor)
     }
 
     private fun updateDanmakuArea(area: Float) {
@@ -3162,6 +3432,7 @@ sealed interface DanmakuSettingAction {
     data class SetArea(val value: Float) : DanmakuSettingAction
     data class SetSpeedFactor(val value: Float) : DanmakuSettingAction
     data class SetMaskEnabled(val enabled: Boolean) : DanmakuSettingAction
+    data class SetDensity(val density: Float) : DanmakuSettingAction
     data class SetEnabledTypes(
         val types: List<DanmakuType>,
         val persist: Boolean = true

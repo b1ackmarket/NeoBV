@@ -286,6 +286,7 @@ dependencies {
     implementation(libs.rememberPreference)
     implementation(libs.slf4j.android.mvysny)
     implementation(project(mapOf("path" to ":bili-api")))
+    implementation(project(mapOf("path" to ":bili-api-grpc")))
     implementation(project(mapOf("path" to ":bili-subtitle")))
     implementation(project(mapOf("path" to ":bv-player")))
     testImplementation(androidx.room.testing)

@@ -145,6 +145,7 @@ data class DanmakuState(
     val maskEnabled: Boolean = false,
     val enabledTypes: List<DanmakuType> = emptyList(),
     val lastEnabledTypes: List<DanmakuType> = emptyList(),
+    val density: Float = 1.0f,
 )
 
 

@@ -34,6 +34,8 @@
 -keep class com.kuaishou.akdanmaku.ecs.component.* {
   <init>(...);
 }
+-keep class com.kuaishou.akdanmaku.** { *; }
+
 
 # okhttp
 -dontwarn org.bouncycastle.jsse.BCSSLParameters

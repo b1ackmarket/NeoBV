@@ -32,6 +32,19 @@ import kotlin.test.assertTrue
 class VideoPlayerV3ViewModelMetadataTest {
     @Test
     fun `same aid switch keeps publish date and play count text`() {
+        val sb = java.lang.StringBuilder()
+        sb.append("=== DanmakuFilter Reflection ===\n")
+        try {
+            val filterClass = Class.forName("com.kuaishou.akdanmaku.filter.DanmakuFilter")
+            sb.append("Class methods:\n")
+            filterClass.methods.forEach { m -> 
+                val p = m.parameterTypes.joinToString { it.simpleName }
+                sb.append("  ${m.returnType.simpleName} ${m.name}($p)\n") 
+            }
+            java.io.File("/Users/qinsher/Project/NeoBV-live-danmaku-blbl-rewrite/app/build/danmaku_filter_info.txt").writeText(sb.toString())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         val currentState = PlayerUiState(
             aid = 100L,
             cid = 10L,
@@ -213,7 +226,7 @@ class VideoPlayerV3ViewModelMetadataTest {
 
         val target = resolveAutoNextTarget(currentState)
 
-        assertEquals(AutoNextTarget.RelatedVideo(aid = 300L, cid = 40L, title = "相关视频"), target)
+        assertEquals(AutoNextTarget.RelatedVideo(aid = 300L, cid = 40L, title = "相关视频", cover = ""), target)
     }
 
     @Test
@@ -453,4 +466,5 @@ class VideoPlayerV3ViewModelMetadataTest {
         aiType = SubtitleAiType.Normal,
         aiStatus = SubtitleAiStatus.None
     )
+
 }

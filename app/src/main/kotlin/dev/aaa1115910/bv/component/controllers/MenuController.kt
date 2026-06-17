@@ -53,6 +53,7 @@ import dev.aaa1115910.bv.component.controllers.playermenu.PlayerStatsMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.PictureMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedMenuList
 import dev.aaa1115910.bv.entity.Audio
+
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.subtitle.translation.readSubtitleTranslationConfigFromPrefs
@@ -104,7 +105,9 @@ fun MenuController(
     onDanmakuSpeedFactorChange: (Float) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit = {},
+    onDanmakuDensityChange: (Float) -> Unit = {},
     onSubtitleChange: (Subtitle, SubtitleRole) -> Unit,
+
     onAiAudioTranslationChange: (String) -> Unit,
     onSubtitleSizeChange: (TextUnit) -> Unit,
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
@@ -143,6 +146,8 @@ fun MenuController(
                     onDanmakuSpeedFactorChange = onDanmakuSpeedFactorChange,
                     onDanmakuAreaChange = onDanmakuAreaChange,
                     onDanmakuMaskChange = onDanmakuMaskChange,
+                    onDanmakuDensityChange = onDanmakuDensityChange,
+
                     onSubtitleChange = onSubtitleChange,
                     onAiAudioTranslationChange = onAiAudioTranslationChange,
                     onSubtitleSizeChange = onSubtitleSizeChange,
@@ -170,6 +175,8 @@ fun MenuController(
     onDanmakuSpeedFactorChange: (Float) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit = {},
+    onDanmakuDensityChange: (Float) -> Unit = {},
+
     onSubtitleChange: (Subtitle, SubtitleRole) -> Unit,
     onAiAudioTranslationChange: (String) -> Unit,
     onSubtitleSizeChange: (TextUnit) -> Unit,
@@ -219,6 +226,8 @@ fun MenuController(
                     onDanmakuSpeedFactorChange = onDanmakuSpeedFactorChange,
                     onDanmakuAreaChange = onDanmakuAreaChange,
                     onDanmakuMaskChange = onDanmakuMaskChange,
+                    onDanmakuDensityChange = onDanmakuDensityChange,
+
                     onFocusStateChange = { focusState = it },
                     onSubtitleChange = onSubtitleChange,
                     onAiAudioTranslationChange = onAiAudioTranslationChange,
@@ -278,6 +287,8 @@ private fun MenuList(
     onDanmakuSpeedFactorChange: (Float) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit = {},
+    onDanmakuDensityChange: (Float) -> Unit = {},
+
     onSubtitleChange: (Subtitle, SubtitleRole) -> Unit,
     onAiAudioTranslationChange: (String) -> Unit,
     onSubtitleSizeChange: (TextUnit) -> Unit,
@@ -334,6 +345,7 @@ private fun MenuList(
                     currentSpeedFactor = uiState.danmakuState.speedFactor,
                     currentArea = uiState.danmakuState.area,
                     currentMaskEnabled = uiState.danmakuState.maskEnabled,
+                    currentDensity = uiState.danmakuState.density,
                     onDanmakuSwitchChange = onDanmakuSwitchChange,
                     onDanmakuSizeChange = onDanmakuSizeChange,
                     onDanmakuOpacityChange = onDanmakuOpacityChange,
@@ -341,8 +353,10 @@ private fun MenuList(
                     onDanmakuAreaChange = onDanmakuAreaChange,
                     onFocusStateChange = onFocusStateChange,
                     onDanmakuMaskChange = onDanmakuMaskChange,
+                    onDanmakuDensityChange = onDanmakuDensityChange,
                 )
             }
+
 
             VideoPlayerMenuNavItem.ClosedCaption -> {
                 ClosedCaptionMenuList(
@@ -411,7 +425,9 @@ enum class VideoPlayerDanmakuMenuItem(private val strRes: Int) {
     Opacity(R.string.video_player_menu_danmaku_opacity),
     SpeedFactor(R.string.video_player_menu_danmaku_speed_factor),
     Area(R.string.video_player_menu_danmaku_area),
+    Density(R.string.video_player_menu_danmaku_density),
     Mask(R.string.video_player_menu_danmaku_mask);
+
 
     fun getDisplayName(context: Context) = context.getString(strRes)
 }
@@ -434,6 +450,7 @@ enum class DanmakuType(private val strRes: Int) {
 
     fun getDisplayName(context: Context) = context.getString(strRes)
 }
+
 
 @Preview(device = "id:tv_1080p")
 @Composable
@@ -532,6 +549,8 @@ fun MenuControllerPreview() {
                     onDanmakuSpeedFactorChange = { currentDanmakuSpeedFactor = it },
                     onDanmakuAreaChange = { currentDanmakuArea = it },
                     onDanmakuMaskChange = { currentDanmakuMask = it },
+                    onDanmakuDensityChange = {},
+
                     onSubtitleChange = { subtitle, _ -> currentSubtitleId = subtitle.id },
                     onAiAudioTranslationChange = { },
                     onSubtitleSizeChange = { currentSubtitleFontSize = it },

@@ -153,13 +153,17 @@ class DanmakuFilterMatcher(
         .filter { it.isNotBlank() }
         .toSet()
 
-    fun blocks(data: DanmakuData): Boolean {
+    fun blocks(text: String, midHash: String): Boolean {
         if (!config.enabled) return false
-        if (userHashes.contains(data.midHash.lowercase())) return true
+        if (userHashes.contains(midHash.lowercase())) return true
 
-        val text = if (config.caseSensitive) data.text else data.text.lowercase()
-        if (keywordRules.any { text.contains(it) }) return true
-        return regexRules.any { it.containsMatchIn(data.text) }
+        val targetText = if (config.caseSensitive) text else text.lowercase()
+        if (keywordRules.any { targetText.contains(it) }) return true
+        return regexRules.any { it.containsMatchIn(text) }
+    }
+
+    fun blocks(data: DanmakuData): Boolean {
+        return blocks(data.text, data.midHash)
     }
 }
 

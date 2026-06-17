@@ -740,6 +740,13 @@
     <string name="video_info_time">投稿时间: %1$s</string>
     <string name="video_player_menu_danmaku_area">显示区域</string>
     <string name="video_player_menu_danmaku_mask">防遮挡</string>
+    <string name="video_player_menu_danmaku_density">弹幕密度</string>
+    <string name="danmaku_density_20">稀疏</string>
+    <string name="danmaku_density_40">较少</string>
+    <string name="danmaku_density_60">适中</string>
+    <string name="danmaku_density_80">较多</string>
+    <string name="danmaku_density_100">原始</string>
+
     <string name="video_player_menu_danmaku_opacity">不透明度</string>
     <string name="video_player_menu_danmaku_size">字体缩放</string>
     <string name="video_player_menu_danmaku_speed_factor">弹幕速度</string>

@@ -937,6 +937,9 @@ fun VideoPlayerController(
             onDanmakuMaskChange = { enabled ->
                 onDanmakuSettingChange(DanmakuSettingAction.SetMaskEnabled(enabled))
             },
+            onDanmakuDensityChange = { density ->
+                onDanmakuSettingChange(DanmakuSettingAction.SetDensity(density))
+            },
 
             onSubtitleChange = onSubtitleChange,
             onSubtitleSizeChange = { size ->

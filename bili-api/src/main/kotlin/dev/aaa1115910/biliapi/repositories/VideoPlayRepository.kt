@@ -575,4 +575,19 @@ class VideoPlayRepository(
         return list
     }
 
+    suspend fun getSingleSegmentDanmaku(
+        aid: Long,
+        cid: Long,
+        segmentIndex: Long
+    ): List<bilibili.community.service.dm.v1.DanmakuElem> {
+        val reply = runCatching {
+            danmakuStub?.dmSegMobile(bilibili.community.service.dm.v1.dmSegMobileReq {
+                pid = aid
+                oid = cid
+                type = 1
+                this.segmentIndex = segmentIndex
+            })
+        }.onFailure { handleGrpcException(it) }.getOrNull()
+        return reply?.elemsList ?: emptyList()
+    }
 }
