@@ -256,9 +256,9 @@ private fun PlayerCommentsPanel(
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         if (state.showSortToggle) {
-            sortFocusRequester.requestFocus()
+            requestFocusWithRetry(sortFocusRequester)
         } else {
-            focusRequester.requestFocus()
+            requestFocusWithRetry(focusRequester)
         }
     }
     LaunchedEffect(listState) {
