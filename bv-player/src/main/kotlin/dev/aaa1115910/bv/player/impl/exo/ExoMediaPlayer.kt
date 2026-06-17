@@ -370,16 +370,31 @@ class ExoMediaPlayer(
         }
 
     override val videoWidth: Int
-        get() = mPlayer?.videoSize?.width ?: 0
+        get() {
+            val videoSize = mPlayer?.videoSize
+            val rotation = videoSize?.unappliedRotationDegrees ?: 0
+            val w = videoSize?.width ?: 0
+            val h = videoSize?.height ?: 0
+            return if (rotation == 90 || rotation == 270) h else w
+        }
     override val videoHeight: Int
-        get() = mPlayer?.videoSize?.height ?: 0
+        get() {
+            val videoSize = mPlayer?.videoSize
+            val rotation = videoSize?.unappliedRotationDegrees ?: 0
+            val w = videoSize?.width ?: 0
+            val h = videoSize?.height ?: 0
+            return if (rotation == 90 || rotation == 270) w else h
+        }
 
     override fun onPlayerError(error: PlaybackException) {
         mPlayerEventListener?.onError(error)
     }
 
     override fun onVideoSizeChanged(videoSize: VideoSize) {
-        mPlayerEventListener?.onVideoSizeChanged(videoSize.width, videoSize.height)
+        val rotation = videoSize.unappliedRotationDegrees
+        val width = if (rotation == 90 || rotation == 270) videoSize.height else videoSize.width
+        val height = if (rotation == 90 || rotation == 270) videoSize.width else videoSize.height
+        mPlayerEventListener?.onVideoSizeChanged(width, height)
     }
 
     override fun onDroppedVideoFrames(
