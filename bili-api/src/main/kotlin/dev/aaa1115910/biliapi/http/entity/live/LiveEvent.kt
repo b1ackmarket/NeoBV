@@ -12,7 +12,11 @@ data class DanmakuEvent(
     val mode: Int = 1,
     val eventTimeMs: Long = System.currentTimeMillis(),
     val sendTimeMs: Long? = null,
-    val rndTimeMs: Long? = null
+    val rndTimeMs: Long? = null,
+    val emoticonUrl: String? = null,
+    val rawJson: String? = null,
+    val userFace: String? = null,
+    val emotes: Map<String, String> = emptyMap()
 ) : LiveEvent
 
 data class SuperChatEvent(

@@ -16,6 +16,17 @@ import androidx.compose.ui.viewinterop.AndroidView
 import dev.aaa1115910.biliapi.http.entity.live.DanmakuEvent
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.component.controllers.LiveDanmakuMenuState
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import androidx.core.graphics.drawable.toBitmap
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -105,6 +116,58 @@ class LiveDanmakuView @JvmOverloads constructor(
     private var playing = false
     private var pauseStartedAtMs = 0L
     private val items = mutableListOf<RenderItem>()
+    
+    private var viewScope: CoroutineScope? = null
+    private val emoticonCache = mutableMapOf<String, Bitmap>()
+    private val loadingUrls = mutableSetOf<String>()
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        viewScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        viewScope?.cancel()
+        viewScope = null
+        emoticonCache.forEach { (_, bitmap) ->
+            bitmap.recycle()
+        }
+        emoticonCache.clear()
+        loadingUrls.clear()
+    }
+
+    private fun loadEmoticon(url: String) {
+        if (emoticonCache.containsKey(url) || loadingUrls.contains(url)) return
+        loadingUrls.add(url)
+        val scope = viewScope ?: return
+        val request = ImageRequest.Builder(context)
+            .data(url)
+            .allowHardware(false)
+            .build()
+        scope.launch {
+            runCatching {
+                val result = context.imageLoader.execute(request)
+                if (result is SuccessResult) {
+                    val drawable = result.drawable
+                    val bitmap = try {
+                        drawable.toBitmap(
+                            width = drawable.intrinsicWidth.takeIf { it > 0 } ?: 120,
+                            height = drawable.intrinsicHeight.takeIf { it > 0 } ?: 120,
+                            config = Bitmap.Config.ARGB_8888
+                        )
+                    } catch (e: Exception) {
+                        (drawable as? BitmapDrawable)?.bitmap
+                    }
+                    if (bitmap != null) {
+                        emoticonCache[url] = bitmap
+                        postInvalidateOnAnimation()
+                    }
+                }
+            }
+            loadingUrls.remove(url)
+        }
+    }
 
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = Typeface.DEFAULT_BOLD
@@ -147,7 +210,7 @@ class LiveDanmakuView @JvmOverloads constructor(
     fun append(item: LiveDanmakuOverlayItem, delayMs: Long = 0L) {
         val config = state ?: return
         if (!config.allows(item.event)) return
-        if (width <= 0 || height <= 0 || item.event.content.isBlank()) return
+        if (width <= 0 || height <= 0 || (item.event.content.isBlank() && item.event.emoticonUrl.isNullOrBlank() && item.event.emotes.isEmpty())) return
         items += item.toRenderItem(
             nowMs = SystemClock.uptimeMillis(),
             delayMs = delayMs.coerceAtLeast(0L),
@@ -201,9 +264,35 @@ class LiveDanmakuView @JvmOverloads constructor(
         val textSizePx = sp(18f * state.scale.coerceIn(0.5f, 4f))
         textPaint.textSize = textSizePx
         strokePaint.textSize = textSizePx
-        val textWidth = textPaint.measureText(event.content)
         val fontMetrics = textPaint.fontMetrics
         val laneHeight = (fontMetrics.descent - fontMetrics.ascent + dp(8f)).coerceAtLeast(dp(22f))
+
+        val inlineSegments = buildInlineSegments(
+            content = event.content,
+            emotes = event.emotes
+        )
+        val pureEmoticonUrl = resolvePureEmoticonUrl(
+            content = event.content,
+            emoticonUrl = event.emoticonUrl,
+            segments = inlineSegments
+        )
+        val isPureEmoticon = !pureEmoticonUrl.isNullOrBlank()
+        val textWidth = if (isPureEmoticon) {
+            estimateInlineImageWidth(
+                url = pureEmoticonUrl,
+                heightPx = textSizePx * 1.2f,
+                fallbackWidth = laneHeight
+            )
+        } else {
+            measureInlineSegmentsWidth(
+                segments = inlineSegments,
+                textSizePx = textSizePx,
+                fallbackImageWidth = laneHeight
+            )
+        }
+
+        pureEmoticonUrl?.let(::loadEmoticon)
+        event.emotes.values.forEach { url -> loadEmoticon(url) }
         val maxLaneCount = max(1, ((height * state.area.coerceIn(0.05f, 1f)) / laneHeight).toInt())
         val requestedStartAtMs = nowMs + delayMs
         val durationMs = when (event.displayMode) {
@@ -253,7 +342,9 @@ class LiveDanmakuView @JvmOverloads constructor(
             laneHeight = laneHeight,
             textWidth = textWidth,
             textSizePx = textSizePx,
-            displayMode = event.displayMode
+            displayMode = event.displayMode,
+            pureEmoticonUrl = pureEmoticonUrl,
+            inlineSegments = inlineSegments
         )
     }
 
@@ -344,8 +435,167 @@ class LiveDanmakuView @JvmOverloads constructor(
         }
         val maxY = (height.toFloat() - dp(8f)).coerceAtLeast(item.textSizePx)
         val y = unclampedY.coerceIn(item.textSizePx, maxY)
-        canvas.drawText(item.text, x, y, strokePaint)
-        canvas.drawText(item.text, x, y, textPaint)
+        
+        val bitmap = item.pureEmoticonUrl?.let { emoticonCache[it] }
+
+        if (!item.pureEmoticonUrl.isNullOrBlank() && bitmap != null) {
+            val laneTop = when (item.displayMode) {
+                DisplayMode.Bottom -> height - (item.lane + 1) * item.laneHeight
+                else -> item.lane * item.laneHeight
+            }
+            val laneCenterY = laneTop + item.laneHeight / 2f
+            val destHeight = item.textSizePx * 1.2f
+            val destWidth = destHeight * (bitmap.width.toFloat() / bitmap.height.toFloat())
+            val destLeft = x
+            val destTop = laneCenterY - destHeight / 2f
+            val destRight = destLeft + destWidth
+            val destBottom = laneCenterY + destHeight / 2f
+            val destRect = android.graphics.RectF(destLeft, destTop, destRight, destBottom)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                alpha = Color.alpha(item.color)
+            }
+            canvas.drawBitmap(bitmap, null, destRect, paint)
+        } else {
+            drawInlineSegments(
+                canvas = canvas,
+                item = item,
+                startX = x,
+                baselineY = y
+            )
+        }
+    }
+
+    private fun drawInlineSegments(
+        canvas: Canvas,
+        item: RenderItem,
+        startX: Float,
+        baselineY: Float
+    ) {
+        var cursorX = startX
+        val laneTop = baselineY - item.textSizePx
+        val laneCenterY = laneTop + item.laneHeight / 2f
+        item.inlineSegments.forEach { segment ->
+            when (segment) {
+                is InlineSegment.Text -> {
+                    if (segment.value.isNotEmpty()) {
+                        canvas.drawText(segment.value, cursorX, baselineY, strokePaint)
+                        canvas.drawText(segment.value, cursorX, baselineY, textPaint)
+                        cursorX += textPaint.measureText(segment.value)
+                    }
+                }
+
+                is InlineSegment.Emote -> {
+                    val bitmap = emoticonCache[segment.url]
+                    val destHeight = item.textSizePx * 1.2f
+                    val destWidth = estimateInlineImageWidth(
+                        url = segment.url,
+                        heightPx = destHeight,
+                        fallbackWidth = item.laneHeight
+                    )
+                    if (bitmap != null) {
+                        val destRect = android.graphics.RectF(
+                            cursorX,
+                            laneCenterY - destHeight / 2f,
+                            cursorX + destWidth,
+                            laneCenterY + destHeight / 2f
+                        )
+                        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            alpha = Color.alpha(item.color)
+                        }
+                        canvas.drawBitmap(bitmap, null, destRect, paint)
+                    } else {
+                        canvas.drawText(segment.token, cursorX, baselineY, strokePaint)
+                        canvas.drawText(segment.token, cursorX, baselineY, textPaint)
+                    }
+                    cursorX += destWidth
+                }
+            }
+        }
+    }
+
+    private fun buildInlineSegments(
+        content: String,
+        emotes: Map<String, String>
+    ): List<InlineSegment> {
+        if (content.isBlank()) return emptyList()
+        if (emotes.isEmpty()) return listOf(InlineSegment.Text(content))
+
+        val sortedEmotes = emotes.entries
+            .filter { it.key.isNotBlank() && it.value.isNotBlank() }
+            .sortedByDescending { it.key.length }
+
+        if (sortedEmotes.isEmpty()) return listOf(InlineSegment.Text(content))
+
+        val segments = mutableListOf<InlineSegment>()
+        var cursor = 0
+        while (cursor < content.length) {
+            val next = sortedEmotes.mapNotNull { entry ->
+                val start = content.indexOf(entry.key, startIndex = cursor)
+                if (start >= 0) Triple(start, entry.key, entry.value) else null
+            }.minByOrNull { it.first }
+
+            if (next == null) {
+                segments += InlineSegment.Text(content.substring(cursor))
+                break
+            }
+
+            val (start, token, url) = next
+            if (start > cursor) {
+                segments += InlineSegment.Text(content.substring(cursor, start))
+            }
+            segments += InlineSegment.Emote(token = token, url = url)
+            cursor = start + token.length
+        }
+
+        return segments.filterNot { it is InlineSegment.Text && it.value.isEmpty() }
+    }
+
+    private fun resolvePureEmoticonUrl(
+        content: String,
+        emoticonUrl: String?,
+        segments: List<InlineSegment>
+    ): String? {
+        if (!emoticonUrl.isNullOrBlank()) {
+            val trimmed = content.trim()
+            if (trimmed.isBlank()) return emoticonUrl
+            if (segments.size == 1 && segments.firstOrNull() is InlineSegment.Emote) return emoticonUrl
+        }
+        if (segments.size == 1) {
+            val only = segments.firstOrNull() as? InlineSegment.Emote ?: return null
+            return only.url
+        }
+        return null
+    }
+
+    private fun measureInlineSegmentsWidth(
+        segments: List<InlineSegment>,
+        textSizePx: Float,
+        fallbackImageWidth: Float
+    ): Float {
+        if (segments.isEmpty()) return textPaint.measureText("")
+        return segments.sumOf { segment ->
+            when (segment) {
+                is InlineSegment.Text -> textPaint.measureText(segment.value).toDouble()
+                is InlineSegment.Emote -> estimateInlineImageWidth(
+                    url = segment.url,
+                    heightPx = textSizePx * 1.2f,
+                    fallbackWidth = fallbackImageWidth
+                ).toDouble()
+            }
+        }.toFloat()
+    }
+
+    private fun estimateInlineImageWidth(
+        url: String?,
+        heightPx: Float,
+        fallbackWidth: Float
+    ): Float {
+        val bitmap = url?.let { emoticonCache[it] }
+        return if (bitmap != null) {
+            heightPx * (bitmap.width.toFloat() / bitmap.height.toFloat())
+        } else {
+            fallbackWidth
+        }
     }
 
     private fun trim(nowMs: Long) {
@@ -373,9 +623,16 @@ class LiveDanmakuView @JvmOverloads constructor(
         val laneHeight: Float,
         val textWidth: Float,
         val textSizePx: Float,
-        val displayMode: DisplayMode
+        val displayMode: DisplayMode,
+        val pureEmoticonUrl: String? = null,
+        val inlineSegments: List<InlineSegment> = emptyList()
     ) {
         fun isExpired(nowMs: Long): Boolean = nowMs - startAtMs > durationMs
+    }
+
+    private sealed interface InlineSegment {
+        data class Text(val value: String) : InlineSegment
+        data class Emote(val token: String, val url: String) : InlineSegment
     }
 
     private companion object {

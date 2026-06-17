@@ -326,6 +326,32 @@ object LiveDataWebSocket {
             val sendTimeMs = dataJson["send_time"]?.jsonPrimitive?.longOrNull
                 ?.takeIf { it > 0L }
                 ?.let { normalizeTimestampMs(it) }
+            val emoticon = extra?.firstNotNullOfOrNull { element ->
+                element.jsonObjectOrNull()?.takeIf { it.containsKey("emoticon_unique") }
+            }
+            val emoticonUrl = (emoticon?.get("gif_url") ?: emoticon?.get("url"))
+                ?.jsonPrimitive
+                ?.contentOrNull
+                ?.replace("http://", "https://")
+            val rawJsonStr = if (danmakuContent.contains("[")) dataJson.toString() else null
+            val userFace = contentUser
+                ?.get("base")
+                ?.jsonObjectOrNull()
+                ?.get("face")
+                ?.jsonPrimitive
+                ?.contentOrNull
+                ?.replace("http://", "https://")
+
+            val emots = mutableMapOf<String, String>()
+            if (!emoticonUrl.isNullOrBlank()) {
+                emots[danmakuContent] = emoticonUrl
+            }
+            contentExtra?.get("emots")?.jsonObjectOrNull()?.forEach { (key, element) ->
+                val emoteUrl = element.jsonObjectOrNull()?.get("url")?.jsonPrimitive?.contentOrNull
+                if (!emoteUrl.isNullOrBlank()) {
+                    emots[key] = emoteUrl.replace("http://", "https://")
+                }
+            }
 
             DanmakuEvent(
                 content = danmakuContent,
@@ -345,7 +371,11 @@ object LiveDataWebSocket {
                 mode = mode,
                 eventTimeMs = rndTimeMs ?: sendTimeMs ?: System.currentTimeMillis(),
                 sendTimeMs = sendTimeMs,
-                rndTimeMs = rndTimeMs
+                rndTimeMs = rndTimeMs,
+                emoticonUrl = emoticonUrl,
+                rawJson = rawJsonStr,
+                userFace = userFace,
+                emotes = emots
             )
         }.onFailure {
             logger.warn { "Parse live danmaku failed: ${it.message}" }

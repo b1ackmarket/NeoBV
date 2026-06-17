@@ -302,6 +302,38 @@ class LiveDataWebSocketTest {
         assertEquals(1_700_000_004_000L, event.eventTimeMs)
     }
 
+    @Test
+    fun `live event parser reads emoticon danmaku`() = runBlocking {
+        val packet = liveCommandPacket(
+            """
+            {
+              "cmd": "DANMU_MSG",
+              "info": [
+                [
+                  0, 1, 25, 16777215, 1700000003, 0, 0, "", 0, 0, 0, "", 1,
+                  {
+                    "url": "http://i0.hdslb.com/bfs/live/test_emoticon.png",
+                    "gif_url": "http://i0.hdslb.com/bfs/live/test_emoticon.gif",
+                    "emoticon_unique": "emoji_test",
+                    "width": 60,
+                    "height": 60
+                  }
+                ],
+                "表情弹幕内容",
+                [111, "表情用户"]
+              ]
+            }
+            """.trimIndent()
+        )
+
+        val event = assertIs<DanmakuEvent>(LiveDataWebSocket.handleLiveEventData(packet).single())
+
+        assertEquals("表情弹幕内容", event.content)
+        assertEquals(111L, event.mid)
+        assertEquals("表情用户", event.username)
+        assertEquals("https://i0.hdslb.com/bfs/live/test_emoticon.gif", event.emoticonUrl)
+    }
+
     private fun liveCommandPacket(json: String): ByteArray {
         return livePacket(op = 5, version = 0, body = json.toByteArray())
     }

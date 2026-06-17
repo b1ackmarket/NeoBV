@@ -1509,11 +1509,16 @@ private fun DanmakuEvent.toLiveCommentItem(prefix: String = "live"): PlayerComme
         medalName?.takeIf { it.isNotBlank() },
         medalLevel?.takeIf { it > 0 }?.toString()
     ).joinToString(" ").takeIf { it.isNotBlank() }
+    val emotesList = emotes.map { (text, url) ->
+        dev.aaa1115910.bv.entity.PlayerCommentEmote(text = text, url = url)
+    }
     return PlayerCommentItem(
         id = "$prefix-${eventTimeMs}-${mid}-${content.hashCode()}",
         mid = mid,
         username = username,
+        avatar = userFace ?: "",
         message = content,
+        emotes = emotesList,
         timeText = eventTimeMs.toLiveChatTimeText(),
         badgeText = badge,
         color = color
