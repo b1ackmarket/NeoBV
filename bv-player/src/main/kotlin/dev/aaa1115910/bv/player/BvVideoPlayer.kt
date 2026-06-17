@@ -1,5 +1,6 @@
 package dev.aaa1115910.bv.player
 
+import android.view.LayoutInflater
 import androidx.annotation.OptIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -22,10 +23,10 @@ fun BvVideoPlayer(
         AndroidView(
             modifier = modifier.fillMaxSize(),
             factory = { ctx ->
-                PlayerView(ctx).apply {
+                val playerView = LayoutInflater.from(ctx).inflate(R.layout.bv_texture_player_view, null) as PlayerView
+                playerView.apply {
                     player = videoPlayer.mPlayer
                     this.resizeMode = resizeMode
-                    useController = false
                     if (keepScreenAwake) {
                         keepScreenOn = true
                     }
