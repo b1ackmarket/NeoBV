@@ -142,12 +142,14 @@ fun LiveMenuController(
                                 )
 
                                 LiveMenuNavItem.Danmaku -> DanmakuMenuList(
+                                    modifier = Modifier.padding(horizontal = 8.dp),
                                     currentEnabledTypes = danmakuState.enabledTypes,
                                     currentScale = danmakuState.scale,
                                     currentOpacity = danmakuState.opacity,
                                     currentSpeedFactor = danmakuState.speedFactor,
                                     currentArea = danmakuState.area,
                                     currentMaskEnabled = danmakuState.maskEnabled,
+                                    showMaskAndDensity = false,
                                     onDanmakuSwitchChange = {
                                         onDanmakuStateChange(danmakuState.copy(enabledTypes = it))
                                     },

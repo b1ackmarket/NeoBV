@@ -57,6 +57,7 @@ fun DanmakuMenuList(
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit,
     onDanmakuDensityChange: (Float) -> Unit = {},
+    showMaskAndDensity: Boolean = true,
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
     val context = LocalContext.current
@@ -64,9 +65,19 @@ fun DanmakuMenuList(
     val restorerFocusRequester = remember { FocusRequester() }
 
     val focusRequester = remember { FocusRequester() }
-    val visibleMenuItems = VideoPlayerDanmakuMenuItem.entries
-    var selectedDanmakuMenuItem by remember { mutableStateOf(VideoPlayerDanmakuMenuItem.Switch) }
-    val menuItemRequesters = remember {
+    val visibleMenuItems = remember(showMaskAndDensity) {
+        if (showMaskAndDensity) {
+            VideoPlayerDanmakuMenuItem.entries
+        } else {
+            VideoPlayerDanmakuMenuItem.entries.filter {
+                it != VideoPlayerDanmakuMenuItem.Mask && it != VideoPlayerDanmakuMenuItem.Density
+            }
+        }
+    }
+    var selectedDanmakuMenuItem by remember(visibleMenuItems) {
+        mutableStateOf(visibleMenuItems.firstOrNull() ?: VideoPlayerDanmakuMenuItem.Switch)
+    }
+    val menuItemRequesters = remember(visibleMenuItems) {
         mutableStateListOf<FocusRequester>().apply {
             addAll(visibleMenuItems.map { FocusRequester() })
         }
