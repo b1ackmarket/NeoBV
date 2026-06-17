@@ -36,7 +36,7 @@ fun RadioMenuList(
             addAll(items.map { FocusRequester() })
         }
     }
-    LaunchedEffect(requestFocusWhen, selected, items) {
+    LaunchedEffect(requestFocusWhen) {
         if (requestFocusWhen && items.isNotEmpty()) {
             itemFocusRequesters.getOrNull(selected.coerceIn(0, items.lastIndex))
                 ?.requestFocus()

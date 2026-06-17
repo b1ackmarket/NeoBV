@@ -36,12 +36,9 @@ fun CheckBoxMenuList(
             addAll(items.map { FocusRequester() })
         }
     }
-    LaunchedEffect(requestFocusWhen, selected, items) {
+    LaunchedEffect(requestFocusWhen) {
         if (requestFocusWhen && items.isNotEmpty()) {
-            val targetIndex = selected.firstOrNull()
-                ?.coerceIn(0, items.lastIndex)
-                ?: 0
-            itemFocusRequesters.getOrNull(targetIndex)?.requestFocus()
+            itemFocusRequesters.getOrNull(0)?.requestFocus()
                 ?: focusRequester.requestFocus()
         }
     }

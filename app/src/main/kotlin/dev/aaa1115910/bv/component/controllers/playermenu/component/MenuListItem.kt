@@ -68,18 +68,7 @@ fun MenuListItem(
             .onFocusChanged {
                 hasFocus = it.hasFocus
                 if (it.hasFocus) onFocus()
-            }
-            .then(
-                if (selected && !hasFocus) {
-                    Modifier.border(
-                        width = 2.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
-                        shape = RoundedCornerShape(18.dp)
-                    )
-                } else {
-                    Modifier
-                }
-            ),
+            },
         selected = selected,
         onClick = onClick,
         headlineContent = {
