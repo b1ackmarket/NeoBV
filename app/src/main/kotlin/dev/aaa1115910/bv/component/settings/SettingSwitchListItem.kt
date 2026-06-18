@@ -15,10 +15,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Switch
-import androidx.tv.material3.SwitchDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.touchClick
@@ -33,14 +33,10 @@ fun SettingSwitchListItem(
     onCheckedChange: (Boolean) -> Unit
 ) {
     var hasFocus by remember { mutableStateOf(defaultHasFocus) }
-    var switchChecked by remember { mutableStateOf(checked) }
+    var switchChecked by remember(checked) { mutableStateOf(checked) }
     val toggleChecked = {
         switchChecked = !switchChecked
         onCheckedChange(switchChecked)
-    }
-
-    LaunchedEffect(checked) {
-        switchChecked = checked
     }
 
     ListItem(
