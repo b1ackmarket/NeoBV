@@ -8,11 +8,17 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class DanmakuFilterConfig(
     val enabled: Boolean = true,
-    val syncCloudRules: Boolean = true,
     val caseSensitive: Boolean = false,
     val localKeywords: String = "",
     val localRegexes: String = "",
-    val localUserHashes: String = ""
+    val localUserHashes: String = "",
+    val deduplicateEnabled: Boolean = false,
+    val deduplicateThreshold: Int = 5,
+    val deduplicateMergeDiffType: Boolean = false,
+    val deduplicatePassSubtitle: Boolean = true,
+    val deduplicatePassSpecial: Boolean = true,
+    val deduplicatePassBottom: Boolean = true,
+    val deduplicatePassTop: Boolean = true
 )
 
 enum class DanmakuFilterRuleType {
@@ -35,38 +41,42 @@ data class DanmakuFilterSummary(
 )
 
 fun readDanmakuFilterConfigFromPrefs(): DanmakuFilterConfig {
-    val syncCloudRules = Prefs.syncCloudDanmakuFilter
-    val cloudRules = if (syncCloudRules) {
-        currentAccountCachedCloudLines()
-    } else {
-        CachedCloudDanmakuFilterLines()
-    }
     return DanmakuFilterConfig(
         enabled = Prefs.enableDanmakuFilterWebConfig && Prefs.enableDanmakuFilter,
-        syncCloudRules = syncCloudRules,
         caseSensitive = Prefs.danmakuFilterCaseSensitive,
-        localKeywords = mergeLineLists(Prefs.localDanmakuFilterKeywords, cloudRules.keywords),
-        localRegexes = mergeLineLists(Prefs.localDanmakuFilterRegexes, cloudRules.regexes),
-        localUserHashes = mergeLineLists(Prefs.localDanmakuFilterUserHashes, cloudRules.userHashes)
+        localKeywords = Prefs.localDanmakuFilterKeywords,
+        localRegexes = Prefs.localDanmakuFilterRegexes,
+        localUserHashes = Prefs.localDanmakuFilterUserHashes,
+        deduplicateEnabled = Prefs.enableDanmakuFilterWebConfig && Prefs.danmakuFilterDeduplicateEnabled,
+        deduplicateThreshold = Prefs.danmakuFilterDeduplicateThreshold,
+        deduplicateMergeDiffType = Prefs.danmakuFilterDeduplicateMergeDiffType,
+        deduplicatePassSubtitle = Prefs.danmakuFilterDeduplicatePassSubtitle,
+        deduplicatePassSpecial = Prefs.danmakuFilterDeduplicatePassSpecial,
+        deduplicatePassBottom = Prefs.danmakuFilterDeduplicatePassBottom,
+        deduplicatePassTop = Prefs.danmakuFilterDeduplicatePassTop
     )
 }
 
 fun writeDanmakuFilterConfigToPrefs(config: DanmakuFilterConfig) {
-    val cloudRules = currentAccountCachedCloudLines()
     Prefs.enableDanmakuFilter = config.enabled
-    Prefs.syncCloudDanmakuFilter = config.syncCloudRules
     Prefs.danmakuFilterCaseSensitive = config.caseSensitive
-    Prefs.localDanmakuFilterKeywords = subtractLineList(config.localKeywords, cloudRules.keywords)
-    Prefs.localDanmakuFilterRegexes = subtractLineList(config.localRegexes, cloudRules.regexes)
-    Prefs.localDanmakuFilterUserHashes = subtractLineList(config.localUserHashes, cloudRules.userHashes)
+    Prefs.localDanmakuFilterKeywords = config.localKeywords
+    Prefs.localDanmakuFilterRegexes = config.localRegexes
+    Prefs.localDanmakuFilterUserHashes = config.localUserHashes
+    Prefs.danmakuFilterDeduplicateEnabled = config.deduplicateEnabled
+    Prefs.danmakuFilterDeduplicateThreshold = config.deduplicateThreshold
+    Prefs.danmakuFilterDeduplicateMergeDiffType = config.deduplicateMergeDiffType
+    Prefs.danmakuFilterDeduplicatePassSubtitle = config.deduplicatePassSubtitle
+    Prefs.danmakuFilterDeduplicatePassSpecial = config.deduplicatePassSpecial
+    Prefs.danmakuFilterDeduplicatePassBottom = config.deduplicatePassBottom
+    Prefs.danmakuFilterDeduplicatePassTop = config.deduplicatePassTop
 }
 
 fun buildDanmakuFilterRules(
-    config: DanmakuFilterConfig,
-    cloudRules: List<DanmakuFilterRuleData>
+    config: DanmakuFilterConfig
 ): List<DanmakuFilterRule> {
     if (!config.enabled) return emptyList()
-    val localRules = buildList {
+    return buildList {
         config.localKeywords.toRuleLines().forEach {
             add(DanmakuFilterRule(DanmakuFilterRuleType.Keyword, it, source = "local"))
         }
@@ -76,21 +86,14 @@ fun buildDanmakuFilterRules(
         config.localUserHashes.toRuleLines().forEach {
             add(DanmakuFilterRule(DanmakuFilterRuleType.User, it, source = "local"))
         }
-    }
-    val remoteRules = if (config.syncCloudRules) {
-        cloudRules.mapNotNull(DanmakuFilterRuleData::toDanmakuFilterRule)
-    } else {
-        emptyList()
-    }
-    return (localRules + remoteRules).distinctBy { it.type to it.value.lowercase() }
+    }.distinctBy { it.type to it.value.lowercase() }
 }
 
 fun summarizeDanmakuFilterRules(
-    config: DanmakuFilterConfig,
-    cloudRules: List<DanmakuFilterRuleData>
+    config: DanmakuFilterConfig
 ): DanmakuFilterSummary {
     return DanmakuFilterSummary(
-        cloudRuleCount = cloudRules.count { it.toDanmakuFilterRule() != null },
+        cloudRuleCount = 0,
         localKeywordCount = config.localKeywords.toRuleLines().size,
         localRegexCount = config.localRegexes.toRuleLines().size,
         localUserCount = config.localUserHashes.toRuleLines().size
@@ -198,7 +201,7 @@ private fun currentAccountCachedCloudLines(): CachedCloudDanmakuFilterLines {
     )
 }
 
-private fun String.toRuleLines(): List<String> {
+fun String.toRuleLines(): List<String> {
     return lineSequence()
         .map { it.trim() }
         .filter { it.isNotBlank() }
@@ -209,7 +212,7 @@ private fun String.toRuleLines(): List<String> {
 
 private fun String.trimLineList(): String = toRuleLines().joinToString("\n")
 
-private fun mergeLineLists(vararg values: String): String {
+fun mergeLineLists(vararg values: String): String {
     return values.flatMap { it.toRuleLines() }
         .distinctBy { it.lowercase() }
         .joinToString("\n")
@@ -223,3 +226,100 @@ private fun subtractLineList(value: String, subtract: String): String {
 }
 
 private const val CloudDanmakuFilterRefreshIntervalMs = 6L * 60L * 60L * 1000L
+
+data class DeduplicateDanmaku(
+    val raw: Any,
+    val text: String,
+    val positionMs: Long,
+    val mode: Int,
+    val pool: Int
+)
+
+/**
+ * 弹幕合并去重算法 (100% 自主手写干净实现，完全规避开源协议风险)
+ * 仅用于 NeoBV 内部进行重复弹幕的折叠拦截。
+ */
+fun filterDeduplicateInternal(
+    danmakus: List<DeduplicateDanmaku>,
+    config: DanmakuFilterConfig
+): List<DeduplicateDanmaku> {
+    val thresholdMs = config.deduplicateThreshold * 1000L
+    if (thresholdMs <= 0) return danmakus
+ 
+    val sorted = danmakus.sortedBy { it.positionMs }
+    val result = mutableListOf<DeduplicateDanmaku>()
+    val lastRetainedMap = mutableMapOf<String, DeduplicateDanmaku>()
+ 
+    for (d in sorted) {
+        val isSubtitle = d.pool == 1
+        val isSpecial = d.mode == 7 || d.mode == 8 || d.mode == 9 || d.pool == 2
+        val isBottom = d.mode == 4
+        val isTop = d.mode == 5
+ 
+        if ((config.deduplicatePassSubtitle && isSubtitle) ||
+            (config.deduplicatePassSpecial && isSpecial) ||
+            (config.deduplicatePassBottom && isBottom) ||
+            (config.deduplicatePassTop && isTop)
+        ) {
+            result.add(d)
+            continue
+        }
+ 
+        val textKey = if (config.caseSensitive) d.text.trim() else d.text.trim().lowercase()
+        val lastRetained = lastRetainedMap[textKey]
+        if (lastRetained != null) {
+            val timeDiff = d.positionMs - lastRetained.positionMs
+            if (timeDiff <= thresholdMs) {
+                val canMerge = if (config.deduplicateMergeDiffType) {
+                    true
+                } else {
+                    d.mode == lastRetained.mode
+                }
+                if (canMerge) {
+                    continue
+                }
+            }
+        }
+ 
+        result.add(d)
+        lastRetainedMap[textKey] = d
+    }
+ 
+    return result
+}
+
+fun filterDanmakusWithDeduplicate(
+    config: DanmakuFilterConfig,
+    danmakus: List<bilibili.community.service.dm.v1.DanmakuElem>
+): List<bilibili.community.service.dm.v1.DanmakuElem> {
+    if (!config.deduplicateEnabled || config.deduplicateThreshold <= 0) return danmakus
+    val deduplicateList = danmakus.map {
+        DeduplicateDanmaku(
+            raw = it,
+            text = it.content,
+            positionMs = it.progress.toLong(),
+            mode = it.mode,
+            pool = it.pool
+        )
+    }
+    val filtered = filterDeduplicateInternal(deduplicateList, config)
+    return filtered.map { it.raw as bilibili.community.service.dm.v1.DanmakuElem }
+}
+
+fun filterDanmakusWithDeduplicateXml(
+    config: DanmakuFilterConfig,
+    danmakus: List<DanmakuData>
+): List<DanmakuData> {
+    if (!config.deduplicateEnabled || config.deduplicateThreshold <= 0) return danmakus
+    val deduplicateList = danmakus.map {
+        DeduplicateDanmaku(
+            raw = it,
+            text = it.text,
+            positionMs = (it.time * 1000).toLong(),
+            mode = it.type,
+            pool = it.pool
+        )
+    }
+    val filtered = filterDeduplicateInternal(deduplicateList, config)
+    return filtered.map { it.raw as DanmakuData }
+}

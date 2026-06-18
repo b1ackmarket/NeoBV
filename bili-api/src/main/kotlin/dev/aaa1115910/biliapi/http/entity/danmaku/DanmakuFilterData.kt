@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 data class DanmakuFilterData(
     val rule: List<DanmakuFilterRuleData> = emptyList(),
     val toast: String = "",
-    val valid: Boolean = true,
+    val valid: Int = 0,
     val ver: Long = 0L
 )
 

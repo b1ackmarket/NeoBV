@@ -87,7 +87,7 @@ NeoBV 基于 `Kotlin`、`Jetpack Compose for TV`、`Media3` 构建，目标是�
 ![NeoBV 播放设置](assets/设置-播放设置.jpg)
 ![NeoBV 界面设置](assets/设置-界面设置.jpg)
 ![NeoBV Cookies 导入导出](assets/设置-导入导出cookies.jpg)
-- **细致的系统设置**：包括播放结束动作、左右键快退快进步长、自定义布局、弹幕屏蔽等丰富的自定义设置项。
+- **细致的系统设置**：包括播放结束动作、左右键快退快进步长、自定义布局、弹幕过滤等丰富的自定义设置项。
 - **DLNA 投屏**：适配 Bilibili 官方投屏（包含直播）及 piliplus，可突破b站官方投屏清晰度限制；以及通用DLNA投屏（在 115 网盘、yamby 上测试通过）。
 - **Cookies 导入导出**：调整为文件导入导出，便于多台电视或设备间迁移登录状态。
 

@@ -233,6 +233,13 @@ object Prefs {
     var cloudDanmakuFilterRegexes by pref(PrefKeys.prefCloudDanmakuFilterRegexesKey, "")
     var cloudDanmakuFilterUserHashes by pref(PrefKeys.prefCloudDanmakuFilterUserHashesKey, "")
     var enableDanmakuFilterWebConfig by pref(PrefKeys.prefEnableDanmakuFilterWebConfigKey, false)
+    var danmakuFilterDeduplicateEnabled by pref(PrefKeys.prefDanmakuFilterDeduplicateEnabledKey, false)
+    var danmakuFilterDeduplicateThreshold by pref(PrefKeys.prefDanmakuFilterDeduplicateThresholdKey, 5)
+    var danmakuFilterDeduplicateMergeDiffType by pref(PrefKeys.prefDanmakuFilterDeduplicateMergeDiffTypeKey, false)
+    var danmakuFilterDeduplicatePassSubtitle by pref(PrefKeys.prefDanmakuFilterDeduplicatePassSubtitleKey, true)
+    var danmakuFilterDeduplicatePassSpecial by pref(PrefKeys.prefDanmakuFilterDeduplicatePassSpecialKey, true)
+    var danmakuFilterDeduplicatePassBottom by pref(PrefKeys.prefDanmakuFilterDeduplicatePassBottomKey, true)
+    var danmakuFilterDeduplicatePassTop by pref(PrefKeys.prefDanmakuFilterDeduplicatePassTopKey, true)
     // =========================================================================
     // 播放器 - 字幕
     // =========================================================================
@@ -543,6 +550,13 @@ private object PrefKeys {
     val prefCloudDanmakuFilterRegexesKey = stringPreferencesKey("cloud_danmaku_filter_regexes")
     val prefCloudDanmakuFilterUserHashesKey = stringPreferencesKey("cloud_danmaku_filter_user_hashes")
     val prefEnableDanmakuFilterWebConfigKey = booleanPreferencesKey("enable_danmaku_filter_web_config")
+    val prefDanmakuFilterDeduplicateEnabledKey = booleanPreferencesKey("danmaku_filter_deduplicate_enabled")
+    val prefDanmakuFilterDeduplicateThresholdKey = intPreferencesKey("danmaku_filter_deduplicate_threshold")
+    val prefDanmakuFilterDeduplicateMergeDiffTypeKey = booleanPreferencesKey("danmaku_filter_deduplicate_merge_diff_type")
+    val prefDanmakuFilterDeduplicatePassSubtitleKey = booleanPreferencesKey("danmaku_filter_deduplicate_pass_subtitle")
+    val prefDanmakuFilterDeduplicatePassSpecialKey = booleanPreferencesKey("danmaku_filter_deduplicate_pass_special")
+    val prefDanmakuFilterDeduplicatePassBottomKey = booleanPreferencesKey("danmaku_filter_deduplicate_pass_bottom")
+    val prefDanmakuFilterDeduplicatePassTopKey = booleanPreferencesKey("danmaku_filter_deduplicate_pass_top")
 
     // 播放器 - 字幕
     val prefDefaultSubtitleFontSizeKey = intPreferencesKey("dsfs")

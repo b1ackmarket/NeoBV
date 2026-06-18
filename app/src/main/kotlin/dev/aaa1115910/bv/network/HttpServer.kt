@@ -740,7 +740,7 @@ object HttpServer {
                         status = HttpStatusCode.Forbidden
                     )
                 }
-                val uid = currentDanmakuFilterUid()
+                currentDanmakuFilterUid()
                     ?: return@post call.respondText(
                         text = """{"error":"请先登录 B 站账号"}""",
                         contentType = ContentType.Application.Json,
@@ -756,8 +756,15 @@ object HttpServer {
                         status = HttpStatusCode.InternalServerError
                     )
                 }
-                cacheCloudDanmakuFilterRules(uid, rules)
-                Prefs.syncCloudDanmakuFilter = true
+
+                val cloudKeywords = rules.filter { it.type == 0 && !it.isDeleted && it.filter.isNotBlank() }.joinToString("\n") { it.filter.trim() }
+                val cloudRegexes = rules.filter { it.type == 1 && !it.isDeleted && it.filter.isNotBlank() }.joinToString("\n") { it.filter.trim() }
+                val cloudUserHashes = rules.filter { it.type == 2 && !it.isDeleted && it.filter.isNotBlank() }.joinToString("\n") { it.filter.trim() }
+
+                Prefs.localDanmakuFilterKeywords = dev.aaa1115910.bv.danmaku.mergeLineLists(Prefs.localDanmakuFilterKeywords, cloudKeywords)
+                Prefs.localDanmakuFilterRegexes = dev.aaa1115910.bv.danmaku.mergeLineLists(Prefs.localDanmakuFilterRegexes, cloudRegexes)
+                Prefs.localDanmakuFilterUserHashes = dev.aaa1115910.bv.danmaku.mergeLineLists(Prefs.localDanmakuFilterUserHashes, cloudUserHashes)
+
                 call.respondText(
                     text = """{"success":true,"count":${rules.size},"config":${readDanmakuFilterConfigFromPrefs().toJson()}}""",
                     contentType = ContentType.Application.Json
@@ -816,11 +823,17 @@ object HttpServer {
         return buildString {
             append('{')
             append("\"enabled\":").append(enabled).append(',')
-            append("\"syncCloudRules\":").append(syncCloudRules).append(',')
             append("\"caseSensitive\":").append(caseSensitive).append(',')
             append("\"localKeywords\":\"").append(jsonEscape(localKeywords)).append("\",")
             append("\"localRegexes\":\"").append(jsonEscape(localRegexes)).append("\",")
             append("\"localUserHashes\":\"").append(jsonEscape(localUserHashes)).append("\",")
+            append("\"deduplicateEnabled\":").append(deduplicateEnabled).append(',')
+            append("\"deduplicateThreshold\":").append(deduplicateThreshold).append(',')
+            append("\"deduplicateMergeDiffType\":").append(deduplicateMergeDiffType).append(',')
+            append("\"deduplicatePassSubtitle\":").append(deduplicatePassSubtitle).append(',')
+            append("\"deduplicatePassSpecial\":").append(deduplicatePassSpecial).append(',')
+            append("\"deduplicatePassBottom\":").append(deduplicatePassBottom).append(',')
+            append("\"deduplicatePassTop\":").append(deduplicatePassTop).append(',')
             append("\"login\":").append(currentDanmakuFilterUid() != null).append(',')
             append("\"uid\":").append(Prefs.uid.takeIf { it > 0L } ?: 0L).append(',')
             append("\"cloudSyncedAt\":").append(Prefs.cloudDanmakuFilterSyncedAt)
@@ -831,10 +844,9 @@ object HttpServer {
     private fun parseDanmakuFilterConfig(body: String): DanmakuFilterConfig? {
         val parsed = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull() ?: return null
         val current = readDanmakuFilterConfigFromPrefs()
+        val threshold = parsed["deduplicateThreshold"]?.jsonPrimitive?.intOrNull ?: current.deduplicateThreshold
         return DanmakuFilterConfig(
             enabled = parsed["enabled"]?.jsonPrimitive?.booleanOrNull ?: current.enabled,
-            syncCloudRules = parsed["syncCloudRules"]?.jsonPrimitive?.booleanOrNull
-                ?: current.syncCloudRules,
             caseSensitive = parsed["caseSensitive"]?.jsonPrimitive?.booleanOrNull
                 ?: current.caseSensitive,
             localKeywords = parsed["localKeywords"]?.jsonPrimitive?.contentOrNull?.take(12000)
@@ -842,7 +854,14 @@ object HttpServer {
             localRegexes = parsed["localRegexes"]?.jsonPrimitive?.contentOrNull?.take(12000)
                 ?: current.localRegexes,
             localUserHashes = parsed["localUserHashes"]?.jsonPrimitive?.contentOrNull?.take(12000)
-                ?: current.localUserHashes
+                ?: current.localUserHashes,
+            deduplicateEnabled = parsed["deduplicateEnabled"]?.jsonPrimitive?.booleanOrNull ?: current.deduplicateEnabled,
+            deduplicateThreshold = threshold.coerceIn(1, 10),
+            deduplicateMergeDiffType = parsed["deduplicateMergeDiffType"]?.jsonPrimitive?.booleanOrNull ?: current.deduplicateMergeDiffType,
+            deduplicatePassSubtitle = parsed["deduplicatePassSubtitle"]?.jsonPrimitive?.booleanOrNull ?: current.deduplicatePassSubtitle,
+            deduplicatePassSpecial = parsed["deduplicatePassSpecial"]?.jsonPrimitive?.booleanOrNull ?: current.deduplicatePassSpecial,
+            deduplicatePassBottom = parsed["deduplicatePassBottom"]?.jsonPrimitive?.booleanOrNull ?: current.deduplicatePassBottom,
+            deduplicatePassTop = parsed["deduplicatePassTop"]?.jsonPrimitive?.booleanOrNull ?: current.deduplicatePassTop
         )
     }
 
@@ -871,7 +890,7 @@ object HttpServer {
             <head>
               <meta charset="utf-8" />
               <meta name="viewport" content="width=device-width, initial-scale=1" />
-              <title>弹幕屏蔽</title>
+              <title>弹幕过滤</title>
               <style>
                 :root { color-scheme: dark; --bg:#101318; --panel:#181d25; --panel2:#202733; --text:#f4f7fb; --muted:#aeb8c8; --accent:#8ee6d1; --danger:#ff8a8a; --border:rgba(255,255,255,.12); }
                 * { box-sizing:border-box; }
@@ -895,15 +914,27 @@ object HttpServer {
             <body>
               <main>
                 <section>
-                  <h1>弹幕屏蔽</h1>
-                  <p>配置会在播放视频时应用。云端同步需要登录 B 站账号，缓存按账号区分；上传按钮会把本地关键词和正则写入当前账号的云端屏蔽词库。</p>
+                  <h1>弹幕过滤</h1>
+                  <p style="color:var(--danger);font-weight:bold;font-size:14px;margin:8px 0 0;line-height:1.45;">⚠️ 性能提示：启用弹幕屏蔽（尤其是包含大量正则和本地关键词匹配）会在起播视频时产生用于处理和匹配规则的计算延迟。</p>
+                  <p>配置会在播放视频时应用。云端同步需要登录 B 站账号；“同步云端到本地”将云端规则追加并去重保存到本地；“上传本地到云端”将<strong>覆写</strong>当前账号的云端过滤词库。</p>
                 </section>
                 <section class="grid">
                   <div class="card">
-                    <h2>基础</h2>
-                    <label><input id="enabled" type="checkbox"><span>启用弹幕屏蔽<small>关闭后本地和云端规则都不会生效。</small></span></label>
-                    <label><input id="syncCloudRules" type="checkbox"><span>应用 B 站云端屏蔽词<small>开启后播放时使用已同步的账号云端规则；缓存过期或账号变化时才会重新拉取。</small></span></label>
-                    <label><input id="caseSensitive" type="checkbox"><span>区分大小写<small>仅影响关键词和正则，本地规则每行一条。</small></span></label>
+                    <h2>弹幕屏蔽</h2>
+                    <label><input id="enabled" type="checkbox"><span>启用弹幕屏蔽<small>关闭后本地和云端的屏蔽规则都不会生效。</small></span></label>
+                    <label><input id="caseSensitive" type="checkbox"><span>区分大小写<small>开启后严格匹配大小写（如屏蔽词为'LOL'，弹幕中的'lol'不会被屏蔽）；关闭时忽略大小写。</small></span></label>
+                  </div>
+                  <div class="card">
+                    <h2>弹幕去重</h2>
+                    <label><input id="deduplicateEnabled" type="checkbox"><span>启用弹幕去重<small>合并时间及类型相近的重复弹幕。</small></span></label>
+                    <label style="align-items: center; justify-content: space-between;"><span>时间阈值<small>时间差在以下秒数之内的重复弹幕（范围 1-10 秒）：</small></span>
+                      <input id="deduplicateThreshold" type="number" min="1" max="10" style="width:70px;padding:6px;border:1px solid var(--border);border-radius:8px;background:var(--panel2);color:var(--text);margin-top:6px;font-size:14px;outline:none;">
+                    </label>
+                    <label><input id="deduplicateMergeDiffType" type="checkbox"><span>合并不同类型的弹幕<small>勾选后将合并不同类型的重复弹幕；默认不勾选。</small></span></label>
+                    <label><input id="deduplicatePassSubtitle" type="checkbox"><span>例外：放过字幕弹幕<small>放过特定字幕类型弹幕，不参与去重。</small></span></label>
+                    <label><input id="deduplicatePassSpecial" type="checkbox"><span>例外：放过高级弹幕<small>放过特定高级/特殊类型弹幕，不参与去重。</small></span></label>
+                    <label><input id="deduplicatePassBottom" type="checkbox"><span>例外：放过底部弹幕<small>放过底部类型弹幕，不参与去重。</small></span></label>
+                    <label><input id="deduplicatePassTop" type="checkbox"><span>例外：放过顶部弹幕<small>放过顶部类型弹幕，不参与去重。</small></span></label>
                   </div>
                   <div class="card">
                     <h2>本地关键词</h2>
@@ -926,7 +957,7 @@ object HttpServer {
                 </section>
               </main>
               <script>
-                const ids = ['enabled','syncCloudRules','caseSensitive','localKeywords','localRegexes','localUserHashes'];
+                const ids = ['enabled','caseSensitive','localKeywords','localRegexes','localUserHashes','deduplicateEnabled','deduplicateThreshold','deduplicateMergeDiffType','deduplicatePassSubtitle','deduplicatePassSpecial','deduplicatePassBottom','deduplicatePassTop'];
                 const el = (id) => document.getElementById(id);
                 let resultTimer = 0;
                 function showResult(text, error = false) {
@@ -951,10 +982,23 @@ object HttpServer {
                   if (!config.login) showResult('当前未登录 B 站账号，云端同步和上传不可用', true);
                 }
                 async function save(show = true) {
+                  const thresholdNode = el('deduplicateThreshold');
+                  if (thresholdNode) {
+                    const val = parseInt(thresholdNode.value, 10);
+                    if (isNaN(val) || val < 1 || val > 10) {
+                      showResult('时间阈值不合法（范围应为 1-10 秒）', true);
+                      return false;
+                    }
+                  }
                   const config = {};
                   ids.forEach(id => {
                     const node = el(id);
-                    config[id] = node.type === 'checkbox' ? node.checked : node.value;
+                    if (!node) return;
+                    if (node.type === 'checkbox') config[id] = node.checked;
+                    else if (node.type === 'number') {
+                      config[id] = parseInt(node.value, 10);
+                    }
+                    else config[id] = node.value;
                   });
                   const response = await fetch('/api/danmaku/config', {
                     method:'POST',
@@ -974,7 +1018,7 @@ object HttpServer {
                   if (!response.ok) return showResult(text, true);
                   const result = JSON.parse(text);
                   applyConfig(result.config);
-                  showResult('已同步 ' + (result.count || 0) + ' 条云端规则');
+                  showResult('已同步并合并 ' + (result.count || 0) + ' 条云端规则到本地');
                 }
                 async function uploadLocal() {
                   if (!await save(false)) return;
@@ -982,8 +1026,9 @@ object HttpServer {
                   const text = await response.text();
                   if (!response.ok) return showResult(text, true);
                   const result = JSON.parse(text);
-                  showResult('已上传 ' + (result.uploaded || 0) + ' 条本地规则');
+                  showResult('已上传并覆写 ' + (result.uploaded || 0) + ' 条规则到云端词库');
                 }
+
                 load().catch(error => showResult(String(error), true));
               </script>
             </body>
