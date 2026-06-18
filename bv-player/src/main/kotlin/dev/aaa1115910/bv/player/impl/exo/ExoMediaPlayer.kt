@@ -386,7 +386,31 @@ class ExoMediaPlayer(
             return if (rotation == 90 || rotation == 270) w else h
         }
 
+    private var lastLiveErrorRetryTime = 0L
+    private var liveErrorRetryCount = 0
+
     override fun onPlayerError(error: PlaybackException) {
+        val isLive = mPlayer?.isCurrentMediaItemLive == true || error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
+        if (isLive) {
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastLiveErrorRetryTime > 30000L) {
+                liveErrorRetryCount = 0
+            }
+            lastLiveErrorRetryTime = now
+            if (liveErrorRetryCount < 2) {
+                liveErrorRetryCount++
+                if (liveErrorRetryCount == 2) {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        android.widget.Toast.makeText(context, "直播卡顿，建议切换画质或播放线路", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+                mPlayer?.let { player ->
+                    player.seekToDefaultPosition()
+                    player.prepare()
+                }
+                return
+            }
+        }
         mPlayerEventListener?.onError(error)
     }
 

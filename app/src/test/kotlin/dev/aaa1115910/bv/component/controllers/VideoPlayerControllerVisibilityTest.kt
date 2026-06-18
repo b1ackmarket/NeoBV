@@ -9,6 +9,7 @@ class VideoPlayerControllerVisibilityTest {
     fun `immersive chapter bar shows when chapters exist and controllers are hidden`() {
         assertTrue(
             shouldShowImmersiveChapterBar(
+                showChapterBar = true,
                 hasChapters = true,
                 showClickableControllers = false,
                 showJumpModePausedInfoController = false,
@@ -21,6 +22,7 @@ class VideoPlayerControllerVisibilityTest {
     fun `immersive chapter bar hides while osd or seek preview is visible`() {
         assertFalse(
             shouldShowImmersiveChapterBar(
+                showChapterBar = true,
                 hasChapters = true,
                 showClickableControllers = true,
                 showJumpModePausedInfoController = false,
@@ -29,6 +31,7 @@ class VideoPlayerControllerVisibilityTest {
         )
         assertFalse(
             shouldShowImmersiveChapterBar(
+                showChapterBar = true,
                 hasChapters = true,
                 showClickableControllers = false,
                 showJumpModePausedInfoController = false,
@@ -42,6 +45,7 @@ class VideoPlayerControllerVisibilityTest {
         assertTrue(
             shouldShowImmersivePersistentSeek(
                 showPersistentSeek = true,
+                showChapterBar = true,
                 hasChapters = false,
                 showClickableControllers = false,
                 showJumpModePausedInfoController = false,
@@ -51,6 +55,7 @@ class VideoPlayerControllerVisibilityTest {
         assertFalse(
             shouldShowImmersivePersistentSeek(
                 showPersistentSeek = true,
+                showChapterBar = true,
                 hasChapters = true,
                 showClickableControllers = false,
                 showJumpModePausedInfoController = false,
@@ -60,6 +65,7 @@ class VideoPlayerControllerVisibilityTest {
         assertFalse(
             shouldShowImmersivePersistentSeek(
                 showPersistentSeek = true,
+                showChapterBar = true,
                 hasChapters = false,
                 showClickableControllers = true,
                 showJumpModePausedInfoController = false,

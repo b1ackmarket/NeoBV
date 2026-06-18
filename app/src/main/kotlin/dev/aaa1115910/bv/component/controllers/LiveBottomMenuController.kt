@@ -36,6 +36,8 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.util.LiveBottomOsdControl
 import dev.aaa1115910.bv.util.touchClick
 import kotlinx.coroutines.delay
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.input.InputMode
 
 data class LiveBottomMenuItem(
     val control: LiveBottomOsdControl,
@@ -49,16 +51,21 @@ fun LiveBottomMenuController(
     modifier: Modifier = Modifier,
     show: Boolean,
     items: List<LiveBottomMenuItem>,
+    quality: String? = null,
     onDismiss: () -> Unit
 ) {
     val itemFocusRequesters = remember(items.size) {
         List(items.size) { FocusRequester() }
     }
 
+    val inputModeManager = LocalInputModeManager.current
+
     LaunchedEffect(show) {
         if (show && items.isNotEmpty()) {
             delay(80)
-            runCatching { itemFocusRequesters.firstOrNull()?.requestFocus() }
+            if (inputModeManager.inputMode != InputMode.Touch) {
+                runCatching { itemFocusRequesters.firstOrNull()?.requestFocus() }
+            }
         }
     }
 
@@ -114,7 +121,7 @@ fun LiveBottomMenuController(
                             }
                             .touchClick(clickItem),
                         onClick = clickItem
-                    ) {
+                     ) {
                         Column(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -132,6 +139,21 @@ fun LiveBottomMenuController(
                         }
                     }
                 }
+            }
+
+            if (!quality.isNullOrBlank()) {
+                val formattedQuality = quality
+                    .replace("（", "\n（")
+                    .replace("(", "\n(")
+                Text(
+                    text = formattedQuality,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 8.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
             }
         }
     }

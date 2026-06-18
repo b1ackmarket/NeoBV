@@ -13,17 +13,18 @@ class DanmakuFilterConfigTest {
     fun `keyword regex and user hash rules block matching danmaku`() {
         val config = DanmakuFilterConfig(
             enabled = true,
-            syncCloudRules = true,
             localKeywords = "剧透",
             localRegexes = "第\\d+集",
             localUserHashes = "ffee0011"
         )
-        val cloudRules = listOf(
-            DanmakuFilterRuleData(type = 2, filter = "a1b2c3d4")
+        val cloudRule = DanmakuFilterRule(
+            type = DanmakuFilterRuleType.User,
+            value = "a1b2c3d4",
+            source = "cloud"
         )
         val matcher = DanmakuFilterMatcher(
             config = config,
-            rules = buildDanmakuFilterRules(config, cloudRules)
+            rules = buildDanmakuFilterRules(config) + listOf(cloudRule)
         )
 
         assertTrue(matcher.blocks(danmaku(text = "这有剧透")))
@@ -41,7 +42,7 @@ class DanmakuFilterConfigTest {
         )
         val matcher = DanmakuFilterMatcher(
             config = config,
-            rules = buildDanmakuFilterRules(config, emptyList())
+            rules = buildDanmakuFilterRules(config)
         )
 
         assertFalse(matcher.blocks(danmaku(text = "剧透", type = 5)))

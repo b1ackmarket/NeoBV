@@ -130,7 +130,7 @@
     <string name="player_controller_menu_danmaku_webmark_enabled">开启</string>
     <string name="player_controller_menu_item_dankamu_size">弹幕大小</string>
     <string name="player_controller_menu_item_danmaku_area">弹幕区域</string>
-    <string name="player_controller_menu_item_danmaku_switch">弹幕开关</string>
+    <string name="player_controller_menu_item_danmaku_switch">弹幕</string>
     <string name="player_controller_menu_item_danmaku_transparency">弹幕透明</string>
     <string name="player_controller_menu_item_resolution">分辨率</string>
     <string name="player_controller_menu_item_subtitle">CC 字幕</string>

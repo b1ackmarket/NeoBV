@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import dev.aaa1115910.bv.entity.live.LiveDefaultQuality
 
 data class LiveLineOption(
     val label: String,
@@ -445,21 +446,23 @@ object LiveStreamResolver {
     ): LiveMasterVariant? {
         if (source.masterVariants.isEmpty()) return null
         val currentQns = listOfNotNull(
-            source.playUrl.toQueryParamOrNull("qn")?.toIntOrNull(),
             source.currentQuality.takeIf { it > 0 }
+                ?: source.playUrl.toQueryParamOrNull("qn")?.toIntOrNull()
         ).distinct()
         if (currentQns.isNotEmpty()) {
             val qnMatchedVariants = source.masterVariants.filter { it.qn in currentQns }
             if (videoWidth > 0 && videoHeight > 0) {
                 qnMatchedVariants.firstOrNull { variant ->
-                    variant.width == videoWidth && variant.height == videoHeight
+                    (variant.width == videoWidth && variant.height == videoHeight) ||
+                    (variant.width == videoHeight && variant.height == videoWidth)
                 }?.let { return it }
             }
             qnMatchedVariants.firstOrNull()?.let { return it }
         }
         if (videoWidth > 0 && videoHeight > 0) {
             source.masterVariants.firstOrNull { variant ->
-                variant.width == videoWidth && variant.height == videoHeight
+                (variant.width == videoWidth && variant.height == videoHeight) ||
+                (variant.width == videoHeight && variant.height == videoWidth)
             }?.let { return it }
         }
         return null
@@ -485,9 +488,11 @@ object LiveStreamResolver {
         officialName: String?
     ): String {
         if (qn == QnOriginal && source.hasHighBitrateQuality()) return "高码率"
+        // 优先使用 masterVariant 的 display（最准确），其次根据 qn 查表得到标准名称。
+        // 不应 fallback 到 API 返回的 desc，因为它在竖屏等场景下可能不准确（如蓝光显示为"原画"）。
         return variantDisplay
             ?.takeIf { it.isNotBlank() }
-            ?: officialName?.takeIf { it.isNotBlank() }
+            ?: LiveDefaultQuality.fromQn(qn).displayName.takeIf { it.isNotBlank() && it != "-" }
             ?: qn.takeIf { it > 0 }?.toString()
             ?: ""
     }
@@ -837,6 +842,7 @@ private fun resolutionPrefix(width: Int, height: Int): String? {
     val maxSide = maxOf(width, height)
     val minSide = minOf(width, height)
     if (height > width) {
+        // B站官方对竖屏直播的逻辑：竖屏画质级前缀上限为 1080P，不支持 2K/4K 等更高显示，以适配客户端显示限制
         return when {
             maxSide >= 1920 && minSide >= 1080 -> "1080P"
             maxSide >= 1280 && minSide >= 720 -> "720P"

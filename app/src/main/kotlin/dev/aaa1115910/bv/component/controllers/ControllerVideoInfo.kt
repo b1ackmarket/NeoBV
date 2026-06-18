@@ -33,6 +33,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
@@ -348,13 +350,17 @@ fun ControllerVideoInfoBottom(
             .coerceIn(0L, duration)
     }
 
+    val inputModeManager = LocalInputModeManager.current
+
     LaunchedEffect(show) {
         if (show) {
             delay(50)
-            try {
-                seekFocusRequester.requestFocus()
-            } catch (e: IllegalStateException) {
-                Log.d("ControllerVideoInfo", "requestFocus failed")
+            if (inputModeManager.inputMode != InputMode.Touch) {
+                try {
+                    seekFocusRequester.requestFocus()
+                } catch (e: IllegalStateException) {
+                    Log.d("ControllerVideoInfo", "requestFocus failed")
+                }
             }
         }
     }
@@ -561,7 +567,7 @@ fun ControllerVideoInfoBottom(
             if (!isExternalMedia) ControllerInfoButton(
                 control = PlayerBottomOsdControl.Danmaku,
                 iconRes = if (danmakuEnabled) R.drawable.danmaku_on_24px else R.drawable.danmaku_off_24px,
-                contentDescription = "弹幕开关",
+                contentDescription = "弹幕",
                 onClick = onDanmakuSwitchChange
             ) else null,
             if (!isExternalMedia) ControllerInfoButton(

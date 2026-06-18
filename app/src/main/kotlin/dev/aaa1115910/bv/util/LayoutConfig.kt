@@ -21,7 +21,7 @@ enum class LayoutConfigGroup(val id: String, val displayName: String) {
 
 enum class PlayerBottomOsdControl(val id: String, val label: String) {
     VideoList("videoList", "选集"),
-    Danmaku("danmaku", "弹幕开关"),
+    Danmaku("danmaku", "弹幕"),
     Subtitle("subtitle", "字幕"),
     JumpMode("jumpMode", "跳动模式"),
     VideoInfo("videoInfo", "视频信息"),
@@ -36,7 +36,7 @@ enum class PlayerBottomOsdControl(val id: String, val label: String) {
 enum class LiveBottomOsdControl(val id: String, val label: String) {
     PlayPause("playPause", "播放暂停"),
     Refresh("refresh", "刷新"),
-    Danmaku("danmaku", "弹幕开关"),
+    Danmaku("danmaku", "弹幕"),
     JumpMode("jumpMode", "跳动模式"),
     Comments("comments", "评论"),
     UpPage("upPage", "UP主页"),
