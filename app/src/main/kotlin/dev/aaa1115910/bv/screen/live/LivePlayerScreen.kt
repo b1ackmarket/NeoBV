@@ -1087,12 +1087,19 @@ fun LivePlayerScreen() {
                     var handled = false
                     var moved = false
                     var liveJumpCommitOffset = 0
+                    // 追踪 UP 事件是否被子组件（如展开的弹幕三级子面板）消费：
+                    // 当子组件消费了 UP，说明这次触摸由子组件处理完毕，外层不应再执行关闭逻辑。
+                    var upConsumedByChild = false
                     do {
                         val event = awaitPointerEvent()
                         val change = event.changes.firstOrNull { it.id == down.id } ?: continue
                         val delta = change.position - downPosition
                         if (abs(delta.x) > viewConfiguration.touchSlop || abs(delta.y) > viewConfiguration.touchSlop) {
                             moved = true
+                        }
+                        // 检测 UP 事件是否已被子组件消费
+                        if (!change.pressed && change.isConsumed) {
+                            upConsumedByChild = true
                         }
                         if (
                             (overlayAtDown == LiveOverlayPanel.None || overlayAtDown == LiveOverlayPanel.BottomMenu) &&
@@ -1130,7 +1137,8 @@ fun LivePlayerScreen() {
                         hideLiveJumpPreview()
                         return@awaitEachGesture
                     }
-                    if (!handled && !moved) {
+                    // upConsumedByChild：UP 已被子组件（如菜单项）处理，外层不再触发打开/关闭逻辑
+                    if (!handled && !moved && !upConsumedByChild) {
                         when (overlayAtDown) {
                             LiveOverlayPanel.None -> {
                                 if (activeOverlay == LiveOverlayPanel.None) {

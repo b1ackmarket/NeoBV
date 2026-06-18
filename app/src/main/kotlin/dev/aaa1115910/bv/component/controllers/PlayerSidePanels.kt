@@ -1,5 +1,6 @@
 package dev.aaa1115910.bv.component.controllers
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -194,6 +195,13 @@ fun PlayerSidePanels(
                         }
                     }
                 ) {
+                    // 触控设备按返回键时，如果评论楼层展开中，仅关闭楼层而不是整个评论面板
+                    BackHandler(
+                        enabled = activePanel == PlayerSidePanel.Comments &&
+                            commentPanelUiState.detailRootComment != null
+                    ) {
+                        onCloseCommentDetail()
+                    }
                     when (activePanel) {
                         PlayerSidePanel.RelatedVideos -> PlayerRelatedPanel(
                             videos = relatedVideos,

@@ -5,6 +5,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -34,6 +37,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -45,6 +49,7 @@ import dev.aaa1115910.bv.component.controllers.playermenu.component.RadioMenuLis
 import dev.aaa1115910.bv.repository.LiveLineOption
 import dev.aaa1115910.bv.repository.LiveQualityOption
 import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.util.touchClick
 import kotlinx.coroutines.delay
 
 enum class LiveMenuNavItem {
@@ -104,7 +109,19 @@ fun LiveMenuController(
         ) {
             key(openGeneration) {
                 Surface(
-                    modifier = Modifier.fillMaxHeight(),
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        // 消费所有触摸事件（DOWN + UP），防止事件穿透到外层全屏 pointerInput。
+                        // 注意：必须对 waitForUpOrCancellation() 的返回值调用 consume()，
+                        // 否则 UP 事件未被消费，外层 awaitEachGesture 仍能看到它并错误地关闭菜单。
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                down.consume()
+                                val up = waitForUpOrCancellation()
+                                up?.consume()
+                            }
+                        },
                     colors = SurfaceDefaults.colors(
                         containerColor = Color.Black.copy(alpha = 0.5f)
                     )
