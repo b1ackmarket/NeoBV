@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.component
 
 import android.view.KeyEvent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,8 +36,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -68,14 +71,19 @@ fun UserPanel(
 ) {
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
+    val inputModeManager = LocalInputModeManager.current
     var inIncognitoMode by remember { mutableStateOf(Prefs.incognitoMode) }
     var personalizedRecommendationEnabled by remember {
         mutableStateOf(Prefs.enablePersonalizedRecommendation)
     }
 
     LaunchedEffect(Unit) {
-        focusRequester.requestFocus(scope)
+        if (inputModeManager.inputMode != InputMode.Touch) {
+            focusRequester.requestFocus(scope)
+        }
     }
+
+    BackHandler(onBack = onHide)
 
     Box(
         modifier = modifier

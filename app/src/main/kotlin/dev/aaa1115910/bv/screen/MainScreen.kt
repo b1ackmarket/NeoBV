@@ -34,6 +34,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.SettingsActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
+import dev.aaa1115910.bv.util.touchClick
 import dev.aaa1115910.bv.component.UserPanel
 import dev.aaa1115910.bv.screen.main.HomeContent
 import dev.aaa1115910.bv.screen.main.LeftNaviContent
@@ -217,6 +218,7 @@ fun MainScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.6f))
+                        .touchClick { showUserPanel = false }
                 ) {
                     UserPanel(
                         modifier = Modifier

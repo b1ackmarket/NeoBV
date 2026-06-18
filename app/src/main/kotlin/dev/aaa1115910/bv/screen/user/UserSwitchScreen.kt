@@ -269,7 +269,8 @@ private fun UserSwitchContent(
             Button(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 64.dp),
+                    .padding(bottom = 64.dp)
+                    .touchClick { isInManagerMode = !isInManagerMode },
                 onClick = { isInManagerMode = !isInManagerMode }
             ) {
                 if (isInManagerMode) {
@@ -537,7 +538,8 @@ fun UserItem(
             ) {
                 Surface(
                     modifier = Modifier
-                        .size(80.dp),
+                        .size(80.dp)
+                        .touchClick(onClick),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = Color.DarkGray,
                         focusedContainerColor = Color.Gray
@@ -612,7 +614,8 @@ private fun AddUserItem(
         Surface(
             modifier = Modifier
                 .padding(18.dp)
-                .size(80.dp),
+                .size(80.dp)
+                .touchClick(onClick),
             colors = ClickableSurfaceDefaults.colors(
                 containerColor = Color.DarkGray,
                 focusedContainerColor = Color.Gray
