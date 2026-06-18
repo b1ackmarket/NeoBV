@@ -45,7 +45,14 @@ import dev.aaa1115910.bv.danmaku.currentDanmakuFilterUid
 import dev.aaa1115910.bv.danmaku.readDanmakuFilterConfigFromPrefs
 import dev.aaa1115910.bv.danmaku.shouldFetchCloudDanmakuFilterRules
 import dev.aaa1115910.bv.danmaku.summarizeDanmakuFilterRules
+import dev.aaa1115910.bv.danmaku.filterDanmakusWithDeduplicate
+import dev.aaa1115910.bv.danmaku.filterDanmakusWithDeduplicateXml
 import dev.aaa1115910.bv.entity.Audio
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.floatOrNull
+import kotlinx.serialization.json.contentOrNull
 
 import dev.aaa1115910.bv.entity.PlayerCommentEmote
 import dev.aaa1115910.bv.entity.PlayerCommentItem
@@ -378,6 +385,17 @@ private fun AutoNextTarget.toVideoListItem(): VideoListItem {
     }
 }
 
+data class AdvancedDanmaku(
+    val id: Long,
+    val text: String,
+    val startMs: Long,
+    val endMs: Long,
+    val xRatio: Float,
+    val yRatio: Float,
+    val color: Int,
+    val fontSize: Float
+)
+
 @KoinViewModel
 
 class VideoPlayerV3ViewModel(
@@ -392,6 +410,9 @@ class VideoPlayerV3ViewModel(
         private set
     var danmakuPlayer: DanmakuPlayer? by mutableStateOf(null)
         private set
+    var activeAdvancedDanmakus by mutableStateOf<List<AdvancedDanmaku>>(emptyList())
+        private set
+    private var allAdvancedDanmakus: List<AdvancedDanmaku> = emptyList()
     /** 原始弹幕列表（仅过滤关键词/用户，未经密度采样），用于密度变化时重新采样 */
     private var rawDanmakuList: List<DanmakuItemData> = emptyList()
     private var reloadDanmakuJob: Job? = null
@@ -2343,10 +2364,9 @@ class VideoPlayerV3ViewModel(
 
         val list = runCatching {
             val filterConfig = readDanmakuFilterConfigFromPrefs()
-            val cloudRules = loadCloudDanmakuFilterRules(filterConfig)
-            val rules = buildDanmakuFilterRules(filterConfig, cloudRules)
+            val rules = buildDanmakuFilterRules(filterConfig)
             val filterMatcher = DanmakuFilterMatcher(filterConfig, rules)
-            val summary = summarizeDanmakuFilterRules(filterConfig, cloudRules)
+            val summary = summarizeDanmakuFilterRules(filterConfig)
             var blockedCount = 0
 
             val durationMs = withContext(Dispatchers.Main) { videoPlayer?.duration }?.takeIf { it > 0 }
@@ -2358,13 +2378,23 @@ class VideoPlayerV3ViewModel(
             val firstSegmentList = videoPlayRepository.getSegmentDanmakus(aid, cid, firstSegmentDuration)
             logger.fWarn { "DANMAKU_LOAD_DEBUG: firstSegmentList size=${firstSegmentList.size}" }
 
+            allAdvancedDanmakus = emptyList()
+            activeAdvancedDanmakus = emptyList()
+
             val mappedDanmakus = if (firstSegmentList.isNotEmpty()) {
                 logger.fInfo { "Loaded ${firstSegmentList.size} danmakus from first segment successfully." }
-                val initialMapped = firstSegmentList.asSequence().filterNot {
-                    val blocked = filterMatcher.blocks(it.content, it.midHash)
-                    if (blocked) blockedCount++
-                    blocked
-                }.map {
+                
+                var initialNormals = emptyList<bilibili.community.service.dm.v1.DanmakuElem>()
+                var initialAdvanceds = emptyList<AdvancedDanmaku>()
+                
+                processDanmakusAndExtractAdvanced(firstSegmentList, filterConfig, filterMatcher) { normals, advs ->
+                    initialNormals = normals
+                    initialAdvanceds = advs
+                }
+                
+                allAdvancedDanmakus = initialAdvanceds
+                
+                val initialMapped = initialNormals.map {
                     DanmakuItemData(
                         danmakuId = it.id,
                         position = it.progress.toLong(),
@@ -2377,7 +2407,7 @@ class VideoPlayerV3ViewModel(
                         textSize = it.fontsize,
                         textColor = 0xFF000000.toInt() or it.color.toInt()
                     )
-                }.toList()
+                }
 
                 // 2. 开启后台协程静默加载剩余的分段弹幕并追加合并
                 val totalSegmentCount = (durationMs / 360000.0).let { Math.ceil(it).toInt() }.coerceAtLeast(1)
@@ -2392,12 +2422,17 @@ class VideoPlayerV3ViewModel(
                         
                         if (allSegments.isNotEmpty()) {
                             val combinedElems = firstSegmentList + allSegments
-                            var bgBlockedCount = 0
-                            val combinedMapped = combinedElems.asSequence().filterNot {
-                                val blocked = filterMatcher.blocks(it.content, it.midHash)
-                                if (blocked) bgBlockedCount++
-                                blocked
-                            }.map {
+                            var combinedNormals = emptyList<bilibili.community.service.dm.v1.DanmakuElem>()
+                            var combinedAdvanceds = emptyList<AdvancedDanmaku>()
+                            
+                            processDanmakusAndExtractAdvanced(combinedElems, filterConfig, filterMatcher) { normals, advs ->
+                                combinedNormals = normals
+                                combinedAdvanceds = advs
+                            }
+                            
+                            allAdvancedDanmakus = combinedAdvanceds
+                            
+                            val combinedMapped = combinedNormals.map {
                                 DanmakuItemData(
                                     danmakuId = it.id,
                                     position = it.progress.toLong(),
@@ -2410,7 +2445,7 @@ class VideoPlayerV3ViewModel(
                                     textSize = it.fontsize,
                                     textColor = 0xFF000000.toInt() or it.color.toInt()
                                 )
-                            }.toList()
+                            }
                             
                             withContext(Dispatchers.Main) {
                                 rawDanmakuList = combinedMapped
@@ -2427,11 +2462,18 @@ class VideoPlayerV3ViewModel(
                 logger.fWarn { "Failed to load danmakus from gRPC or empty, fallback to legacy XML API" }
                 val xmlData = BiliHttpApi.getDanmakuXml(cid = cid, sessData = Prefs.sessData).data
                 logger.fWarn { "DANMAKU_LOAD_DEBUG: xmlData size=${xmlData.size}" }
-                xmlData.asSequence().filterNot {
-                    val blocked = filterMatcher.blocks(it.text, it.midHash)
-                    if (blocked) blockedCount++
-                    blocked
-                }.map {
+                
+                var xmlNormals = emptyList<dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData>()
+                var xmlAdvanceds = emptyList<AdvancedDanmaku>()
+                
+                processDanmakusAndExtractAdvancedXml(xmlData, filterConfig, filterMatcher) { normals, advs ->
+                    xmlNormals = normals
+                    xmlAdvanceds = advs
+                }
+                
+                allAdvancedDanmakus = xmlAdvanceds
+                
+                val mappedXml = xmlNormals.map {
                     DanmakuItemData(
                         danmakuId = it.dmid,
                         position = (it.time * 1000).toLong(),
@@ -2444,7 +2486,8 @@ class VideoPlayerV3ViewModel(
                         textSize = it.size,
                         textColor = 0xFF000000.toInt() or it.color
                     )
-                }.toList()
+                }
+                mappedXml
             }
 
             mappedDanmakus.also {
@@ -2624,20 +2667,6 @@ class VideoPlayerV3ViewModel(
         oldPlayer.release()
     }
 
-
-    private suspend fun loadCloudDanmakuFilterRules(
-        config: DanmakuFilterConfig
-    ): List<dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuFilterRuleData> {
-        if (!config.enabled || !config.syncCloudRules) return emptyList()
-        val uid = currentDanmakuFilterUid() ?: return emptyList()
-        if (!shouldFetchCloudDanmakuFilterRules()) return emptyList()
-        return runCatching {
-            videoPlayRepository.getDanmakuFilterRules()
-                .also { cacheCloudDanmakuFilterRules(uid, it) }
-        }.onFailure {
-            logger.fWarn { "Load cloud danmaku filters failed: ${it.message}" }
-        }.getOrDefault(emptyList())
-    }
 
     private suspend fun updateSubtitle() {
         val state = _uiState.value
@@ -2976,6 +3005,7 @@ class VideoPlayerV3ViewModel(
             )
         }
         maybePreloadCustomSubtitleTranslation(currentPos)
+        activeAdvancedDanmakus = allAdvancedDanmakus.filter { currentPos in it.startMs..it.endMs }
     }
 
     private fun resetWatchedProgress(positionMs: Long = 0L) {
@@ -3460,4 +3490,98 @@ sealed interface MediaProfileSettingAction {
     data class SetQuality(val value: Int) : MediaProfileSettingAction
     data class SetVideoCodec(val value: VideoCodec) : MediaProfileSettingAction
     data class SetAudio(val value: Audio) : MediaProfileSettingAction
+}
+
+private fun tryParseAdvancedDanmaku(
+    dmid: Long,
+    content: String,
+    positionMs: Long,
+    color: Int,
+    fontSize: Int
+): AdvancedDanmaku? {
+    val trimmed = content.trim()
+    if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return null
+    return runCatching {
+        val array = Json.parseToJsonElement(trimmed).jsonArray
+        if (array.size >= 5) {
+            val xVal = array[0].jsonPrimitive.floatOrNull ?: 0f
+            val yVal = array[1].jsonPrimitive.floatOrNull ?: 0f
+            val durationSec = array[3].jsonPrimitive.floatOrNull ?: 4f
+            val text = array[4].jsonPrimitive.contentOrNull ?: ""
+            
+            val xRatio = (if (xVal > 1f) xVal / 800f else xVal).coerceIn(0f, 1f)
+            val yRatio = (if (yVal > 1f) yVal / 600f else yVal).coerceIn(0f, 1f)
+            
+            AdvancedDanmaku(
+                id = dmid,
+                text = text,
+                startMs = positionMs,
+                endMs = positionMs + (durationSec * 1000).toLong(),
+                xRatio = xRatio,
+                yRatio = yRatio,
+                color = 0xFF000000.toInt() or color,
+                fontSize = fontSize.toFloat()
+            )
+        } else null
+    }.getOrNull()
+}
+
+private fun processDanmakusAndExtractAdvanced(
+    danmakus: List<bilibili.community.service.dm.v1.DanmakuElem>,
+    filterConfig: DanmakuFilterConfig,
+    filterMatcher: DanmakuFilterMatcher,
+    onResult: (normalDanmakus: List<bilibili.community.service.dm.v1.DanmakuElem>, advancedDanmakus: List<AdvancedDanmaku>) -> Unit
+) {
+    val filtered = danmakus.filterNot {
+        filterMatcher.blocks(it.content, it.midHash)
+    }
+    
+    val advancedList = mutableListOf<AdvancedDanmaku>()
+    val normalList = mutableListOf<bilibili.community.service.dm.v1.DanmakuElem>()
+    
+    filtered.forEach { elem ->
+        if (elem.mode == 7) {
+            val adv = tryParseAdvancedDanmaku(elem.id, elem.content, elem.progress.toLong(), elem.color.toInt(), elem.fontsize)
+            if (adv != null) {
+                advancedList.add(adv)
+            } else {
+                normalList.add(elem)
+            }
+        } else {
+            normalList.add(elem)
+        }
+    }
+    
+    val deduplicated = filterDanmakusWithDeduplicate(filterConfig, normalList)
+    onResult(deduplicated, advancedList)
+}
+
+private fun processDanmakusAndExtractAdvancedXml(
+    danmakus: List<dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData>,
+    filterConfig: DanmakuFilterConfig,
+    filterMatcher: DanmakuFilterMatcher,
+    onResult: (normalDanmakus: List<dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData>, advancedDanmakus: List<AdvancedDanmaku>) -> Unit
+) {
+    val filtered = danmakus.filterNot {
+        filterMatcher.blocks(it.text, it.midHash)
+    }
+    
+    val advancedList = mutableListOf<AdvancedDanmaku>()
+    val normalList = mutableListOf<dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData>()
+    
+    filtered.forEach { elem ->
+        if (elem.type == 7) {
+            val adv = tryParseAdvancedDanmaku(elem.dmid, elem.text, (elem.time * 1000).toLong(), elem.color, elem.size)
+            if (adv != null) {
+                advancedList.add(adv)
+            } else {
+                normalList.add(elem)
+            }
+        } else {
+            normalList.add(elem)
+        }
+    }
+    
+    val deduplicated = filterDanmakusWithDeduplicateXml(filterConfig, normalList)
+    onResult(deduplicated, advancedList)
 }

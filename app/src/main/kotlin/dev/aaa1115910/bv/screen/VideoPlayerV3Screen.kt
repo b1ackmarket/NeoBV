@@ -3,6 +3,8 @@ package dev.aaa1115910.bv.screen
 import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +23,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.bv.component.DanmakuPlayerCompose
@@ -407,6 +411,51 @@ fun VideoPlayerV3Screen(
                     ),
                 danmakuPlayer = danmakuPlayer
             )
+            AdvancedDanmakuOverlay(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(uiState.danmakuState.opacity)
+                    .ifElse(
+                        { uiState.danmakuState.maskEnabled },
+                        Modifier.danmakuMask(currentDanmakuMaskFrame, aspectRatio)
+                    ),
+                activeDanmakus = playerViewModel.activeAdvancedDanmakus
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdvancedDanmakuOverlay(
+    modifier: Modifier = Modifier,
+    activeDanmakus: List<dev.aaa1115910.bv.viewmodel.player.AdvancedDanmaku>
+) {
+    BoxWithConstraints(modifier = modifier) {
+        val width = maxWidth
+        val height = maxHeight
+
+        activeDanmakus.forEach { danmaku ->
+            val xOffset = width * danmaku.xRatio
+            val yOffset = height * danmaku.yRatio
+
+            Box(
+                modifier = Modifier
+                    .absoluteOffset(x = xOffset, y = yOffset)
+            ) {
+                androidx.compose.material3.Text(
+                    text = danmaku.text,
+                    color = Color(danmaku.color),
+                    fontSize = danmaku.fontSize.sp,
+                    fontWeight = FontWeight.Bold,
+                    style = androidx.compose.ui.text.TextStyle(
+                        shadow = androidx.compose.ui.graphics.Shadow(
+                            color = Color.Black,
+                            offset = androidx.compose.ui.geometry.Offset(2f, 2f),
+                            blurRadius = 4f
+                        )
+                    )
+                )
+            }
         }
     }
 }
