@@ -15,6 +15,7 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -109,6 +110,23 @@ fun LiveContent(
     var showSubCategoryPopup by remember { mutableStateOf(false) }
     val loginFocusRequester = remember { FocusRequester() }
     val firstRoomFocusRequester = remember { FocusRequester() }
+
+    val shouldLoadMore = remember {
+        derivedStateOf {
+            val lastVisibleItem = gridState.layoutInfo.visibleItemsInfo.lastOrNull()
+            lastVisibleItem != null && liveViewModel.rooms.isNotEmpty() &&
+                    lastVisibleItem.index + 8 >= gridState.layoutInfo.totalItemsCount
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore.value) {
+        if (shouldLoadMore.value) {
+            val lastVisibleItem = gridState.layoutInfo.visibleItemsInfo.lastOrNull()
+            if (lastVisibleItem != null) {
+                liveViewModel.loadMoreIfNeeded(lastVisibleItem.index)
+            }
+        }
+    }
 
     LaunchedEffect(liveViewModel.isLogin) {
         liveViewModel.onLoginStateChanged(liveViewModel.isLogin)
@@ -242,7 +260,6 @@ fun LiveContent(
                                     if (it.hasFocus) {
                                         isRoomGridFocused = true
                                         isSubCategoryRowFocused = false
-                                        liveViewModel.loadMoreIfNeeded(index)
                                     }
                                 }
                                 .ifElse(

@@ -18,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.pgc.PgcItem
@@ -47,6 +49,7 @@ fun PgcRankScreen(
     val context = LocalContext.current
     val gridState = rememberLazyGridState()
     val firstItemFocusRequester = remember { FocusRequester() }
+    val inputModeManager = LocalInputModeManager.current
     val items = remember { mutableStateListOf<PgcItem>() }
     var tip by remember { mutableStateOf("加载中…") }
 
@@ -69,7 +72,9 @@ fun PgcRankScreen(
         if (items.isNotEmpty()) {
             delay(50)
             runCatching { gridState.scrollToItem(0) }
-            firstItemFocusRequester.requestFocus(this)
+            if (inputModeManager.inputMode != InputMode.Touch) {
+                firstItemFocusRequester.requestFocus(this)
+            }
         }
     }
 

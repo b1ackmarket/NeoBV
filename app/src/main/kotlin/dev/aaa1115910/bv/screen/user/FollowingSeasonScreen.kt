@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -23,12 +25,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.OutlinedButton
@@ -61,6 +65,8 @@ fun FollowingSeasonScreen(
     val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger { }
     val firstCardFocusRequester = remember { FocusRequester() }
+    val inputModeManager = LocalInputModeManager.current
+    val gridState = rememberLazyGridState()
 
     var currentIndex by remember { mutableIntStateOf(0) }
     var showFilter by remember { mutableStateOf(false) }
@@ -69,6 +75,22 @@ fun FollowingSeasonScreen(
     var followingSeasonType by remember { mutableStateOf(followingSeasonViewModel.followingSeasonType) }
     var followingSeasonStatus by remember { mutableStateOf(followingSeasonViewModel.followingSeasonStatus) }
     val noMore = followingSeasonViewModel.noMore
+
+    // 用 derivedStateOf 监听滚动位置，兼容触控和遥控两种输入方式触发分页
+    val shouldLoadMore = remember {
+        derivedStateOf {
+            val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()
+            val total = gridState.layoutInfo.totalItemsCount
+            lastVisible != null && followingSeasons.isNotEmpty() && !noMore &&
+                    lastVisible.index + 18 >= total
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore.value) {
+        if (shouldLoadMore.value) {
+            followingSeasonViewModel.loadMore()
+        }
+    }
 
     val updateType: (FollowingSeasonType) -> Unit = {
         followingSeasonType = it
@@ -86,8 +108,9 @@ fun FollowingSeasonScreen(
         followingSeasonViewModel.loadMore()
     }
 
+    // 非触控模式下，列表加载后自动请求焦点
     LaunchedEffect(followingSeasons.size) {
-        if (requestInitialFocus && shouldRequestFollowingSeasonInitialFocus(followingSeasons.size)) {
+        if (requestInitialFocus && shouldRequestFollowingSeasonInitialFocus(followingSeasons.size) && inputModeManager.inputMode != InputMode.Touch) {
             firstCardFocusRequester.requestFocus(scope)
         }
     }
@@ -114,6 +137,7 @@ fun FollowingSeasonScreen(
         )
         TvLazyVerticalGrid(
             modifier = Modifier,
+            state = gridState,
             columns = GridCells.Fixed(6),
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
@@ -135,10 +159,6 @@ fun FollowingSeasonScreen(
                         ),
                         onFocus = {
                             currentIndex = index
-                            if (index + 30 > followingSeasons.size) {
-                                println("load more by focus")
-                                followingSeasonViewModel.loadMore()
-                            }
                         },
                         onClick = {
                             SeasonInfoActivity.actionStart(

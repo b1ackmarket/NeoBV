@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +33,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,23 +79,40 @@ fun PgcIndexScreen(
     val scope = rememberCoroutineScope()
     val launchState = remember(initialPgcType) { resolvePgcIndexLaunchState(initialPgcType) }
     val firstCardFocusRequester = remember { FocusRequester() }
+    val inputModeManager = LocalInputModeManager.current
+    val gridState = rememberLazyGridState()
 
     var currentSeasonIndex by remember { mutableIntStateOf(0) }
     var filterReloadsEnabled by remember(initialPgcType) { mutableStateOf(false) }
 
     val pgcItems = pgcIndexViewModel.indexResultItems
     val noMore = pgcIndexViewModel.noMore
-    var showFilter by remember { mutableStateOf(false) }
 
-    val reloadData: suspend () -> Unit = {
-        withContext(Dispatchers.IO) {
-            pgcIndexViewModel.reload()
+    val shouldLoadMore = remember {
+        derivedStateOf {
+            val lastVisibleItem = gridState.layoutInfo.visibleItemsInfo.lastOrNull()
+            val total = gridState.layoutInfo.totalItemsCount
+            lastVisibleItem != null && pgcItems.isNotEmpty() && !noMore &&
+                    lastVisibleItem.index + 12 >= total
         }
     }
 
-    LaunchedEffect(launchState) {
-        filterReloadsEnabled = false
-        pgcIndexViewModel.changePgcType(launchState.pgcType)
+    LaunchedEffect(shouldLoadMore.value) {
+        if (shouldLoadMore.value) {
+            pgcIndexViewModel.loadMore()
+        }
+    }
+
+    var showFilter by remember { mutableStateOf(false) }
+
+    val reloadData = {
+        pgcIndexViewModel.clearData()
+        scope.launch(Dispatchers.IO) { pgcIndexViewModel.loadMore() }
+    }
+
+    LaunchedEffect(Unit) {
+        pgcIndexViewModel.pgcType = launchState.pgcType
+        pgcIndexViewModel.indexOrder = launchState.indexOrder
         reloadData()
         filterReloadsEnabled = true
     }
@@ -99,13 +120,13 @@ fun PgcIndexScreen(
     LaunchedEffect(
         pgcIndexViewModel.indexOrder,
         pgcIndexViewModel.indexOrderType,
-        pgcIndexViewModel.seasonVersion,
-        pgcIndexViewModel.spokenLanguage,
         pgcIndexViewModel.area,
         pgcIndexViewModel.isFinish,
         pgcIndexViewModel.copyright,
         pgcIndexViewModel.seasonStatus,
         pgcIndexViewModel.seasonMonth,
+        pgcIndexViewModel.spokenLanguage,
+        pgcIndexViewModel.seasonVersion,
         pgcIndexViewModel.producer,
         pgcIndexViewModel.year,
         pgcIndexViewModel.releaseDate,
@@ -116,7 +137,9 @@ fun PgcIndexScreen(
     }
 
     LaunchedEffect(pgcItems.isNotEmpty()) {
-        if (pgcItems.isNotEmpty()) firstCardFocusRequester.requestFocus(scope)
+        if (pgcItems.isNotEmpty() && inputModeManager.inputMode != InputMode.Touch) {
+            firstCardFocusRequester.requestFocus(scope)
+        }
     }
 
     Scaffold(
@@ -151,6 +174,7 @@ fun PgcIndexScreen(
         }
     ) { innerPadding ->
         TvLazyVerticalGrid(
+            state = gridState,
             modifier = Modifier.padding(innerPadding),
             columns = rememberAdaptiveGridCells(defaultColumns = 6),
             contentPadding = PaddingValues(24.dp),
@@ -167,10 +191,6 @@ fun PgcIndexScreen(
                     data = SeasonCardData.fromPgcItem(pgcItem),
                     onFocus = {
                         currentSeasonIndex = index
-                        if (index + 30 > pgcItems.size) {
-                            println("load more by focus")
-                            scope.launch(Dispatchers.IO) { pgcIndexViewModel.loadMore() }
-                        }
                     },
                     onClick = {
                         SeasonInfoActivity.actionStart(
