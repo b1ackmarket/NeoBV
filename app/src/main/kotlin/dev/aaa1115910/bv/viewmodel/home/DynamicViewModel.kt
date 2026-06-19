@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.viewmodel.home
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -45,6 +46,10 @@ class DynamicViewModel(
 
     private var historyOffset: String? = null
     private var updateBaseline: String? = null
+
+    // 保存左侧 UP 主列表滚动位置，切回页面时恢复
+    var authorListScrollIndex by mutableIntStateOf(0)
+    var authorListScrollOffset by mutableIntStateOf(0)
     val isLogin get() = bvUserRepository.isLogin
     var selectedAuthor by mutableStateOf<String?>(null)
         private set

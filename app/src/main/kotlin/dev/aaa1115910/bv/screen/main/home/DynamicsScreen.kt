@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -80,10 +81,27 @@ fun DynamicsScreen(
     defaultFocusRequester: FocusRequester
 ) {
     val gridState = rememberLazyGridState()
+    val authorListState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val firstGridItemFocusRequester = remember { FocusRequester() }
     var gridReturnFocusIndex by remember { mutableIntStateOf(0) }
+
+    // 恢复上次离开时的滚动位置
+    LaunchedEffect(Unit) {
+        if (dynamicViewModel.authorListScrollIndex > 0) {
+            authorListState.scrollToItem(
+                dynamicViewModel.authorListScrollIndex,
+                dynamicViewModel.authorListScrollOffset
+            )
+        }
+    }
+
+    // 保存滚动位置到 ViewModel（以便下次恢复）
+    LaunchedEffect(authorListState.firstVisibleItemIndex, authorListState.firstVisibleItemScrollOffset) {
+        dynamicViewModel.authorListScrollIndex = authorListState.firstVisibleItemIndex
+        dynamicViewModel.authorListScrollOffset = authorListState.firstVisibleItemScrollOffset
+    }
     val selectedAuthor = dynamicViewModel.selectedAuthor
     val filteredDynamics = dynamicViewModel.filteredDynamicList
     val onLogin = remember(context) {
@@ -111,11 +129,6 @@ fun DynamicsScreen(
         dynamicViewModel.onLoginStateChanged(dynamicViewModel.isLogin)
     }
 
-    LaunchedEffect(selectedAuthor) {
-        gridReturnFocusIndex = 0
-        gridState.scrollToItem(0)
-    }
-
     LaunchedEffect(filteredDynamics.size) {
         gridReturnFocusIndex = gridReturnFocusIndex.coerceIn(
             0,
@@ -123,7 +136,7 @@ fun DynamicsScreen(
         )
     }
 
-    LaunchedEffect(gridState, selectedAuthor, dynamicViewModel.dynamicList.size) {
+    LaunchedEffect(gridState, selectedAuthor, dynamicViewModel.filteredDynamicList.size) {
         snapshotFlow {
             gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to
                 dynamicViewModel.filteredDynamicList.size
@@ -162,6 +175,7 @@ fun DynamicsScreen(
                 modifier = Modifier
                     .width(220.dp)
                     .fillMaxHeight(),
+                state = authorListState,
                 contentPadding = PaddingValues(vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
