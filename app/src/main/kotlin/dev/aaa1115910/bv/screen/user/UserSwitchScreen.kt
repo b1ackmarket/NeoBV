@@ -44,11 +44,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageBitmapConfig
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -338,9 +340,10 @@ fun UserMenuDialog(
     onShowUserLockSettings: (Long) -> Unit
 ) {
     val menuFocusRequester = remember { FocusRequester() }
+    val inputModeManager = LocalInputModeManager.current
 
     LaunchedEffect(show) {
-        if (show) {
+        if (show && inputModeManager.inputMode != InputMode.Touch) {
             menuFocusRequester.requestFocus()
         }
     }
@@ -756,7 +759,8 @@ private fun UserMenuButton(
     Button(
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp),
+            .height(48.dp)
+            .touchClick(onClick),
         shape = ButtonDefaults.shape(shape = MaterialTheme.shapes.medium),
         colors = if (color != null) ButtonDefaults.colors(containerColor = color) else ButtonDefaults.colors(),
         onClick = onClick
