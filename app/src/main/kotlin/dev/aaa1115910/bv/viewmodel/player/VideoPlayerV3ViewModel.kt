@@ -1229,7 +1229,21 @@ class VideoPlayerV3ViewModel(
                     Prefs.defaultDanmakuTypes = new.enabledTypes
                 }
             }
-            reloadDanmakuWithDensity(new.density)
+            // 当从「关闭」切换到「开启」时，如果当前视频的弹幕从未加载过
+            // （例如上个视频关掉了弹幕，导致新视频起播时 loadDanmaku 被跳过），
+            // 仅靠 reloadDanmakuWithDensity 无法显示弹幕，需要重新拉取当前视频弹幕。
+            val turningOn = old.enabledTypes.isEmpty() && new.enabledTypes.isNotEmpty()
+            if (turningOn && rawDanmakuList.isEmpty()) {
+                val avid = _uiState.value.aid
+                val cid = _uiState.value.cid
+                if (avid > 0 && cid > 0) {
+                    viewModelScope.launch(Dispatchers.IO) {
+                        loadDanmaku(avid, cid)
+                    }
+                }
+            } else {
+                reloadDanmakuWithDensity(new.density)
+            }
         }
 
         if (new.scale != old.scale) {
