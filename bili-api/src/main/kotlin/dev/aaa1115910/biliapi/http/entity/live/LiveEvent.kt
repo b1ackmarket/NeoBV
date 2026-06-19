@@ -27,3 +27,47 @@ data class SuperChatEvent(
     val price: Long,
     val eventTimeMs: Long = System.currentTimeMillis()
 ) : LiveEvent
+
+data class InteractEvent(
+    val uid: Long,
+    val username: String,
+    val action: Int,
+    val actionText: String,
+    val avatar: String? = null
+) : LiveEvent
+
+data class GiftEvent(
+    val uid: Long,
+    val username: String,
+    val giftName: String,
+    val num: Int,
+    val action: String
+) : LiveEvent
+
+data class GuardBuyEvent(
+    val uid: Long,
+    val username: String,
+    val guardLevel: Int,
+    val guardName: String,
+    val num: Int
+) : LiveEvent
+
+data class LikeEvent(
+    val uid: Long,
+    val username: String,
+    val likeText: String
+) : LiveEvent
+
+data class EntryEffectEvent(
+    val uid: Long,
+    val username: String,
+    val entryText: String
+) : LiveEvent
+
+data class ComboSendEvent(
+    val uid: Long,
+    val username: String,
+    val giftName: String,
+    val comboNum: Int,
+    val action: String
+) : LiveEvent

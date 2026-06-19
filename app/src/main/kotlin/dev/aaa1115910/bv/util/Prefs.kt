@@ -319,6 +319,7 @@ object Prefs {
     var showPersistentSeek by pref(PrefKeys.prefShowPersistentSeekKey, false)
     var showChapterBar by pref(PrefKeys.prefShowChapterBarKey, true)
     var showPlayerStats by pref(PrefKeys.prefShowPlayerStatsKey, false)
+    var showLiveChatFloatingWindow by pref(PrefKeys.prefShowLiveChatFloatingWindowKey, false)
     var receiveAlphaUpdates by pref(PrefKeys.prefReceiveAlphaUpdatesKey, false)
 
     // =========================================================================
@@ -594,6 +595,7 @@ private object PrefKeys {
     val prefShowPersistentSeekKey = booleanPreferencesKey("show_persistent_seek")
     val prefShowChapterBarKey = booleanPreferencesKey("show_chapter_bar")
     val prefShowPlayerStatsKey = booleanPreferencesKey("show_player_stats")
+    val prefShowLiveChatFloatingWindowKey = booleanPreferencesKey("show_live_chat_floating_window")
     val prefReceiveAlphaUpdatesKey = booleanPreferencesKey("receive_alpha_updates")
 
     // 应用界面

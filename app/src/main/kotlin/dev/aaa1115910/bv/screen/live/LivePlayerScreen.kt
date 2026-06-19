@@ -81,6 +81,30 @@ import dev.aaa1115910.biliapi.entity.user.SpaceVideoOrder
 import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.http.entity.live.DanmakuEvent
 import dev.aaa1115910.biliapi.http.entity.live.SuperChatEvent
+import dev.aaa1115910.biliapi.http.entity.live.InteractEvent
+import dev.aaa1115910.biliapi.http.entity.live.GiftEvent
+import dev.aaa1115910.biliapi.http.entity.live.GuardBuyEvent
+import dev.aaa1115910.biliapi.http.entity.live.LikeEvent
+import dev.aaa1115910.biliapi.http.entity.live.EntryEffectEvent
+import dev.aaa1115910.biliapi.http.entity.live.ComboSendEvent
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.border
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Arrangement
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.foundation.layout.size
 import dev.aaa1115910.biliapi.repositories.UserRepository
 import dev.aaa1115910.biliapi.websocket.LiveDataWebSocketDebugEvent
 import dev.aaa1115910.biliapi.websocket.LiveDataWebSocketState
@@ -183,6 +207,7 @@ fun LivePlayerScreen() {
     }
     var liveDanmakuSocketJob by remember { mutableStateOf<Job?>(null) }
     var liveChatMessages by remember { mutableStateOf<List<PlayerCommentItem>>(emptyList()) }
+    var liveChatFloatingVisible by remember { mutableStateOf(true) }
     var lastNonEmptyDanmakuTypes by remember {
         mutableStateOf(
             Prefs.defaultLiveDanmakuTypes.takeIf { it.isNotEmpty() } ?: DanmakuType.entries
@@ -268,7 +293,7 @@ fun LivePlayerScreen() {
     }
 
     fun appendLiveChatMessage(item: PlayerCommentItem): Boolean {
-        liveChatMessages = (liveChatMessages + item).takeLast(200)
+        liveChatMessages = (liveChatMessages + item).takeLast(80)
         return true
     }
 
@@ -611,8 +636,58 @@ fun LivePlayerScreen() {
                 }
 
                 is SuperChatEvent -> {
-                    liveScope.launch {
-                        appendLiveChatMessage(event.toLiveCommentItem())
+                    if (Prefs.showLiveChatFloatingWindow) {
+                        liveScope.launch {
+                            appendLiveChatMessage(event.toLiveCommentItem())
+                        }
+                    }
+                }
+
+                is InteractEvent -> {
+                    if (Prefs.showLiveChatFloatingWindow) {
+                        liveScope.launch {
+                            appendLiveChatMessage(event.toLiveCommentItem())
+                        }
+                    }
+                }
+
+                is GiftEvent -> {
+                    if (Prefs.showLiveChatFloatingWindow) {
+                        liveScope.launch {
+                            appendLiveChatMessage(event.toLiveCommentItem())
+                        }
+                    }
+                }
+
+                is GuardBuyEvent -> {
+                    if (Prefs.showLiveChatFloatingWindow) {
+                        liveScope.launch {
+                            appendLiveChatMessage(event.toLiveCommentItem())
+                        }
+                    }
+                }
+
+                is LikeEvent -> {
+                    if (Prefs.showLiveChatFloatingWindow) {
+                        liveScope.launch {
+                            appendLiveChatMessage(event.toLiveCommentItem())
+                        }
+                    }
+                }
+
+                is EntryEffectEvent -> {
+                    if (Prefs.showLiveChatFloatingWindow) {
+                        liveScope.launch {
+                            appendLiveChatMessage(event.toLiveCommentItem())
+                        }
+                    }
+                }
+
+                is ComboSendEvent -> {
+                    if (Prefs.showLiveChatFloatingWindow) {
+                        liveScope.launch {
+                            appendLiveChatMessage(event.toLiveCommentItem())
+                        }
                     }
                 }
             }
@@ -832,8 +907,10 @@ fun LivePlayerScreen() {
                             emptyList()
                         }
                         liveDanmakuState = liveDanmakuState.copy(enabledTypes = nextTypes)
+                        Prefs.defaultLiveDanmakuEnabled = nextTypes.isNotEmpty()
                         if (nextTypes.isNotEmpty()) {
                             lastNonEmptyDanmakuTypes = nextTypes
+                            Prefs.defaultLiveDanmakuTypes = nextTypes
                         }
                     }
                 }
@@ -1081,6 +1158,7 @@ fun LivePlayerScreen() {
                         }
                     }
                 }
+
             },
         contentAlignment = Alignment.Center
     ) {
@@ -1113,6 +1191,16 @@ fun LivePlayerScreen() {
                         .aspectRatio(liveAspectRatio),
                     controller = liveDanmakuSession.overlayController,
                     state = liveDanmakuState
+                )
+            }
+            if (Prefs.showLiveChatFloatingWindow && liveChatFloatingVisible) {
+                LiveChatFloatingWindow(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 0.dp, end = 0.dp, bottom = 0.dp)
+                        .fillMaxWidth(0.3f)
+                        .fillMaxHeight(),
+                    messages = liveChatMessages
                 )
             }
         }
@@ -1356,7 +1444,7 @@ fun LivePlayerScreen() {
                         } else {
                             R.drawable.danmaku_on_24px
                         },
-                        label = "弹幕开关"
+                        label = "弹幕"
                     ) {
                         val nextTypes = if (liveDanmakuState.enabledTypes.isEmpty()) {
                             lastNonEmptyDanmakuTypes.takeIf { it.isNotEmpty() } ?: DanmakuType.entries
@@ -1387,10 +1475,18 @@ fun LivePlayerScreen() {
                     add(
                     LiveBottomMenuItem(
                         control = LiveBottomOsdControl.Comments,
-                        iconRes = R.drawable.comment_24px,
+                        iconRes = if (Prefs.showLiveChatFloatingWindow) {
+                            if (liveChatFloatingVisible) R.drawable.comment_24px else R.drawable.comment_off_24px
+                        } else {
+                            R.drawable.comment_24px
+                        },
                         label = "评论"
                     ) {
-                        activeOverlay = LiveOverlayPanel.Comments
+                        if (Prefs.showLiveChatFloatingWindow) {
+                            liveChatFloatingVisible = !liveChatFloatingVisible
+                        } else {
+                            activeOverlay = LiveOverlayPanel.Comments
+                        }
                     }
                     )
                     if ((roomContext?.ownerMid ?: 0L) > 0L) {
@@ -1429,6 +1525,7 @@ fun LivePlayerScreen() {
                 LayoutConfig.applyLivePlayerBottomOsd(items = availableItems.map { it.control })
                     .mapNotNull(itemsByControl::get)
             },
+            quality = liveQualityMenuOptions.firstOrNull { it.qn == (playbackSource?.currentQuality ?: selectedQuality) }?.desc,
             onDismiss = {
                 activeOverlay = LiveOverlayPanel.None
             }
@@ -1788,3 +1885,272 @@ private fun String.removeSuffixIgnoreCase(suffix: String): String =
     } else {
         this
     }
+
+private fun InteractEvent.toLiveCommentItem(): PlayerCommentItem {
+    return PlayerCommentItem(
+        id = "interact-${System.currentTimeMillis()}-${uid}-${action}",
+        mid = uid,
+        username = username,
+        message = actionText,
+        timeText = System.currentTimeMillis().toLiveChatTimeText(),
+        badgeText = "进场",
+        color = 0x8EE6D1,
+        avatar = avatar.orEmpty()
+    )
+}
+
+private fun GiftEvent.toLiveCommentItem(): PlayerCommentItem {
+    return PlayerCommentItem(
+        id = "gift-${System.currentTimeMillis()}-${uid}-${giftName.hashCode()}",
+        mid = uid,
+        username = username,
+        message = "${action} ${giftName} x${num}",
+        timeText = System.currentTimeMillis().toLiveChatTimeText(),
+        badgeText = "礼物",
+        color = 0xFFFF8A8A.toInt()
+    )
+}
+
+private fun GuardBuyEvent.toLiveCommentItem(): PlayerCommentItem {
+    return PlayerCommentItem(
+        id = "guard-${System.currentTimeMillis()}-${uid}-${guardLevel}",
+        mid = uid,
+        username = username,
+        message = "开通了 ${guardName} x${num}",
+        timeText = System.currentTimeMillis().toLiveChatTimeText(),
+        badgeText = "上船",
+        color = 0x8EE6D1
+    )
+}
+
+private fun LikeEvent.toLiveCommentItem(): PlayerCommentItem {
+    return PlayerCommentItem(
+        id = "like-${System.currentTimeMillis()}-${uid}-${likeText.hashCode()}",
+        mid = uid,
+        username = username,
+        message = likeText,
+        timeText = System.currentTimeMillis().toLiveChatTimeText(),
+        badgeText = "点赞",
+        color = 0xFFFFE066.toInt()
+    )
+}
+
+private fun EntryEffectEvent.toLiveCommentItem(): PlayerCommentItem {
+    return PlayerCommentItem(
+        id = "entryeffect-${System.currentTimeMillis()}-${uid}",
+        mid = uid,
+        username = username,
+        message = entryText,
+        timeText = System.currentTimeMillis().toLiveChatTimeText(),
+        badgeText = "上船",
+        color = 0x8EE6D1
+    )
+}
+
+private fun ComboSendEvent.toLiveCommentItem(): PlayerCommentItem {
+    return PlayerCommentItem(
+        id = "combo-${System.currentTimeMillis()}-${uid}-${giftName.hashCode()}-${comboNum}",
+        mid = uid,
+        username = username,
+        message = "连击${action}了 ${giftName} x${comboNum}",
+        timeText = System.currentTimeMillis().toLiveChatTimeText(),
+        badgeText = "礼物",
+        color = 0xFFFF8A8A.toInt()
+    )
+}
+
+@Composable
+fun LiveChatFloatingWindow(
+    modifier: Modifier = Modifier,
+    messages: List<PlayerCommentItem>
+) {
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.scrollToItem(messages.size - 1)
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .padding(8.dp)
+    ) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            userScrollEnabled = false
+        ) {
+            items(messages, key = { it.id }) { item ->
+                LiveChatItem(item = item)
+            }
+        }
+    }
+}
+
+@Composable
+fun LiveChatItem(item: PlayerCommentItem) {
+    val emotes = remember(item.emotes) {
+        item.emotes
+            .filter { it.text.isNotBlank() && it.url.isNotBlank() }
+            .distinctBy { it.text }
+            .sortedByDescending { it.text.length }
+    }
+
+    val inlineContent = remember(emotes) {
+        emotes.mapIndexed { index, emote ->
+            val textSize = 18.sp
+            val imageSize = 18.dp
+            emote.inlineId(index) to InlineTextContent(
+                placeholder = Placeholder(
+                    width = textSize,
+                    height = textSize,
+                    placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+                )
+            ) {
+                AsyncImage(
+                    modifier = Modifier.size(imageSize),
+                    model = emote.url,
+                    contentDescription = emote.text,
+                    contentScale = ContentScale.Fit
+                )
+            }
+        }.toMap()
+    }
+
+    val annotatedMessage = remember(item.message, emotes) {
+        buildAnnotatedString {
+            var cursor = 0
+            while (cursor < item.message.length) {
+                val next = emotes.mapIndexedNotNull { index, emote ->
+                    val start = item.message.indexOf(emote.text, startIndex = cursor)
+                    if (start >= 0) Triple(start, index, emote) else null
+                }.minByOrNull { it.first }
+
+                if (next == null) {
+                    append(item.message.substring(cursor))
+                    cursor = item.message.length
+                } else {
+                    val (start, index, emote) = next
+                    if (start > cursor) append(item.message.substring(cursor, start))
+                    appendInlineContent(emote.inlineId(index), emote.text)
+                    cursor = start + emote.text.length
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Row(
+            modifier = Modifier
+                .background(Color.Black.copy(alpha = 0.42f), shape = RoundedCornerShape(20.dp))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (item.avatar.isNotBlank()) {
+                AsyncImage(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape),
+                    model = item.avatar,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .background(Color.White.copy(alpha = 0.12f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = item.username.ifBlank { "?" }.take(1),
+                        color = Color.White.copy(alpha = 0.72f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            if (!item.badgeText.isNullOrBlank()) {
+                val badgeColor = when (item.badgeText) {
+                    "SC" -> Color(0xFFFFB84D)
+                    "点赞" -> Color(0xFFFFE066)
+                    "礼物" -> Color(0xFFFF8A8A)
+                    "进场" -> Color(0xFFAEB8C8)
+                    "上船" -> Color(0xFF8EE6D1)
+                    else -> Color(0xFF8EE6D1)
+                }
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = badgeColor.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .border(
+                            width = 0.5.dp,
+                            color = badgeColor.copy(alpha = 0.4f),
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .padding(horizontal = 4.dp, vertical = 0.5.dp)
+                ) {
+                    Text(
+                        text = item.badgeText,
+                        color = badgeColor,
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            val nameColor = when (item.badgeText) {
+                "SC" -> Color(0xFFFFB84D)
+                "点赞" -> Color(0xFFFFE066)
+                "礼物" -> Color(0xFFFF8A8A)
+                "进场" -> Color(0xFFAEB8C8)
+                "上船" -> Color(0xFF8EE6D1)
+                else -> Color(0xFF8EE6D1)
+            }
+
+            val messageColor = when (item.badgeText) {
+                "SC" -> Color(0xFFFFD59A)
+                "点赞" -> Color(0xFFFFF0B3)
+                "礼物" -> Color(0xFFFFB3B3)
+                "进场" -> Color(0xFFC0CAD9)
+                "上船" -> Color(0xFFB3F0E3)
+                else -> Color.White
+            }
+
+            val annotatedText = buildAnnotatedString {
+                withStyle(style = SpanStyle(color = nameColor, fontWeight = FontWeight.Bold)) {
+                    append("@${item.username}")
+                }
+                append(": ")
+                withStyle(style = SpanStyle(color = messageColor)) {
+                    append(annotatedMessage)
+                }
+            }
+
+            Text(
+                text = annotatedText,
+                inlineContent = inlineContent,
+                fontSize = 13.sp,
+                lineHeight = 16.sp,
+                style = androidx.compose.ui.text.TextStyle(
+                    shadow = androidx.compose.ui.graphics.Shadow(
+                        color = Color.Black,
+                        offset = androidx.compose.ui.geometry.Offset(1f, 1f),
+                        blurRadius = 2f
+                    )
+                )
+            )
+        }
+    }
+}
+
+private fun dev.aaa1115910.bv.entity.PlayerCommentEmote.inlineId(index: Int): String = "comment_emote_$index"

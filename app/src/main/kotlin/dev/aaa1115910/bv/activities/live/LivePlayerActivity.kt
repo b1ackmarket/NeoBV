@@ -12,6 +12,7 @@ import dev.aaa1115910.bv.cast.CastPlaybackSnapshot
 import dev.aaa1115910.bv.cast.CastTransportState
 import dev.aaa1115910.bv.screen.live.LivePlayerScreen
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.Prefs
 
 class LivePlayerActivity : ImmersiveComponentActivity() {
     @Volatile
@@ -49,7 +50,7 @@ class LivePlayerActivity : ImmersiveComponentActivity() {
                 state = CastTransportState.PLAYING,
                 roomId = intent.getIntExtra("room_id", 0).toLong(),
                 title = intent.getStringExtra("title").orEmpty(),
-                danmakuEnabled = intent.getBooleanExtra("danmaku_enabled", true)
+                danmakuEnabled = Prefs.defaultLiveDanmakuEnabled
             )
     }
 
@@ -67,7 +68,6 @@ class LivePlayerActivity : ImmersiveComponentActivity() {
                     putExtra("title", title)
                     putExtra("up_name", upName)
                     putExtra("online", online)
-                    putExtra("danmaku_enabled", true)
                 }
             )
         }

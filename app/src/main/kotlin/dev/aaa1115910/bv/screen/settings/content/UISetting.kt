@@ -72,6 +72,7 @@ fun UISetting(
     var showVideoInfo by remember { mutableStateOf(Prefs.showVideoInfo) }
     var showPersistentSeek by remember { mutableStateOf(Prefs.showPersistentSeek) }
     var showChapterBar by remember { mutableStateOf(Prefs.showChapterBar) }
+    var showLiveChatFloatingWindow by remember { mutableStateOf(Prefs.showLiveChatFloatingWindow) }
     var enableFocusPreview by remember { mutableStateOf(Prefs.enableFocusPreview) }
     var enableFocusPreviewMuted by remember { mutableStateOf(Prefs.enableFocusPreviewMuted) }
     var enableLayoutWebConfig by remember { mutableStateOf(Prefs.enableLayoutWebConfig) }
@@ -156,6 +157,17 @@ fun UISetting(
                         onCheckedChange = {
                             showChapterBar = it
                             Prefs.showChapterBar = it
+                        }
+                    )
+                }
+                item {
+                    SettingSwitchListItem(
+                        title = "直播聊天透明浮窗",
+                        supportText = "将直播间评论替换为透明胶囊浮窗样式，实时展示聊天、礼物、进场等消息。新样式较为占用性能",
+                        checked = showLiveChatFloatingWindow,
+                        onCheckedChange = {
+                            showLiveChatFloatingWindow = it
+                            Prefs.showLiveChatFloatingWindow = it
                         }
                     )
                 }

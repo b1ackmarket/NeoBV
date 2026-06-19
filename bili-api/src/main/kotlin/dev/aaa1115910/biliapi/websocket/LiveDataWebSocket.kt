@@ -5,6 +5,12 @@ import dev.aaa1115910.biliapi.http.entity.live.DanmakuEvent
 import dev.aaa1115910.biliapi.http.entity.live.HostListItem
 import dev.aaa1115910.biliapi.http.entity.live.LiveEvent
 import dev.aaa1115910.biliapi.http.entity.live.SuperChatEvent
+import dev.aaa1115910.biliapi.http.entity.live.InteractEvent
+import dev.aaa1115910.biliapi.http.entity.live.GiftEvent
+import dev.aaa1115910.biliapi.http.entity.live.GuardBuyEvent
+import dev.aaa1115910.biliapi.http.entity.live.LikeEvent
+import dev.aaa1115910.biliapi.http.entity.live.EntryEffectEvent
+import dev.aaa1115910.biliapi.http.entity.live.ComboSendEvent
 import dev.aaa1115910.biliapi.http.util.brotliDecompress
 import dev.aaa1115910.biliapi.http.util.zlibDecompress
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -42,6 +48,9 @@ import kotlin.math.min
 object LiveDataWebSocket {
     private val logger = KotlinLogging.logger { }
     private val json = Json { ignoreUnknownKeys = true }
+
+    @Volatile
+    var dumpFilePath: String? = null
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.SECONDS)
@@ -241,7 +250,15 @@ object LiveDataWebSocket {
                     if (packet.version == VersionZlib || packet.version == VersionBrotli) {
                         result += parseLiveEvents(payload)
                     } else {
-                        parseLiveCommandEvent(payload.decodeToString())?.let { result += it }
+                        val str = payload.decodeToString()
+                        dumpFilePath?.let { path ->
+                            runCatching {
+                                val file = java.io.File(path)
+                                file.parentFile?.mkdirs()
+                                file.appendText(str + "\n")
+                            }
+                        }
+                        parseLiveCommandEvent(str)?.let { result += it }
                     }
                 }
 
@@ -267,8 +284,194 @@ object LiveDataWebSocket {
             "DANMU_MSG" -> parseDanmakuEvent(dataJson)
             "SUPER_CHAT_MESSAGE",
             "SUPER_CHAT_MESSAGE_JPN" -> parseSuperChatEvent(dataJson)
-            else -> null
+            "INTERACT_WORD" -> parseInteractEvent(dataJson)
+            "INTERACT_WORD_V2" -> parseInteractWordV2(dataJson)
+            "SEND_GIFT" -> parseGiftEvent(dataJson)
+            "GUARD_BUY" -> parseGuardBuyEvent(dataJson)
+            "LIKE_INFO_V3_CLICK" -> parseLikeEvent(dataJson)
+            "ENTRY_EFFECT" -> parseEntryEffectEvent(dataJson)
+            "COMBO_SEND" -> parseComboSendEvent(dataJson)
+            else -> {
+                logger.info { "LIVE_WS_UNKNOWN_CMD: cmd=$cmd body=$strData" }
+                null
+            }
         }
+    }
+
+    private fun parseLikeEvent(dataJson: JsonObject): LikeEvent? {
+        return runCatching {
+            val data = dataJson["data"]?.jsonObjectOrNull() ?: return null
+            val uid = data["uid"]?.jsonPrimitive?.longOrNull ?: 0L
+            val username = data["uname"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            val likeText = data["like_text"]?.jsonPrimitive?.contentOrNull.orEmpty().ifBlank { "给主播点了赞" }
+            LikeEvent(uid = uid, username = username, likeText = likeText)
+        }.getOrNull()
+    }
+
+    private fun parseEntryEffectEvent(dataJson: JsonObject): EntryEffectEvent? {
+        return runCatching {
+            val data = dataJson["data"]?.jsonObjectOrNull() ?: return null
+            val uid = data["uid"]?.jsonPrimitive?.longOrNull ?: 0L
+            val copyWriting = data["copy_writing"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            
+            val regex = "<%([^%]+)%>".toRegex()
+            val matchResult = regex.find(copyWriting)
+            val username = matchResult?.groupValues?.getOrNull(1).orEmpty()
+            val entryText = copyWriting.replace("欢迎 ", "").replace(regex, "").replace("\\s+".toRegex(), " ").trim()
+            
+            EntryEffectEvent(uid = uid, username = username, entryText = entryText)
+        }.getOrNull()
+    }
+
+    private fun parseInteractWordV2(dataJson: JsonObject): InteractEvent? {
+        return runCatching {
+            val data = dataJson["data"]?.jsonObjectOrNull() ?: return null
+            val pbBase64 = data["pb"]?.jsonPrimitive?.contentOrNull ?: return null
+            val bytes = java.util.Base64.getDecoder().decode(pbBase64)
+            val info = decodeInteractWordV2(bytes)
+            if (info.uname.isBlank()) return null
+            
+            val actionText = when (info.msgType) {
+                1 -> "进入直播间"
+                2 -> "关注了主播"
+                3 -> "分享了直播间"
+                4 -> "特别关注了主播"
+                else -> "进入直播间"
+            }
+            InteractEvent(uid = info.uid, username = info.uname, action = info.msgType, actionText = actionText, avatar = info.face)
+        }.getOrNull()
+    }
+
+    private fun parseComboSendEvent(dataJson: JsonObject): ComboSendEvent? {
+        return runCatching {
+            val data = dataJson["data"]?.jsonObjectOrNull() ?: return null
+            val uid = data["uid"]?.jsonPrimitive?.longOrNull ?: 0L
+            val username = data["uname"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            val giftName = data["gift_name"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            val comboNum = data["combo_num"]?.jsonPrimitive?.intOrNull ?: 1
+            val action = data["action"]?.jsonPrimitive?.contentOrNull ?: "投喂"
+            ComboSendEvent(uid = uid, username = username, giftName = giftName, comboNum = comboNum, action = action)
+        }.getOrNull()
+    }
+
+    private data class InteractV2Info(
+        val uid: Long = 0L,
+        val uname: String = "",
+        val msgType: Int = 1,
+        val face: String = ""
+    )
+
+    private fun decodeInteractWordV2(bytes: ByteArray): InteractV2Info {
+        var uid = 0L
+        var uname = ""
+        var msgType = 1
+        var face = ""
+
+        var offset = 0
+        while (offset < bytes.size) {
+            val key = readVarint(bytes, offset) ?: break
+            offset += key.second
+            val tag = (key.first ushr 3).toInt()
+            val wireType = (key.first and 7).toInt()
+            when (wireType) {
+                0 -> { // Varint
+                    val v = readVarint(bytes, offset) ?: break
+                    offset += v.second
+                    if (tag == 1) uid = v.first
+                    if (tag == 3) msgType = v.first.toInt()
+                }
+                1 -> offset += 8
+                2 -> { // Length-delimited
+                    val lenVal = readVarint(bytes, offset) ?: break
+                    offset += lenVal.second
+                    val len = lenVal.first.toInt()
+                    if (offset + len <= bytes.size) {
+                        val subBytes = bytes.copyOfRange(offset, offset + len)
+                        if (tag == 2) {
+                            uname = runCatching { subBytes.decodeToString() }.getOrDefault("")
+                        } else if (tag == 15 || tag == 16) {
+                            val subInfo = decodeInteractWordV2(subBytes)
+                            if (subInfo.face.isNotBlank()) face = subInfo.face
+                            if (uname.isBlank() && subInfo.uname.isNotBlank()) uname = subInfo.uname
+                            if (uid == 0L && subInfo.uid != 0L) uid = subInfo.uid
+                        } else {
+                            val str = runCatching { subBytes.decodeToString() }.getOrDefault("")
+                            if (str.startsWith("http://") || str.startsWith("https://")) {
+                                face = str
+                            }
+                        }
+                        offset += len
+                    } else {
+                        break
+                    }
+                }
+                5 -> offset += 4
+                else -> break
+            }
+        }
+        return InteractV2Info(uid = uid, uname = uname, msgType = msgType, face = face)
+    }
+
+    private fun readVarint(bytes: ByteArray, startOffset: Int): Pair<Long, Int>? {
+        var offset = startOffset
+        var value = 0L
+        var shift = 0
+        while (offset < bytes.size) {
+            val b = bytes[offset++].toInt()
+            value = value or ((b and 0x7F).toLong() shl shift)
+            if ((b and 0x80) == 0) {
+                return Pair(value, offset - startOffset)
+            }
+            shift += 7
+            if (shift >= 64) return null
+        }
+        return null
+    }
+
+    private fun parseInteractEvent(dataJson: JsonObject): InteractEvent? {
+        return runCatching {
+            val data = dataJson["data"]?.jsonObjectOrNull() ?: return null
+            val uid = data["uid"]?.jsonPrimitive?.longOrNull ?: 0L
+            val username = data["uname"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            val msgType = data["msg_type"]?.jsonPrimitive?.intOrNull ?: 1
+            val actionText = when (msgType) {
+                1 -> "进入直播间"
+                2 -> "关注了主播"
+                3 -> "分享了直播间"
+                4 -> "特别关注了主播"
+                else -> "进入直播间"
+            }
+            InteractEvent(uid = uid, username = username, action = msgType, actionText = actionText)
+        }.getOrNull()
+    }
+
+    private fun parseGiftEvent(dataJson: JsonObject): GiftEvent? {
+        return runCatching {
+            val data = dataJson["data"]?.jsonObjectOrNull() ?: return null
+            val uid = data["uid"]?.jsonPrimitive?.longOrNull ?: 0L
+            val username = data["uname"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            val giftName = data["giftName"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            val num = data["num"]?.jsonPrimitive?.intOrNull ?: 1
+            val action = data["action"]?.jsonPrimitive?.contentOrNull ?: "送出"
+            GiftEvent(uid = uid, username = username, giftName = giftName, num = num, action = action)
+        }.getOrNull()
+    }
+
+    private fun parseGuardBuyEvent(dataJson: JsonObject): GuardBuyEvent? {
+        return runCatching {
+            val data = dataJson["data"]?.jsonObjectOrNull() ?: return null
+            val uid = data["uid"]?.jsonPrimitive?.longOrNull ?: 0L
+            val username = data["username"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            val guardLevel = data["guard_level"]?.jsonPrimitive?.intOrNull ?: 3
+            val num = data["num"]?.jsonPrimitive?.intOrNull ?: 1
+            val guardName = when (guardLevel) {
+                1 -> "总督"
+                2 -> "提督"
+                3 -> "舰长"
+                else -> "大航海"
+            }
+            GuardBuyEvent(uid = uid, username = username, guardLevel = guardLevel, guardName = guardName, num = num)
+        }.getOrNull()
     }
 
     private fun parseDanmakuEvent(dataJson: JsonObject): DanmakuEvent? {
